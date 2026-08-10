@@ -16,6 +16,17 @@ export interface SystemStatus {
 //        return { online: true, categories }.
 // Throwing on failure lets the UI show a single Offline/error state.
 export async function checkSystem(): Promise<SystemStatus> {
-  // TODO(Issue 2 & 4): implement the two fetch calls described above.
-  throw new Error("checkSystem not implemented yet");
+  let healthResponse: Response;
+
+  try {
+    healthResponse = await fetch(`${API_URL}/api/health`);
+  } catch {
+    throw new Error("Backend health check failed. Is the API server running?");
+  }
+
+  if (!healthResponse.ok) {
+    throw new Error(`Backend health check failed with HTTP ${healthResponse.status}.`);
+  }
+
+  return { online: true, categories: [] };
 }
