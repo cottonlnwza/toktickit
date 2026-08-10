@@ -28,5 +28,19 @@ export async function checkSystem(): Promise<SystemStatus> {
     throw new Error(`Backend health check failed with HTTP ${healthResponse.status}.`);
   }
 
-  return { online: true, categories: [] };
+  let categoriesResponse: Response;
+
+  try {
+    categoriesResponse = await fetch(`${API_URL}/api/categories`);
+  } catch {
+    throw new Error("Category list request failed. Is the API server running?");
+  }
+
+  if (!categoriesResponse.ok) {
+    throw new Error(`Category list request failed with HTTP ${categoriesResponse.status}.`);
+  }
+
+  const categories = (await categoriesResponse.json()) as Category[];
+
+  return { online: true, categories };
 }

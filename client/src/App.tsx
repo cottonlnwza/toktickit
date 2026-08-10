@@ -34,7 +34,6 @@ export default function App() {
         {state === "loading" ? "Loading…" : "Check System"}
       </button>
 
-      {/* TODO(Issue 4): render loading / success (Online + categories) / error (Offline) states. */}
       {state === "loading" && (
         <div className="alert alert-info mt-4" role="status">
           Checking backend health…
@@ -43,7 +42,12 @@ export default function App() {
 
       {state === "success" && (
         <div className="alert alert-success mt-4" role="status">
-          Online: backend health check passed.
+          <p className="mb-2">Online: backend health check passed.</p>
+          <ul className="mb-0">
+            {categories.map((category) => (
+              <li key={category.id}>{category.name}</li>
+            ))}
+          </ul>
         </div>
       )}
 
