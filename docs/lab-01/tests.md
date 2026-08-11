@@ -10,6 +10,50 @@ All test files live under server/tests/lab-01/ and client/tests/lab-01/.
 | 4 | Vitest | Check System success state shows Online and the expected category list | Passed |
 | 5 | Vitest | Check System failure state shows Offline and a useful error message | Passed |
 
+## Test Files and Coverage
+
+### Server
+
+#### `server/tests/lab-01/health.test.ts`
+
+This test verifies:
+
+- `GET /api/health`
+- HTTP 200 response
+- response contains `status: "ok"`
+- response contains `service: "TokTickIT API"`
+
+#### `server/tests/lab-01/categories.test.ts`
+
+This test verifies:
+
+- `GET /api/categories`
+- HTTP 200 response
+- exactly four seeded categories are returned
+- categories are returned in predictable id order
+- each category contains numeric `id` and string `name`
+- expected category names:
+  - Account and Access
+  - Hardware
+  - Software
+  - Network
+
+### Client
+
+#### `client/tests/lab-01/App.test.tsx`
+
+The existing Vitest tests verify:
+
+- TokTickIT heading renders
+- successful Check System flow shows Online state
+- successful flow displays the expected four categories
+- failed API request shows Offline state
+- a useful error message is displayed when the API is unavailable
+
+## Verification Approach
+
+Automated tests were run on the final `main` branch and were followed by production builds for both server and client. The final application behavior was also manually checked for backend available -> Online + four categories and backend unavailable -> Offline + useful error message.
+
 ## Verified Results On Final main
 
 ### Server
