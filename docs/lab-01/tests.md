@@ -74,6 +74,10 @@ Tests: 2 passed
 Build: tsc passed
 ```
 
+Evidence:
+
+![Server test and build evidence](<../../pic/pic_lab1/Screenshot 2569-08-12 at 23.23.31.png>)
+
 ### Client
 
 Command:
@@ -91,3 +95,7 @@ Test Files: 1 passed
 Tests: 3 passed
 Build: tsc && vite build passed
 ```
+
+Evidence:
+
+![Final test documentation and terminal evidence](<../../pic/pic_lab1/Screenshot 2569-08-12 at 23.23.43.png>)

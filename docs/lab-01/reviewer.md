@@ -42,6 +42,7 @@ GitHub username ของ reviewer คนแรกเขียนไม่ตร
 แนะนำให้ตรวจสอบว่า Final PR จาก lab1-staging → main ถูกบันทึกในหลักฐาน PR สำหรับรายงานเรียบร้อยแล้ว
 หลังจากแก้ส่วน Peer Review Evidence ครบแล้ว ส่วนอื่นของ PR พร้อมสำหรับการ Approve ครับ>
 Chartanat upthaipiboon , Chxtamos
+
 Partner's response: <1.ไม่อยากแสดง Student ID ใน Public Repository เพื่อป้องกันการเปิดเผยข้อมูลส่วนบุคคล โดยจะระบุเฉพาะในไฟล์ PDF ที่ส่งผ่านระบบรายวิชาเท่านั้น
 2.เเก้ไขเรียบร้อยเเล้ว
 3.ในส่วน Partner response ไม่จำเป็นต้องใส่ก็ได้
