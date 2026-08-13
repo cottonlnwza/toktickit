@@ -12,12 +12,32 @@
 | [#5](https://github.com/cottonlnwza/toktickit/pull/5) | feature/3-category-seed | APPROVED |
 | [#7](https://github.com/cottonlnwza/toktickit/pull/7) | feature/4-category-list | APPROVED |
 
-Reviewer comment I received: My partner approved the Issue #1-#4 PRs after checking the required implementation, tests, builds, database setup, and scope boundaries. On the final release PR [#8](https://github.com/cottonlnwza/toktickit/pull/8), the initial verdict was CHANGES_REQUESTED because the implementation was complete but the PR description needed a proper summary.
+Reviewer comment <client build / dev start ผ่าน
+server build / dev start ผ่าน
+Prisma validate / DB connect ผ่าน
+Vitest configured มี
+Supertest configured มี
+README มี
+.env ไม่ commit ผ่าน
+server health test → 501 ผ่านสำหรับissue1>
 
-How I responded: I updated the final PR description with Issue #1-#4 summaries, final server/client test and build verification, Online category-list behavior, Offline error behavior, and the `lab1-staging` -> `main` integration path. The final release PR was then approved.
+How I responded: <ได้ทำการmergeเข้ากับlab1-staging เรียบร้อยแล้วครับ>
 
 ## Pull Requests I reviewed for my partner
+My comment: <* Client build และ dev server สามารถทำงานได้ตามปกติ
+* Server build และ dev server สามารถทำงานได้ตามปกติ
+* Prisma validation และการเชื่อมต่อฐานข้อมูลทำงานได้สำเร็จ
+* มีการตั้งค่า Vitest สำหรับการทดสอบฝั่ง Client
+* มีการตั้งค่า Supertest สำหรับการทดสอบฝั่ง Server
+* มีไฟล์ README สำหรับอธิบายการติดตั้งและใช้งานโปรเจกต์
+* ไฟล์ .env ไม่ถูก commit ขึ้น repository ตามหลักการจัดการข้อมูลสำคัญ
+* Server health test ได้ผลลัพธ์ HTTP 501 ซึ่งยอมรับได้สำหรับขอบเขตของ Issue #1 เนื่องจาก Health Check ยังไม่ได้ implement ในขั้นตอนนี้>
+Partner's response: <ได้ทำการmerge เรียบร้อยแล้วครับ>
 
-My comment: I reviewed my partner's final integration PR [#10](https://github.com/Tanaboonnnnn/toktickit/pull/10) from `lab1-staging` -> `main` as a COMMENT review. I checked the health API, categories API, Prisma category seed behavior, frontend Online/Offline states, automated tests, and README coverage. I raised documentation feedback about reviewer information consistency and confirming that the final PR was recorded as submission evidence.
 
-Partner's response: My partner responded that student IDs would be kept out of the public repository and included in the course PDF submission, the inconsistent GitHub username was corrected, and the final `lab1-staging` -> `main` PR would be used as report evidence.
+
+
+
+
+
+
