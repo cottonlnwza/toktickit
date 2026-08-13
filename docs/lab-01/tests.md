@@ -75,7 +75,7 @@ Build: tsc passed
 ```
 
 Evidence:
-
+Test #1 และ #2 ผ่าน
 ![Server test and build evidence](<../../pic/pic_lab1/Screenshot 2569-08-12 at 23.23.31.png>)
 
 ### Client
@@ -97,5 +97,5 @@ Build: tsc && vite build passed
 ```
 
 Evidence:
-
+Test #3 และ #4 และ #5 ผ่าน
 ![Final test documentation and terminal evidence](<../../pic/pic_lab1/Screenshot 2569-08-12 at 23.23.43.png>)
