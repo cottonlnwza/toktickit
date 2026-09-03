@@ -126,6 +126,7 @@ The implementation will extend the existing Prisma schema while preserving the L
 | `Ticket(requesterId, categoryId)` | Indexed | Category filter |
 | `Ticket(requesterId, relatedSystemId)` | Indexed | Related System filter |
 | `Ticket(requesterId, requestedPriority)` | Indexed | Priority filter/sort |
+| `Attachment.storedFilename` | Unique | Prevent stored-file path collisions |
 | `Attachment(ticketId, removedAt)` | Indexed | Active/removed Attachment list |
 
 ### Migration Decisions

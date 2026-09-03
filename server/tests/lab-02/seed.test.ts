@@ -14,8 +14,35 @@ describe("Lab 2 seed data", () => {
     await seedDatabase();
 
     const requiredCategoryNames = ["Account and Access", "Hardware", "Software", "Network"];
+    const expectedRelatedSystemNames = [
+      "Email",
+      "Campus Wi-Fi",
+      "VPN",
+      "LEB2 App",
+      "Grade Submission App",
+      "Printer",
+      "Corporate Laptop",
+    ];
+    const expectedRequesterEmails = [
+      "anong.student@example.test",
+      "burin.lecturer@example.test",
+      "chalida.staff@example.test",
+      "darin.researcher@example.test",
+      "inactive.requester@example.test",
+    ];
+
     for (const name of requiredCategoryNames) {
       const matches = await prisma.category.findMany({ where: { name } });
+      expect(matches).toHaveLength(1);
+    }
+
+    for (const name of expectedRelatedSystemNames) {
+      const matches = await prisma.relatedSystem.findMany({ where: { name } });
+      expect(matches).toHaveLength(1);
+    }
+
+    for (const email of expectedRequesterEmails) {
+      const matches = await prisma.requesterUser.findMany({ where: { email } });
       expect(matches).toHaveLength(1);
     }
 
