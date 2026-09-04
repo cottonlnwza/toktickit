@@ -47,6 +47,7 @@
 }
 
 .requester-panel,
+.ticket-panel,
 .system-check-panel {
   background: #ffffff;
   border: 1px solid #d8e6de;
@@ -57,20 +58,89 @@
   padding: 1.5rem;
 }
 
-.requester-panel h2 {
+.requester-panel h2,
+.ticket-panel h2 {
   color: #143326;
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 0.75rem;
 }
 
-.requester-panel p {
+.requester-panel p,
+.ticket-panel p {
   color: #355647;
 }
 
-.requester-panel .form-select:focus {
+.requester-panel .form-select:focus,
+.ticket-panel .form-control:focus,
+.ticket-panel .form-select:focus {
   border-color: #0b7a46;
   box-shadow: 0 0 0 0.25rem rgba(11, 122, 70, 0.2);
+}
+
+.readonly-field {
+  background: #eaf6ef;
+  border: 1px solid #c6dbcf;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 1rem 0;
+  padding: 0.9rem 1rem;
+}
+
+.ticket-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.attachment-help {
+  font-size: 0.9rem;
+  margin: 0.5rem 0 0;
+}
+
+.attachment-list {
+  display: grid;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.attachment-item {
+  align-items: center;
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: space-between;
+  padding: 0.75rem;
+  word-break: break-word;
+}
+
+.attachment-item.invalid,
+.attachment-item.failed {
+  border-color: #9b1c1c;
+  color: #7f1d1d;
+}
+
+.attachment-item.uploaded {
+  background: #eaf6ef;
+}
+
+.attachment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.ticket-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.5rem;
 }
 
 .required-marker {
@@ -93,7 +163,22 @@
   }
 
   .requester-panel,
+  .ticket-panel,
   .system-check-panel {
     padding: 1rem;
+  }
+
+  .ticket-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .attachment-item,
+  .ticket-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .attachment-actions {
+    justify-content: flex-start;
   }
 }
