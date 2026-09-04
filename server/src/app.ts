@@ -3,6 +3,7 @@ import cors from "cors";
 import { randomUUID } from "crypto";
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
+import { fileURLToPath } from "url";
 import { getPrisma } from "./prisma.js";
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
 // need the DB (Issue 4). It is intentionally unused until then.
@@ -19,6 +20,11 @@ const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 const maxActiveAttachments = 5;
 const supportedCategoryNames = ["Account and Access", "Hardware", "Software", "Network"];
+const moduleDirectory = path.dirname(fileURLToPath(import.meta.url));
+const serverRoot = path.basename(path.dirname(moduleDirectory)) === "dist"
+  ? path.resolve(moduleDirectory, "../..")
+  : path.resolve(moduleDirectory, "..");
+const uploadDirectory = path.join(serverRoot, "uploads", "lab-02");
 
 type RequestedPriorityInput = (typeof allowedPriorities)[number];
 
@@ -339,7 +345,6 @@ app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (re
     }
 
     const storedFilename = `${randomUUID()}${extension}`;
-    const uploadDirectory = path.join(process.cwd(), "server", "uploads", "lab-02");
     const storagePath = path.join(uploadDirectory, storedFilename);
 
     await mkdir(uploadDirectory, { recursive: true });

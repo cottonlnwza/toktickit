@@ -33,6 +33,7 @@ export interface CreateTicketRequest {
 export interface CreatedTicket extends CreateTicketRequest {
   id: number;
   ticketNumber: string;
+  createdAt: string;
   currentStatus: "NEW";
   currentStatusLabel: "New";
 }

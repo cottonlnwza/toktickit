@@ -40,6 +40,7 @@ export default function App() {
   const [ticketError, setTicketError] = useState("");
   const [referenceState, setReferenceState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [createdTicket, setCreatedTicket] = useState<CreatedTicket | null>(null);
+  const formDisabled = referenceState === "loading";
 
   useEffect(() => {
     if (requesterContext.selectedRequester && referenceState === "idle") {
@@ -373,7 +374,7 @@ export default function App() {
               </div>
               <div className="readonly-field compact">
                 <span className="form-label">Ticket Date</span>
-                <strong>{createdTicket ? new Date().toISOString().slice(0, 10) : "Generated after submit"}</strong>
+                <strong>{createdTicket ? createdTicket.createdAt.slice(0, 10) : "Generated after submit"}</strong>
               </div>
               <div className="readonly-field compact">
                 <span className="form-label">Current Status</span>
@@ -390,6 +391,7 @@ export default function App() {
                   id="ticket-category"
                   className={`form-select ${fieldErrors.categoryId ? "is-invalid" : ""}`}
                   value={categoryId}
+                  disabled={formDisabled}
                   onChange={(event) => setCategoryId(event.target.value)}
                 >
                   <option value="">Select category...</option>
@@ -410,6 +412,7 @@ export default function App() {
                   id="ticket-related-system"
                   className={`form-select ${fieldErrors.relatedSystemId ? "is-invalid" : ""}`}
                   value={relatedSystemId}
+                  disabled={formDisabled}
                   onChange={(event) => setRelatedSystemId(event.target.value)}
                 >
                   <option value="">Select related system...</option>
@@ -432,6 +435,7 @@ export default function App() {
                   id="ticket-priority"
                   className="form-select"
                   value={requestedPriority}
+                  disabled={formDisabled}
                   onChange={(event) => setRequestedPriority(event.target.value as Priority)}
                 >
                   <option value="LOW">Low</option>
@@ -449,6 +453,7 @@ export default function App() {
               id="ticket-summary"
               className={`form-control ${fieldErrors.summary ? "is-invalid" : ""}`}
               value={summary}
+              disabled={formDisabled}
               onChange={(event) => setSummary(event.target.value)}
             />
             {fieldErrors.summary && <div className="invalid-feedback d-block">{fieldErrors.summary}</div>}
@@ -461,6 +466,7 @@ export default function App() {
               className={`form-control ${fieldErrors.description ? "is-invalid" : ""}`}
               rows={5}
               value={description}
+              disabled={formDisabled}
               onChange={(event) => setDescription(event.target.value)}
             />
             {fieldErrors.description && <div className="invalid-feedback d-block">{fieldErrors.description}</div>}
@@ -473,6 +479,7 @@ export default function App() {
               className="form-control"
               type="file"
               multiple
+              disabled={formDisabled}
               onChange={(event) => handleAttachmentSelection(event.target.files)}
             />
             <p className="attachment-help">JPG, JPEG, PNG, WEBP, and PDF only. Max 5 MB each. Max five files.</p>
@@ -501,7 +508,7 @@ export default function App() {
             )}
 
             <div className="ticket-actions">
-              <button className="btn btn-outline-secondary" type="button" onClick={resetCreateTicketForm}>
+              <button className="btn btn-outline-secondary" type="button" disabled={formDisabled} onClick={resetCreateTicketForm}>
                 Cancel
               </button>
               <button

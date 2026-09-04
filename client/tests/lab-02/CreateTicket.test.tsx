@@ -126,6 +126,7 @@ describe("Create Ticket workflow", () => {
     vi.spyOn(api, "createTicket").mockResolvedValue({
       id: 10,
       ticketNumber: "TTK-20260904-0001",
+      createdAt: "2026-09-04T07:30:00.000Z",
       currentStatusLabel: "New",
     } as api.CreatedTicket);
     const user = await selectRequester();
@@ -138,6 +139,25 @@ describe("Create Ticket workflow", () => {
 
     expect(await screen.findByText(/Ticket created successfully/i)).toBeInTheDocument();
     expect(screen.getAllByText(/TTK-20260904-0001/i).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("2026-09-04")).toBeInTheDocument();
+  });
+
+  it("disables Create Ticket controls while reference data is loading", async () => {
+    mockRequester();
+    vi.spyOn(api, "getCategories").mockReturnValue(new Promise(() => undefined));
+    vi.spyOn(api, "getRelatedSystems").mockResolvedValue([{ id: 2, name: "Corporate Laptop" }]);
+
+    await selectRequester();
+
+    expect(await screen.findByText(/Loading Create Ticket reference data/i)).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /Category/i })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: /Related System/i })).toBeDisabled();
+    expect(screen.getByRole("combobox", { name: /Requested Priority/i })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: /Ticket Summary/i })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: /Description/i })).toBeDisabled();
+    expect(screen.getByLabelText(/Attachments/i)).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Cancel/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Submit Ticket/i })).toBeDisabled();
   });
 
   it("blocks duplicate submit while the first create request is processing", async () => {
@@ -164,6 +184,7 @@ describe("Create Ticket workflow", () => {
     vi.spyOn(api, "createTicket").mockResolvedValue({
       id: 10,
       ticketNumber: "TTK-20260904-0001",
+      createdAt: "2026-09-04T07:30:00.000Z",
       currentStatusLabel: "New",
     } as api.CreatedTicket);
     vi.spyOn(api, "uploadTicketAttachment").mockRejectedValue(new Error("Only JPG, JPEG, PNG, WEBP, and PDF files are allowed."));

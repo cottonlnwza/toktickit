@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { access, unlink } from "fs/promises";
+import path from "path";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
@@ -144,7 +145,83 @@ describe("Lab 2 Create Ticket API", () => {
 
     const attachment = await getPrisma().attachment.findUniqueOrThrow({ where: { id: res.body.id } });
     expect(attachment.ticketId).toBe(ticketRes.body.id);
+    expect(attachment.storagePath).toContain(`${path.sep}server${path.sep}uploads${path.sep}lab-02${path.sep}`);
     await expect(access(attachment.storagePath)).resolves.toBeUndefined();
+  });
+
+  it("rejects an attachment larger than 5 MB with a safe documented response", async () => {
+    const { category, relatedSystem, requester } = await getReferenceData();
+    const ticketRes = await request(app).post("/api/tickets").send({
+      requesterId: requester.id,
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      summary: "Oversized attachment ticket",
+      description: "Ticket for oversized attachment upload.",
+      requestedPriority: "MEDIUM",
+    });
+    if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
+
+    const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
+    const res = await request(app)
+      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+      .attach("file", Buffer.alloc(5 * 1024 * 1024 + 1), {
+        filename: "large-evidence.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(res.status).toBe(413);
+    expect(res.body).toEqual({
+      error: {
+        code: "FILE_TOO_LARGE",
+        message: "Attachment must be 5 MB or smaller.",
+      },
+    });
+    await expect(
+      getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } }),
+    ).resolves.toBe(before);
+  });
+
+  it("rejects a sixth active attachment with the documented attachment-limit response", async () => {
+    const { category, relatedSystem, requester } = await getReferenceData();
+    const ticketRes = await request(app).post("/api/tickets").send({
+      requesterId: requester.id,
+      categoryId: category.id,
+      relatedSystemId: relatedSystem.id,
+      summary: "Attachment limit ticket",
+      description: "Ticket for attachment limit enforcement.",
+      requestedPriority: "LOW",
+    });
+    if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
+
+    await getPrisma().attachment.createMany({
+      data: Array.from({ length: 5 }, (_, index) => ({
+        ticketId: ticketRes.body.id,
+        originalFilename: `existing-${index + 1}.pdf`,
+        storedFilename: `existing-${Date.now()}-${index + 1}.pdf`,
+        mimeType: "application/pdf",
+        sizeBytes: 10,
+        storagePath: path.join("server", "uploads", "lab-02", `existing-${index + 1}.pdf`),
+      })),
+    });
+    const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
+
+    const res = await request(app)
+      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+      .attach("file", Buffer.from("sixth"), {
+        filename: "sixth.pdf",
+        contentType: "application/pdf",
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "A Ticket may have at most five active attachments.",
+      },
+    });
+    await expect(
+      getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } }),
+    ).resolves.toBe(before);
   });
 
   it("rejects invalid create-time attachments without creating an active Attachment", async () => {
