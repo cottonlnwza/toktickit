@@ -7,9 +7,14 @@ import {
   getCategories,
   getMyTickets,
   getRelatedSystems,
+  getTicketDetail,
   MyTicketsQuery,
   MyTicketsResponse,
+  removeTicketAttachment,
   RelatedSystem,
+  TicketAttachment,
+  TicketDetail,
+  addTicketAttachment,
   uploadTicketAttachment,
 } from "./api.js";
 import { useRequesterContext } from "./requesterContext.js";
@@ -19,7 +24,7 @@ import "./App.css";
 type UiState = "idle" | "loading" | "success" | "error";
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 type AttachmentItem = { file: File; status: "pending" | "uploaded" | "failed" | "invalid"; message?: string };
-type AppView = "createTicket" | "myTickets";
+type AppView = "createTicket" | "myTickets" | "ticketDetail";
 
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
@@ -49,6 +54,16 @@ export default function App() {
   const [myTickets, setMyTickets] = useState<MyTicketsResponse | null>(null);
   const [myTicketsError, setMyTicketsError] = useState("");
   const [ticketDetailNotice, setTicketDetailNotice] = useState("");
+  const [selectedTicketId, setSelectedTicketId] = useState<number | null>(null);
+  const [ticketDetail, setTicketDetail] = useState<TicketDetail | null>(null);
+  const [ticketDetailState, setTicketDetailState] = useState<"idle" | "loading" | "success" | "notFound" | "error">("idle");
+  const [ticketDetailError, setTicketDetailError] = useState("");
+  const [ticketDetailReload, setTicketDetailReload] = useState(0);
+  const [detailUploadState, setDetailUploadState] = useState<"idle" | "uploading" | "error">("idle");
+  const [detailUploadError, setDetailUploadError] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<TicketAttachment | null>(null);
+  const [removalReason, setRemovalReason] = useState("");
+  const [removalError, setRemovalError] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState("");
   const [ticketSystemFilter, setTicketSystemFilter] = useState("");
@@ -116,6 +131,32 @@ export default function App() {
     ticketPageSize,
     myTicketsReload,
   ]);
+
+  useEffect(() => {
+    const requester = requesterContext.selectedRequester;
+    if (!requester || activeView !== "ticketDetail" || selectedTicketId === null) return;
+    let current = true;
+    setTicketDetailState("loading");
+    setTicketDetailError("");
+    void getTicketDetail(requester.id, selectedTicketId)
+      .then((detail) => {
+        if (!current) return;
+        setTicketDetail(detail);
+        setTicketDetailState("success");
+      })
+      .catch((error) => {
+        if (!current) return;
+        setTicketDetail(null);
+        const message = error instanceof Error ? error.message : "Unable to load Ticket Detail.";
+        if (/not.*found/i.test(message)) {
+          setTicketDetailState("notFound");
+        } else {
+          setTicketDetailError("Unable to load Ticket Detail. Please try again.");
+          setTicketDetailState("error");
+        }
+      });
+    return () => { current = false; };
+  }, [activeView, requesterContext.selectedRequester, selectedTicketId, ticketDetailReload]);
 
   async function handleCheck() {
     setState("loading");
@@ -316,6 +357,15 @@ export default function App() {
     setTicketSortDirection("desc");
     setTicketPage(1);
     setTicketPageSize(10);
+    setSelectedTicketId(null);
+    setTicketDetail(null);
+    setTicketDetailState("idle");
+    setTicketDetailError("");
+    setDetailUploadState("idle");
+    setDetailUploadError("");
+    setRemoveTarget(null);
+    setRemovalReason("");
+    setRemovalError("");
   }
 
   function clearMyTicketsFilters() {
@@ -328,7 +378,60 @@ export default function App() {
   }
 
   function handleOpenTicket(ticketId: number, ticketNumber: string) {
-    setTicketDetailNotice(`Ticket ${ticketNumber} selected (ID ${ticketId}). Ticket Detail will be available in the next workflow.`);
+    setTicketDetailNotice("");
+    setSelectedTicketId(ticketId);
+    setActiveView("ticketDetail");
+  }
+
+  async function handleDetailUpload(file: File | undefined) {
+    if (!file || !selectedRequester || !ticketDetail) return;
+    const extensionAllowed = allowedAttachmentExtensions.some((extension) => file.name.toLowerCase().endsWith(extension));
+    if (!extensionAllowed) {
+      setDetailUploadError("Only JPG, JPEG, PNG, WEBP, and PDF files are allowed.");
+      return;
+    }
+    if (file.size > maxAttachmentSizeBytes) {
+      setDetailUploadError("Attachment must be 5 MB or smaller.");
+      return;
+    }
+    setDetailUploadState("uploading");
+    setDetailUploadError("");
+    try {
+      const uploaded = await addTicketAttachment(selectedRequester.id, ticketDetail.id, file);
+      const attachment: TicketAttachment = {
+        ...uploaded,
+        state: "active",
+        downloadUrl: uploaded.downloadUrl,
+      };
+      setTicketDetail((current) => current ? { ...current, attachments: [...current.attachments, attachment] } : current);
+      setDetailUploadState("idle");
+    } catch (error) {
+      setDetailUploadState("error");
+      const message = error instanceof Error ? error.message : "";
+      const isValidationMessage = /Only JPG|5 MB or smaller|at most five active attachments/i.test(message);
+      setDetailUploadError(isValidationMessage ? message : "Unable to upload Attachment. Please retry.");
+    }
+  }
+
+  async function handleConfirmRemoval() {
+    if (!selectedRequester || !ticketDetail || !removeTarget) return;
+    const reason = removalReason.trim();
+    if (!reason) {
+      setRemovalError("Removal reason is required.");
+      return;
+    }
+    setRemovalError("");
+    try {
+      const removed = await removeTicketAttachment(selectedRequester.id, ticketDetail.id, removeTarget.id, reason);
+      setTicketDetail((current) => current ? {
+        ...current,
+        attachments: current.attachments.map((item) => item.id === removed.id ? removed : item),
+      } : current);
+      setRemoveTarget(null);
+      setRemovalReason("");
+    } catch {
+      setRemovalError("Unable to remove Attachment. Please try again.");
+    }
   }
 
   function handleChangeRequester() {
@@ -443,6 +546,95 @@ export default function App() {
             >
               Continue
             </button>
+          </section>
+        ) : activeView === "ticketDetail" ? (
+          <section className="ticket-detail-panel" aria-labelledby="ticket-detail-heading">
+            <button className="btn btn-outline-success mb-3" type="button" onClick={() => setActiveView("myTickets")}>Back to My Tickets</button>
+
+            {ticketDetailState === "loading" && <div className="alert alert-info" role="status">Loading Ticket Detail...</div>}
+            {ticketDetailState === "notFound" && <div className="alert alert-warning" role="alert">Ticket is unavailable or does not belong to the selected Requester.</div>}
+            {ticketDetailState === "error" && (
+              <div className="alert alert-danger" role="alert">
+                {ticketDetailError}{" "}
+                <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setTicketDetailReload((value) => value + 1)}>Retry</button>
+              </div>
+            )}
+
+            {ticketDetailState === "success" && ticketDetail && (
+              <>
+                <div className="ticket-detail-heading">
+                  <div><h2 id="ticket-detail-heading">Ticket Detail</h2><p>Requester-owned ticket information is read-only.</p></div>
+                  <span className="ticket-badge status">{ticketDetail.currentStatusLabel}</span>
+                </div>
+                <dl className="ticket-detail-grid">
+                  <div><dt>Ticket Number</dt><dd>{ticketDetail.ticketNumber}</dd></div>
+                  <div><dt>Status</dt><dd>{ticketDetail.currentStatusLabel}</dd></div>
+                  <div><dt>Requester</dt><dd>{ticketDetail.requester.name} ({ticketDetail.requester.email})</dd></div>
+                  <div><dt>Category</dt><dd>{ticketDetail.category.name}</dd></div>
+                  <div><dt>Related System</dt><dd>{ticketDetail.relatedSystem.name}</dd></div>
+                  <div><dt>Requested Priority</dt><dd>{ticketDetail.requestedPriority}</dd></div>
+                  <div className="detail-wide"><dt>Summary</dt><dd>{ticketDetail.summary}</dd></div>
+                  <div className="detail-wide"><dt>Description</dt><dd>{ticketDetail.description}</dd></div>
+                  <div><dt>Created</dt><dd>{ticketDetail.createdAt.slice(0, 10)}</dd></div>
+                  <div><dt>Last Updated</dt><dd>{ticketDetail.updatedAt.slice(0, 10)}</dd></div>
+                </dl>
+
+                <section className="detail-attachments" aria-labelledby="detail-attachments-heading">
+                  <div className="detail-attachments-heading">
+                    <div><h3 id="detail-attachments-heading">Attachments</h3><p>Add or manage permitted evidence for this Ticket.</p></div>
+                    <label className="btn btn-success attachment-upload-button">
+                      {detailUploadState === "uploading" ? "Uploading..." : "Add Attachment"}
+                      <input type="file" aria-label="Add Attachment" disabled={detailUploadState === "uploading"} onChange={(event) => void handleDetailUpload(event.target.files?.[0])} />
+                    </label>
+                  </div>
+                  {detailUploadError && <div className="alert alert-danger" role="alert">{detailUploadError}</div>}
+                  {ticketDetail.attachments.length === 0 ? (
+                    <div className="empty-state" role="status">No attachments have been added.</div>
+                  ) : (
+                    <ul className="attachment-list detail-attachment-list">
+                      {ticketDetail.attachments.map((attachment) => (
+                        <li key={attachment.id} className={`attachment-item ${attachment.state}`}>
+                          <div>
+                            <strong>{attachment.originalFilename}</strong>
+                            <div className="attachment-meta">
+                              {attachment.state === "removed" ? (
+                                <>
+                                  <div>Uploaded {attachment.uploadedAt.slice(0, 10)} - {attachment.mimeType} - {attachment.sizeBytes} bytes</div>
+                                  <div>Removed {attachment.removedAt?.slice(0, 10) ?? "date unavailable"} - {attachment.removalReason ?? "Reason unavailable"}</div>
+                                  <div>Download unavailable</div>
+                                </>
+                              ) : (
+                                `Active - Uploaded ${attachment.uploadedAt.slice(0, 10)} - ${attachment.mimeType} - ${attachment.sizeBytes} bytes`
+                              )}
+                            </div>
+                          </div>
+                          {attachment.state === "active" && attachment.downloadUrl && (
+                            <span className="attachment-actions">
+                              <a className="btn btn-sm btn-outline-success" href={attachment.downloadUrl} aria-label={`Download ${attachment.originalFilename}`}>Download</a>
+                              <button className="btn btn-sm btn-outline-danger" type="button" aria-label={`Remove ${attachment.originalFilename}`} onClick={() => { setRemoveTarget(attachment); setRemovalReason(""); setRemovalError(""); }}>Remove</button>
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {removeTarget && (
+                  <div className="removal-confirmation" role="dialog" aria-labelledby="removal-heading" aria-modal="true">
+                    <h3 id="removal-heading">Confirm Attachment removal</h3>
+                    <p>The file remains as removed metadata and can no longer be downloaded.</p>
+                    <label className="form-label" htmlFor="removal-reason">Removal reason</label>
+                    <textarea id="removal-reason" className={`form-control ${removalError ? "is-invalid" : ""}`} value={removalReason} onChange={(event) => setRemovalReason(event.target.value)} />
+                    {removalError && <div className="invalid-feedback d-block" role="alert">{removalError}</div>}
+                    <div className="ticket-actions">
+                      <button className="btn btn-outline-secondary" type="button" onClick={() => setRemoveTarget(null)}>Cancel removal</button>
+                      <button className="btn btn-danger" type="button" onClick={() => void handleConfirmRemoval()}>Confirm removal</button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </section>
         ) : activeView === "myTickets" ? (
           <section className="my-tickets-panel" aria-labelledby="my-tickets-heading">
