@@ -1,0 +1,99 @@
+.toktickit-app {
+  min-height: 100vh;
+  background: #f5f7f6;
+  color: #143326;
+}
+
+.app-shell {
+  align-items: center;
+  background: #006b3c;
+  color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+}
+
+.app-shell h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+
+.app-shell nav {
+  display: flex;
+  gap: 1rem;
+}
+
+.app-shell a {
+  color: #eaf6ef;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-shell a:focus,
+.app-shell a:hover {
+  color: #ffffff;
+  outline: 2px solid #eaf6ef;
+  outline-offset: 3px;
+}
+
+.requester-display {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  text-align: right;
+}
+
+.requester-panel,
+.system-check-panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
+  margin: 0 auto 1.5rem;
+  max-width: 720px;
+  padding: 1.5rem;
+}
+
+.requester-panel h2 {
+  color: #143326;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.requester-panel p {
+  color: #355647;
+}
+
+.requester-panel .form-select:focus {
+  border-color: #0b7a46;
+  box-shadow: 0 0 0 0.25rem rgba(11, 122, 70, 0.2);
+}
+
+.required-marker {
+  color: #9b1c1c;
+}
+
+@media (max-width: 767px) {
+  .app-shell {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .app-shell nav {
+    flex-wrap: wrap;
+  }
+
+  .requester-display {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .requester-panel,
+  .system-check-panel {
+    padding: 1rem;
+  }
+}
