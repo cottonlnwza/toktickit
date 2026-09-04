@@ -4,6 +4,18 @@
   color: #143326;
 }
 
+.toktickit-app .btn-success {
+  background-color: #006b3c;
+  border-color: #006b3c;
+}
+
+.toktickit-app .btn-success:hover,
+.toktickit-app .btn-success:focus,
+.toktickit-app .btn-success:active {
+  background-color: #0b7a46;
+  border-color: #0b7a46;
+}
+
 .app-shell {
   align-items: center;
   background: #006b3c;

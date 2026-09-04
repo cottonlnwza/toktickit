@@ -35,7 +35,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | RESP-02 | Responsive | Tablet viewport `768-991px` | Layout remains usable with readable fields and attachments | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
 | RESP-03 | Responsive | Mobile viewport `< 768px` | Fields stack; touch controls usable; no horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
 | E2E-01 | E2E | Full requester flow from selector to create, list, detail, attachment removal | Flow succeeds and enforces requester ownership | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-01, AC-04, AC-13, AC-18, AC-21, AC-22 | Pass |
-| E2E-02 | E2E | Partial attachment failure after successful Ticket creation | Ticket remains created; successful uploads remain active; failed upload creates no active Attachment record; failed file displays Retry/Remove; retry does not create the Ticket again | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-04, AC-11, AC-12, AC-19 | Pass |
+| E2E-02 | E2E | One Attachment upload fails after successful Ticket creation, then is retried | Ticket remains created; failed file displays Retry/Remove; retry succeeds without creating the Ticket again | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-04, AC-12, AC-19 | Pass |
 | DOC-01 | Documentation | Final reviewer and AI-use documents contain only real evidence | No invented PR, review, prompt, or approval evidence | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md` | AC-25 | Pass |
 
 ## 3. Acceptance-Criterion Traceability
@@ -52,7 +52,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | AC-08 | UNIT-02, API-03 |
 | AC-09 | UI-03 |
 | AC-10 | UI-04 |
-| AC-11 | API-04, E2E-02 |
+| AC-11 | API-04, E2E-01 |
 | AC-12 | API-05, UI-04, UI-07, E2E-02 |
 | AC-13 | API-06, UI-05, UI-08, E2E-01 |
 | AC-14 | API-07 |
@@ -92,6 +92,8 @@ npm test --prefix client
 ```
 
 Playwright/E2E is required by Lab 2 and is configured at the repository root.
+The dependency was proposed separately as `CHANGE-P9-LAB2-E2E-DEPENDENCY-001`
+and approved by the Project Manager before `@playwright/test` was installed.
 
 ```bash
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
@@ -99,7 +101,7 @@ npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
 
 ## 6. Final Results
 
-These results were recorded on the Issue #22 feature branch on 4 September 2026. Run the same commands again on final `main` before submission.
+These results were recorded on the Issue #22 feature branch on 5 September 2026. Run the same commands again on final `main` before submission.
 
 | Command | Result | Notes |
 |---|---|---|
@@ -115,3 +117,16 @@ These results were recorded on the Issue #22 feature branch on 4 September 2026.
 - Peer reviewer identity, final approval, and release-PR evidence remain pending until those events occur.
 - No test may be reconstructed afterward from whatever implementation happens to exist.
 - Required minimum test-file coverage includes `server/tests/lab-02/seed.test.ts`, `server/tests/lab-02/create-ticket.api.test.ts`, `server/tests/lab-02/my-tickets.api.test.ts`, `server/tests/lab-02/ticket-detail.api.test.ts`, `server/tests/lab-02/attachments.api.test.ts`, `client/tests/lab-02/CreateTicket.test.tsx`, `client/tests/lab-02/MyTickets.test.tsx`, `client/tests/lab-02/RequesterTicketDetail.test.tsx`, `client/tests/lab-02/AttachmentSection.test.tsx`, and `e2e/lab-02/requester-ticket-flow.spec.ts`.
+
+### Answer Parts 1-9 Evidence Checklist
+
+- [ ] Answer Part 1: final `main` commit graph, completed Kanban, rendered `reviewer.md`, README, `.gitignore`, and repository tree. Final release evidence is pending.
+- [x] Answer Part 2: rendered `specification.md`, numbered FR/BR/AC/DoD, and PR #23 history showing the contract preceded implementation PRs.
+- [ ] Answer Part 3: rendered `tests.md` and complete unit/API/UI output. Final `main` rerun evidence is pending.
+- [x] Answer Part 4: rendered `ai-use.md` with seven selected prompts and brief reflection.
+- [x] Answer Part 5: Development Requester selector evidence is included with Create Ticket evidence.
+- [x] Answer Part 6: Create Ticket states and responsive screenshots in `artifacts/lab-02/screenshots/create-ticket/`; automated API/UI evidence is listed above.
+- [x] Answer Part 7: My Tickets states and responsive screenshots in `artifacts/lab-02/screenshots/my-tickets/`; ownership and query tests are listed above.
+- [x] Answer Part 8: owned Ticket Detail and Attachment lifecycle screenshots in `artifacts/lab-02/screenshots/ticket-detail/`; ownership and lifecycle tests are listed above.
+- [x] Answer Part 9: rendered `ui-spec.md`, completed visual checklist, and desktop/tablet/mobile screenshots under `artifacts/lab-02/screenshots/`.
+- [ ] Final PDF: compile Answer Part 1 through Answer Part 9 in the required order after the release PR and final `main` verification.

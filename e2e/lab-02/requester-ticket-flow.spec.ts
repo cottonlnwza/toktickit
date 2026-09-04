@@ -12,7 +12,9 @@ async function selectFirstRequester(page: import("@playwright/test").Page) {
 
   await page.goto("/");
   await page.locator("#requester-select").selectOption(String(requesters[0].id));
-  await page.getByRole("button", { name: "Continue" }).click();
+  const continueButton = page.getByRole("button", { name: "Continue" });
+  await expect(continueButton).toHaveCSS("background-color", "rgb(0, 107, 60)");
+  await continueButton.click();
   await expect(page.getByText(`Requester: ${requesters[0].name}`)).toBeVisible();
   return requesters;
 }

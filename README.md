@@ -23,6 +23,13 @@ discovery, requester-owned detail views, and Attachment lifecycle management.
 
 ## Local Setup
 
+Install the root Playwright dependency from a clean clone:
+
+```bash
+npm install
+npx playwright install chromium
+```
+
 Install frontend dependencies:
 
 ```bash
@@ -68,6 +75,19 @@ The Prisma schema is located at `server/prisma/schema.prisma`.
 
 The backend uses the `DATABASE_URL` value from `server/.env` to connect to
 PostgreSQL.
+
+For Lab 2, create an empty PostgreSQL development database such as
+`toktickit_lab2`, then manually set `DATABASE_URL` in `server/.env` to that
+database without committing or sharing the value. Prepare it from `server/`:
+
+```bash
+npm exec -- prisma migrate deploy
+npm exec -- prisma generate --schema prisma/schema.prisma
+npm run prisma:seed
+```
+
+Do not use reset commands against an existing database. Start the backend and
+frontend as shown above before running Playwright.
 
 ## Testing
 

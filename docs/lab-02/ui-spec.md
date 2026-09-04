@@ -117,6 +117,10 @@ States:
 | Destructive | Remove Attachment confirmation | Red/danger styling and confirmation required |
 | Disabled | Invalid or processing state | Visually distinct and not clickable |
 
+Primary Bootstrap success buttons are scoped under `.toktickit-app` to render
+with Primary green `#006B3C`; hover, focus, and active states use Secondary
+green `#0B7A46`.
+
 ## 10. Attachment Presentation
 
 - Show original filename, type, size, upload timestamp, and state.

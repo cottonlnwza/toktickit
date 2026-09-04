@@ -13,7 +13,7 @@
 | [#26](https://github.com/cottonlnwza/toktickit/pull/26) | `feature/lab2-4-create-ticket` | #19 | @thananun-7203 | Changes requested twice; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T09:04:19Z`; merge `83b7520`; corrections `975d4e4`, `6fed5fe` |
 | [#27](https://github.com/cottonlnwza/toktickit/pull/27) | `feature/lab2-5-my-tickets` | #20 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T12:02:51Z`; merge `8a14d4c`; corrections `7e86710`, `8a8a54f` |
 | [#28](https://github.com/cottonlnwza/toktickit/pull/28) | `feature/lab2-6-ticket-detail-attachments` | #21 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T14:24:56Z`; merge `168e262`; corrections `66037c0`, `c668eb2` |
-| Pending | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | Pending | Pending | Pending | Pending |
+| [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @thananun-7203 | Changes requested; correction in progress | Pending | Open; review requested changes `2026-09-04`; commits `47cbfae`, `bb53b3b` |
 | Pending | `lab2-staging` to `main` | Release PR | Pending | Pending | Pending | Pending |
 
 ## Review Comments Received
@@ -24,6 +24,7 @@
 - PR #26 requested validation boundaries, restored reference loading, deterministic upload storage, API-contract alignment, and attachment boundary handling.
 - PR #27 requested complete responsive ticket cards and ticket-specific Open actions.
 - PR #28 requested public Attachment metadata, API-origin download URLs, max-five and ownership checks, and complete removed-Attachment metadata.
+- PR #29 requested dependency-approval evidence, current review records, Answer Parts 1-9 evidence mapping, clean-clone E2E setup, accurate E2E-02 claims, and rendered primary-green actions.
 
 ## My Responses To Review Comments
 
@@ -33,8 +34,8 @@ Each recorded blocker was corrected on its original feature branch and verified 
 
 | PR | Repository | Lab 2 issue / title | Author | My review action | Evidence |
 |---|---|---|---|---|---|
-| [#25](https://github.com/thananun-7203/toktickit/pull/25) | `thananun-7203/toktickit` | Issue 5: Ticket Detail & Attachments | Pending verification | Pending verification | Repository record was not publicly accessible during audit |
-| [#30](https://github.com/thananun-7203/toktickit/pull/30) | `thananun-7203/toktickit` | Issue 7: Zen Green UI Alignment | Pending verification | Pending verification | Repository record was not publicly accessible during audit |
+| [#25](https://github.com/thananun-7203/toktickit/pull/25) | `thananun-7203/toktickit` | [Lab 2] Issue_5: Ticket Detail & Attachments | Pending verification | Pending verification | PR number/title supplied as screenshot evidence; GitHub record was not accessible during audit |
+| [#30](https://github.com/thananun-7203/toktickit/pull/30) | `thananun-7203/toktickit` | [Lab 2] Issue_7: Zen Green UI Alignment | Pending verification | Pending verification | PR number/title supplied as screenshot evidence; GitHub record was not accessible during audit |
 | Other Lab 2 PRs | `thananun-7203/toktickit` | Pending verification | Pending verification | Pending verification | No additional public record could be verified |
 
 ## Notes
@@ -42,4 +43,5 @@ Each recorded blocker was corrected on its original feature branch and verified 
 - Record only real PR links, comments, approvals, and merge evidence.
 - Peer reviewer must approve and merge PRs.
 - The author and AI assistant must not merge PRs.
-- Issue #22 PR and the `lab2-staging` to `main` release PR do not exist yet and remain pending.
+- PR #29 exists and has requested changes in progress; approval and merge evidence remain pending.
+- The `lab2-staging` to `main` release PR does not exist yet and remains pending.
