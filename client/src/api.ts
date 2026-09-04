@@ -10,6 +10,28 @@ export interface SystemStatus {
   categories: Category[];
 }
 
+export interface Requester {
+  id: number;
+  name: string;
+  email: string;
+}
+
+export async function getRequesters(): Promise<Requester[]> {
+  let response: Response;
+
+  try {
+    response = await fetch(`${API_URL}/api/requesters`);
+  } catch {
+    throw new Error("Unable to load Development Requesters. Is the API server running?");
+  }
+
+  if (!response.ok) {
+    throw new Error(`Unable to load Development Requesters. HTTP ${response.status}.`);
+  }
+
+  return (await response.json()) as Requester[];
+}
+
 // Issue 2 + Issue 4 — call the backend.
 // Steps: fetch `${API_URL}/api/health`; if not ok, throw.
 //        then fetch `${API_URL}/api/categories`; if not ok, throw.
