@@ -5,7 +5,10 @@ import {
   createTicket,
   CreatedTicket,
   getCategories,
+  getMyTickets,
   getRelatedSystems,
+  MyTicketsQuery,
+  MyTicketsResponse,
   RelatedSystem,
   uploadTicketAttachment,
 } from "./api.js";
@@ -16,6 +19,7 @@ import "./App.css";
 type UiState = "idle" | "loading" | "success" | "error";
 type Priority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 type AttachmentItem = { file: File; status: "pending" | "uploaded" | "failed" | "invalid"; message?: string };
+type AppView = "createTicket" | "myTickets";
 
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
@@ -40,6 +44,20 @@ export default function App() {
   const [ticketError, setTicketError] = useState("");
   const [referenceState, setReferenceState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [createdTicket, setCreatedTicket] = useState<CreatedTicket | null>(null);
+  const [activeView, setActiveView] = useState<AppView>("createTicket");
+  const [myTicketsState, setMyTicketsState] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [myTickets, setMyTickets] = useState<MyTicketsResponse | null>(null);
+  const [myTicketsError, setMyTicketsError] = useState("");
+  const [ticketSearch, setTicketSearch] = useState("");
+  const [ticketCategoryFilter, setTicketCategoryFilter] = useState("");
+  const [ticketSystemFilter, setTicketSystemFilter] = useState("");
+  const [ticketPriorityFilter, setTicketPriorityFilter] = useState("");
+  const [ticketStatusFilter, setTicketStatusFilter] = useState("");
+  const [ticketSortBy, setTicketSortBy] = useState<MyTicketsQuery["sortBy"]>("updatedAt");
+  const [ticketSortDirection, setTicketSortDirection] = useState<MyTicketsQuery["sortDirection"]>("desc");
+  const [ticketPage, setTicketPage] = useState(1);
+  const [ticketPageSize, setTicketPageSize] = useState<5 | 10 | 20>(10);
+  const [myTicketsReload, setMyTicketsReload] = useState(0);
   const formDisabled = referenceState === "loading";
 
   useEffect(() => {
@@ -47,6 +65,56 @@ export default function App() {
       void loadTicketReferences();
     }
   }, [requesterContext.selectedRequester, referenceState]);
+
+  useEffect(() => {
+    const requester = requesterContext.selectedRequester;
+    if (!requester || activeView !== "myTickets") return;
+
+    let current = true;
+    setMyTicketsState("loading");
+    setMyTicketsError("");
+    const query: MyTicketsQuery = {
+      search: ticketSearch,
+      categoryId: ticketCategoryFilter ? Number(ticketCategoryFilter) : undefined,
+      relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
+      requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
+      currentStatus: ticketStatusFilter === "NEW" ? "NEW" : undefined,
+      sortBy: ticketSortBy,
+      sortDirection: ticketSortDirection,
+      page: ticketPage,
+      pageSize: ticketPageSize,
+    };
+
+    void getMyTickets(requester.id, query)
+      .then((result) => {
+        if (!current) return;
+        setMyTickets(result);
+        setMyTicketsState("success");
+      })
+      .catch(() => {
+        if (!current) return;
+        setMyTickets(null);
+        setMyTicketsError("Unable to load My Tickets. Please try again.");
+        setMyTicketsState("error");
+      });
+
+    return () => {
+      current = false;
+    };
+  }, [
+    activeView,
+    requesterContext.selectedRequester,
+    ticketSearch,
+    ticketCategoryFilter,
+    ticketSystemFilter,
+    ticketPriorityFilter,
+    ticketStatusFilter,
+    ticketSortBy,
+    ticketSortDirection,
+    ticketPage,
+    ticketPageSize,
+    myTicketsReload,
+  ]);
 
   async function handleCheck() {
     setState("loading");
@@ -67,6 +135,7 @@ export default function App() {
     const requester = requesterContext.selectRequester(pendingRequesterId);
     if (requester) {
       setSelectionError("");
+      setActiveView("createTicket");
       void loadTicketReferences();
     } else {
       setSelectionError("Please select a Development Requester.");
@@ -232,13 +301,42 @@ export default function App() {
     setCreatedTicket(null);
   }
 
+  function resetMyTickets() {
+    setMyTicketsState("idle");
+    setMyTickets(null);
+    setMyTicketsError("");
+    setTicketSearch("");
+    setTicketCategoryFilter("");
+    setTicketSystemFilter("");
+    setTicketPriorityFilter("");
+    setTicketStatusFilter("");
+    setTicketSortBy("updatedAt");
+    setTicketSortDirection("desc");
+    setTicketPage(1);
+    setTicketPageSize(10);
+  }
+
+  function clearMyTicketsFilters() {
+    setTicketSearch("");
+    setTicketCategoryFilter("");
+    setTicketSystemFilter("");
+    setTicketPriorityFilter("");
+    setTicketStatusFilter("");
+    setTicketPage(1);
+  }
+
   function handleChangeRequester() {
     resetCreateTicketForm();
+    resetMyTickets();
+    setActiveView("createTicket");
     requesterContext.changeRequester();
   }
 
   const selectedRequester = requesterContext.selectedRequester;
   const showSelector = !selectedRequester;
+  const hasMyTicketsQuery = Boolean(
+    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
+  );
 
   return (
     <div className="toktickit-app">
@@ -246,8 +344,26 @@ export default function App() {
         <div>
           <h1>TokTickIT IT Service Desk</h1>
           <nav aria-label="Primary navigation">
-            <a href="#my-tickets">My Tickets</a>
-            <a href="#create-ticket">Create Ticket</a>
+            <a
+              href="#my-tickets"
+              aria-current={activeView === "myTickets" ? "page" : undefined}
+              onClick={(event) => {
+                event.preventDefault();
+                setActiveView("myTickets");
+              }}
+            >
+              My Tickets
+            </a>
+            <a
+              href="#create-ticket"
+              aria-current={activeView === "createTicket" ? "page" : undefined}
+              onClick={(event) => {
+                event.preventDefault();
+                setActiveView("createTicket");
+              }}
+            >
+              Create Ticket
+            </a>
           </nav>
         </div>
         <div className="requester-display">
@@ -321,6 +437,126 @@ export default function App() {
             >
               Continue
             </button>
+          </section>
+        ) : activeView === "myTickets" ? (
+          <section className="my-tickets-panel" aria-labelledby="my-tickets-heading">
+            <div className="my-tickets-heading">
+              <div>
+                <h2 id="my-tickets-heading">My Tickets</h2>
+                <p>Tickets owned by {selectedRequester.name}.</p>
+              </div>
+              <button className="btn btn-success" type="button" onClick={() => setActiveView("createTicket")}>
+                Create Ticket
+              </button>
+            </div>
+
+            <div className="my-tickets-controls">
+              <div className="search-control">
+                <label className="form-label" htmlFor="ticket-search">Search Tickets</label>
+                <input
+                  id="ticket-search"
+                  className="form-control"
+                  type="search"
+                  value={ticketSearch}
+                  onChange={(event) => {
+                    setTicketSearch(event.target.value);
+                    setTicketPage(1);
+                  }}
+                />
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-category-filter">Category filter</label>
+                <select id="ticket-category-filter" className="form-select" value={ticketCategoryFilter} onChange={(event) => { setTicketCategoryFilter(event.target.value); setTicketPage(1); }}>
+                  <option value="">All categories</option>
+                  {ticketCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-system-filter">Related System filter</label>
+                <select id="ticket-system-filter" className="form-select" value={ticketSystemFilter} onChange={(event) => { setTicketSystemFilter(event.target.value); setTicketPage(1); }}>
+                  <option value="">All systems</option>
+                  {relatedSystems.map((system) => <option key={system.id} value={system.id}>{system.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-priority-filter">Priority filter</label>
+                <select id="ticket-priority-filter" className="form-select" value={ticketPriorityFilter} onChange={(event) => { setTicketPriorityFilter(event.target.value); setTicketPage(1); }}>
+                  <option value="">All priorities</option>
+                  <option value="LOW">Low</option><option value="MEDIUM">Medium</option>
+                  <option value="HIGH">High</option><option value="URGENT">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
+                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
+                  <option value="">All statuses</option><option value="NEW">New</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-sort">Sort by</label>
+                <select id="ticket-sort" className="form-select" value={ticketSortBy} onChange={(event) => { setTicketSortBy(event.target.value as MyTicketsQuery["sortBy"]); setTicketPage(1); }}>
+                  <option value="updatedAt">Last updated</option><option value="createdAt">Created date</option>
+                  <option value="requestedPriority">Priority</option><option value="ticketNumber">Ticket Number</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label" htmlFor="ticket-sort-direction">Sort direction</label>
+                <select id="ticket-sort-direction" className="form-select" value={ticketSortDirection} onChange={(event) => { setTicketSortDirection(event.target.value as MyTicketsQuery["sortDirection"]); setTicketPage(1); }}>
+                  <option value="desc">Descending</option><option value="asc">Ascending</option>
+                </select>
+              </div>
+              <button className="btn btn-outline-secondary align-self-end" type="button" onClick={clearMyTicketsFilters}>
+                Clear filters
+              </button>
+            </div>
+
+            {myTicketsState === "loading" && <div className="alert alert-info" role="status">Loading My Tickets...</div>}
+            {myTicketsState === "error" && (
+              <div className="alert alert-danger" role="alert">
+                <span>{myTicketsError}</span>{" "}
+                <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setMyTicketsReload((value) => value + 1)}>Retry</button>
+              </div>
+            )}
+            {myTicketsState === "success" && myTickets?.items.length === 0 && (
+              <div className="empty-state" role="status">
+                {hasMyTicketsQuery ? "No Tickets match your search or filters." : "You do not have any Tickets yet."}
+              </div>
+            )}
+            {myTicketsState === "success" && myTickets && myTickets.items.length > 0 && (
+              <>
+                <div className="my-tickets-table-wrap">
+                  <table className="table my-tickets-table">
+                    <thead><tr><th>Ticket Number</th><th>Summary</th><th>Category</th><th>Related System</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+                    <tbody>{myTickets.items.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td>{ticket.ticketNumber}</td><td>{ticket.summary}</td><td>{ticket.category.name}</td>
+                        <td>{ticket.relatedSystem.name}</td><td><span className="ticket-badge">{ticket.requestedPriority}</span></td>
+                        <td><span className="ticket-badge status">{ticket.currentStatusLabel}</span></td>
+                        <td>{ticket.updatedAt.slice(0, 10)}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+                <div className="my-ticket-cards">
+                  {myTickets.items.map((ticket) => (
+                    <article key={ticket.id} className="my-ticket-card">
+                      <strong>{ticket.ticketNumber}</strong><h3>{ticket.summary}</h3>
+                      <dl><dt>Category</dt><dd>{ticket.category.name}</dd><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd><dt>Priority</dt><dd>{ticket.requestedPriority}</dd><dt>Status</dt><dd>{ticket.currentStatusLabel}</dd></dl>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className="my-tickets-pagination">
+              <button className="btn btn-outline-success" type="button" disabled={ticketPage <= 1 || myTicketsState === "loading"} onClick={() => setTicketPage((page) => page - 1)}>Previous page</button>
+              <span>Page {myTickets?.page ?? ticketPage} of {myTickets?.totalPages ?? 0}</span>
+              <label htmlFor="ticket-page-size">Page size</label>
+              <select id="ticket-page-size" className="form-select" value={ticketPageSize} onChange={(event) => { setTicketPageSize(Number(event.target.value) as 5 | 10 | 20); setTicketPage(1); }}>
+                <option value="5">5</option><option value="10">10</option><option value="20">20</option>
+              </select>
+              <button className="btn btn-outline-success" type="button" disabled={!myTickets || ticketPage >= myTickets.totalPages || myTicketsState === "loading"} onClick={() => setTicketPage((page) => page + 1)}>Next page</button>
+            </div>
           </section>
         ) : (
           <section className="ticket-panel" aria-labelledby="create-ticket-heading">

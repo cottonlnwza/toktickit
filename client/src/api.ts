@@ -48,6 +48,38 @@ export interface UploadedAttachment {
   removedAt: string | null;
 }
 
+export interface MyTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  currentStatus: "NEW";
+  currentStatusLabel: "New";
+  updatedAt: string;
+}
+
+export interface MyTicketsQuery {
+  search?: string;
+  categoryId?: number;
+  relatedSystemId?: number;
+  requestedPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  currentStatus?: "NEW";
+  sortBy?: "createdAt" | "updatedAt" | "requestedPriority" | "ticketNumber";
+  sortDirection?: "asc" | "desc";
+  page?: number;
+  pageSize?: 5 | 10 | 20;
+}
+
+export interface MyTicketsResponse {
+  items: MyTicket[];
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
 async function parseError(response: Response, fallback: string) {
   try {
     const body = (await response.json()) as { error?: string | { message?: string } };
@@ -118,6 +150,21 @@ export async function uploadTicketAttachment(ticketId: number, requesterId: numb
   }
 
   return (await response.json()) as UploadedAttachment;
+}
+
+export async function getMyTickets(requesterId: number, query: MyTicketsQuery = {}): Promise<MyTicketsResponse> {
+  const parameters = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") parameters.set(key, String(value));
+  });
+  const queryString = parameters.toString();
+  const response = await fetch(
+    `${API_URL}/api/requesters/${requesterId}/tickets${queryString ? `?${queryString}` : ""}`,
+  );
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Unable to load Tickets."));
+  }
+  return (await response.json()) as MyTicketsResponse;
 }
 
 // Issue 2 + Issue 4 — call the backend.
