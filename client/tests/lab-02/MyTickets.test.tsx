@@ -100,17 +100,20 @@ describe("My Tickets workflow", () => {
     mockBase();
     mockMyTickets();
 
-    await selectRequesterAndOpenMyTickets();
+    const user = await selectRequesterAndOpenMyTickets();
     await screen.findAllByText("TTK-20260904-0001");
     const desktop = document.querySelector(".my-tickets-table-wrap");
     const mobile = document.querySelector(".my-ticket-cards");
 
     expect(desktop).not.toBeNull();
     expect(mobile).not.toBeNull();
-    expect(within(desktop as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i })).toBeInTheDocument();
+    const desktopOpen = within(desktop as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i });
+    expect(desktopOpen).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i })).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByText("Last Updated")).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByText("2026-09-04")).toBeInTheDocument();
+    await user.click(desktopOpen);
+    expect(screen.getByRole("status")).toHaveTextContent("Ticket TTK-20260904-0001 selected (ID 10)");
   });
 
   it("shows a loading state while owned Tickets are being retrieved", async () => {

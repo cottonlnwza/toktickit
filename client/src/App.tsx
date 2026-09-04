@@ -327,6 +327,10 @@ export default function App() {
     setTicketPage(1);
   }
 
+  function handleOpenTicket(ticketId: number, ticketNumber: string) {
+    setTicketDetailNotice(`Ticket ${ticketNumber} selected (ID ${ticketId}). Ticket Detail will be available in the next workflow.`);
+  }
+
   function handleChangeRequester() {
     resetCreateTicketForm();
     resetMyTickets();
@@ -536,7 +540,7 @@ export default function App() {
                         <td>{ticket.relatedSystem.name}</td><td><span className="ticket-badge">{ticket.requestedPriority}</span></td>
                         <td><span className="ticket-badge status">{ticket.currentStatusLabel}</span></td>
                         <td>{ticket.updatedAt.slice(0, 10)}</td>
-                        <td><button className="btn btn-sm btn-outline-success" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => setTicketDetailNotice("Ticket Detail will be available in the next workflow.")}>Open</button></td>
+                        <td><button className="btn btn-sm btn-outline-success" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => handleOpenTicket(ticket.id, ticket.ticketNumber)}>Open</button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -546,7 +550,7 @@ export default function App() {
                     <article key={ticket.id} className="my-ticket-card">
                       <strong>{ticket.ticketNumber}</strong><h3>{ticket.summary}</h3>
                       <dl><dt>Category</dt><dd>{ticket.category.name}</dd><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd><dt>Priority</dt><dd>{ticket.requestedPriority}</dd><dt>Status</dt><dd>{ticket.currentStatusLabel}</dd><dt>Last Updated</dt><dd>{ticket.updatedAt.slice(0, 10)}</dd></dl>
-                      <button className="btn btn-sm btn-outline-success open-ticket-action" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => setTicketDetailNotice("Ticket Detail will be available in the next workflow.")}>Open</button>
+                      <button className="btn btn-sm btn-outline-success open-ticket-action" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => handleOpenTicket(ticket.id, ticket.ticketNumber)}>Open</button>
                     </article>
                   ))}
                 </div>
