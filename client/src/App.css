@@ -49,6 +49,7 @@
 .requester-panel,
 .ticket-panel,
 .my-tickets-panel,
+.ticket-detail-panel,
 .system-check-panel {
   background: #ffffff;
   border: 1px solid #d8e6de;
@@ -61,6 +62,83 @@
 
 .my-tickets-panel {
   max-width: 1180px;
+}
+
+.ticket-detail-panel {
+  max-width: 980px;
+}
+
+.ticket-detail-heading,
+.detail-attachments-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.ticket-detail-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ticket-detail-grid > div {
+  background: #eaf6ef;
+  border: 1px solid #c6dbcf;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.ticket-detail-grid dt {
+  color: #355647;
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.ticket-detail-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ticket-detail-grid .detail-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-attachments {
+  border-top: 1px solid #d8e6de;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
+.detail-attachments h3,
+.removal-confirmation h3 {
+  font-size: 1.2rem;
+}
+
+.attachment-upload-button input {
+  height: 1px;
+  opacity: 0;
+  position: absolute;
+  width: 1px;
+}
+
+.attachment-meta {
+  color: #355647;
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+
+.attachment-item.removed {
+  background: #f5f7f6;
+  color: #52665d;
+}
+
+.removal-confirmation {
+  background: #ffffff;
+  border: 2px solid #9b1c1c;
+  border-radius: 8px;
+  margin-top: 1rem;
+  padding: 1rem;
 }
 
 .my-tickets-heading,
@@ -258,12 +336,27 @@
   .requester-panel,
   .ticket-panel,
   .my-tickets-panel,
+  .ticket-detail-panel,
   .system-check-panel {
     padding: 1rem;
   }
 
   .ticket-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-grid .detail-wide {
+    grid-column: auto;
+  }
+
+  .ticket-detail-heading,
+  .detail-attachments-heading {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .attachment-item,

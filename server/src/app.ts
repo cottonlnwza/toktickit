@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
 import { randomUUID } from "crypto";
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { Prisma } from "@prisma/client";
@@ -137,6 +137,32 @@ function sanitizeFilename(filename: string) {
 function getAllowedExtension(filename: string) {
   const extension = path.extname(filename).toLowerCase();
   return allowedAttachmentExtensions.includes(extension) ? extension : null;
+}
+
+function attachmentMetadata(
+  attachment: {
+    id: number;
+    originalFilename: string;
+    mimeType: string;
+    sizeBytes: number;
+    uploadedAt: Date;
+    removedAt: Date | null;
+    removalReason: string | null;
+  },
+  downloadUrl?: string,
+) {
+  const removed = attachment.removedAt !== null;
+  return {
+    id: attachment.id,
+    originalFilename: attachment.originalFilename,
+    mimeType: attachment.mimeType,
+    sizeBytes: attachment.sizeBytes,
+    uploadedAt: attachment.uploadedAt,
+    removedAt: attachment.removedAt,
+    removalReason: attachment.removalReason,
+    state: removed ? "removed" : "active",
+    ...(!removed && downloadUrl ? { downloadUrl } : {}),
+  };
 }
 
 async function parseMultipartRequest(req: Request): Promise<{ fields: Record<string, string>; file: MultipartFile | null }> {
@@ -416,6 +442,101 @@ app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Respon
   }
 });
 
+app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, res: Response) => {
+  const requesterId = toPositiveInteger(req.params.requesterId);
+  const ticketId = toPositiveInteger(req.params.ticketId);
+
+  if (!requesterId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester ID must be a positive integer."));
+    return;
+  }
+  if (!ticketId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+    return;
+  }
+
+  try {
+    const ticket = await getPrisma().ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      select: {
+        id: true,
+        ticketNumber: true,
+        summary: true,
+        description: true,
+        requestedPriority: true,
+        currentStatus: true,
+        createdAt: true,
+        updatedAt: true,
+        requester: { select: { id: true, name: true, email: true } },
+        category: { select: { id: true, name: true } },
+        relatedSystem: { select: { id: true, name: true } },
+        attachments: {
+          select: {
+            id: true,
+            originalFilename: true,
+            mimeType: true,
+            sizeBytes: true,
+            uploadedAt: true,
+            removedAt: true,
+            removalReason: true,
+          },
+          orderBy: { uploadedAt: "asc" },
+        },
+      },
+    });
+
+    if (!ticket) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+
+    res.status(200).json({ ...ticket, currentStatusLabel: "New" });
+  } catch {
+    res.status(500).json(errorResponse("TICKET_DETAIL_ERROR", "Unable to load Ticket Detail."));
+  }
+});
+
+app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+  const requesterId = toPositiveInteger(req.params.requesterId);
+  const ticketId = toPositiveInteger(req.params.ticketId);
+  if (!requesterId || !ticketId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester ID and Ticket ID must be positive integers."));
+    return;
+  }
+
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findFirst({
+      where: { id: ticketId, requesterId },
+      select: { id: true },
+    });
+    if (!ticket) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+
+    const attachments = await prisma.attachment.findMany({
+      where: { ticketId },
+      select: {
+        id: true,
+        originalFilename: true,
+        mimeType: true,
+        sizeBytes: true,
+        uploadedAt: true,
+        removedAt: true,
+        removalReason: true,
+      },
+      orderBy: { uploadedAt: "asc" },
+    });
+    res.status(200).json(attachments.map((attachment) => attachmentMetadata(
+      attachment,
+      `/api/requesters/${requesterId}/tickets/${ticketId}/attachments/${attachment.id}/download`,
+    )));
+  } catch {
+    res.status(500).json(errorResponse("ATTACHMENTS_ERROR", "Unable to load Attachments."));
+  }
+});
+
 app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
@@ -492,10 +613,91 @@ app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (re
       throw error;
     }
 
-    res.status(201).json(attachment);
+    const { storagePath: _storagePath, ...safeAttachment } = attachment;
+    res.status(201).json(safeAttachment);
   } catch {
     res.status(500).json(errorResponse("UPLOAD_ATTACHMENT_ERROR", "Unable to upload Attachment."));
   }
 });
+
+app.get(
+  "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId/download",
+  async (req: Request, res: Response) => {
+    const requesterId = toPositiveInteger(req.params.requesterId);
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const attachmentId = toPositiveInteger(req.params.attachmentId);
+    if (!requesterId || !ticketId || !attachmentId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester, Ticket, and Attachment IDs must be positive integers."));
+      return;
+    }
+
+    try {
+      const attachment = await getPrisma().attachment.findFirst({
+        where: { id: attachmentId, ticketId, ticket: { requesterId }, removedAt: null },
+      });
+      if (!attachment) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Attachment was not found."));
+        return;
+      }
+
+      const content = await readFile(attachment.storagePath);
+      res.setHeader("Content-Type", attachment.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(attachment.originalFilename)}"`);
+      res.status(200).send(content);
+    } catch {
+      res.status(500).json(errorResponse("DOWNLOAD_ATTACHMENT_ERROR", "Unable to download Attachment."));
+    }
+  },
+);
+
+app.delete(
+  "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId",
+  async (req: Request, res: Response) => {
+    const requesterId = toPositiveInteger(req.params.requesterId);
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const attachmentId = toPositiveInteger(req.params.attachmentId);
+    if (!requesterId || !ticketId || !attachmentId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester, Ticket, and Attachment IDs must be positive integers."));
+      return;
+    }
+
+    const reason = typeof req.body.reason === "string" ? req.body.reason.trim() : "";
+    if (!reason) {
+      res.status(400).json(errorResponse(
+        "VALIDATION_ERROR",
+        "Removal reason is required.",
+        { reason: "Removal reason is required." },
+      ));
+      return;
+    }
+
+    try {
+      const prisma = getPrisma();
+      const attachment = await prisma.attachment.findFirst({
+        where: { id: attachmentId, ticketId, ticket: { requesterId } },
+      });
+      if (!attachment) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Attachment was not found."));
+        return;
+      }
+      if (attachment.removedAt) {
+        res.status(409).json(errorResponse("ATTACHMENT_REMOVED", "Attachment has already been removed."));
+        return;
+      }
+
+      const removed = await prisma.attachment.update({
+        where: { id: attachmentId },
+        data: {
+          removedAt: new Date(),
+          removedByRequesterId: requesterId,
+          removalReason: reason,
+        },
+      });
+      res.status(200).json(attachmentMetadata(removed));
+    } catch {
+      res.status(500).json(errorResponse("REMOVE_ATTACHMENT_ERROR", "Unable to remove Attachment."));
+    }
+  },
+);
 
 export default app;

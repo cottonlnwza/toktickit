@@ -80,6 +80,25 @@ export interface MyTicketsResponse {
   totalPages: number;
 }
 
+export interface TicketAttachment {
+  id: number;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  removedAt: string | null;
+  removalReason: string | null;
+  state: "active" | "removed";
+  downloadUrl?: string;
+}
+
+export interface TicketDetail extends MyTicket {
+  description: string;
+  requester: Requester;
+  createdAt: string;
+  attachments: TicketAttachment[];
+}
+
 async function parseError(response: Response, fallback: string) {
   try {
     const body = (await response.json()) as { error?: string | { message?: string } };
@@ -165,6 +184,47 @@ export async function getMyTickets(requesterId: number, query: MyTicketsQuery = 
     throw new Error(await parseError(response, "Unable to load Tickets."));
   }
   return (await response.json()) as MyTicketsResponse;
+}
+
+export async function getTicketDetail(requesterId: number, ticketId: number): Promise<TicketDetail> {
+  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}`);
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Unable to load Ticket Detail."));
+  }
+  return (await response.json()) as TicketDetail;
+}
+
+export async function addTicketAttachment(
+  requesterId: number,
+  ticketId: number,
+  file: File,
+): Promise<TicketAttachment> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments`, {
+    method: "POST",
+    body,
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to upload Attachment."));
+  return (await response.json()) as TicketAttachment;
+}
+
+export async function removeTicketAttachment(
+  requesterId: number,
+  ticketId: number,
+  attachmentId: number,
+  reason: string,
+): Promise<TicketAttachment> {
+  const response = await fetch(
+    `${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments/${attachmentId}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!response.ok) throw new Error(await parseError(response, "Unable to remove Attachment."));
+  return (await response.json()) as TicketAttachment;
 }
 
 // Issue 2 + Issue 4 — call the backend.
