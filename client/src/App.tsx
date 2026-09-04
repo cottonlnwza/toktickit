@@ -597,9 +597,15 @@ export default function App() {
                           <div>
                             <strong>{attachment.originalFilename}</strong>
                             <div className="attachment-meta">
-                              {attachment.state === "removed"
-                                ? `Removed ${attachment.removedAt?.slice(0, 10) ?? "date unavailable"} - ${attachment.removalReason ?? "Reason unavailable"}`
-                                : `Active - Uploaded ${attachment.uploadedAt.slice(0, 10)} - ${attachment.mimeType} - ${attachment.sizeBytes} bytes`}
+                              {attachment.state === "removed" ? (
+                                <>
+                                  <div>Uploaded {attachment.uploadedAt.slice(0, 10)} - {attachment.mimeType} - {attachment.sizeBytes} bytes</div>
+                                  <div>Removed {attachment.removedAt?.slice(0, 10) ?? "date unavailable"} - {attachment.removalReason ?? "Reason unavailable"}</div>
+                                  <div>Download unavailable</div>
+                                </>
+                              ) : (
+                                `Active - Uploaded ${attachment.uploadedAt.slice(0, 10)} - ${attachment.mimeType} - ${attachment.sizeBytes} bytes`
+                              )}
                             </div>
                           </div>
                           {attachment.state === "active" && attachment.downloadUrl && (

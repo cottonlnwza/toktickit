@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 
@@ -51,8 +51,11 @@ describe("Ticket Detail Attachment section", () => {
     await openDetail();
     expect(screen.getByRole("link", { name: /Download evidence.pdf/i })).toHaveAttribute("href", "http://localhost:3000/download/9");
     expect(screen.getByText(/Active.*Uploaded 2026-09-04/i)).toBeInTheDocument();
-    expect(screen.getByText("old.png")).toBeInTheDocument();
-    expect(screen.getByText(/Removed 2026-09-04.*Duplicate/i)).toBeInTheDocument();
+    const removedRow = screen.getByText("old.png").closest("li");
+    expect(removedRow).not.toBeNull();
+    expect(within(removedRow as HTMLElement).getByText(/Uploaded 2026-09-04.*application\/pdf.*12 bytes/i)).toBeInTheDocument();
+    expect(within(removedRow as HTMLElement).getByText(/Removed 2026-09-04.*Duplicate/i)).toBeInTheDocument();
+    expect(within(removedRow as HTMLElement).getByText(/Download unavailable/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Download old.png/i })).not.toBeInTheDocument();
   });
 
