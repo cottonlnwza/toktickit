@@ -37,6 +37,16 @@ describe("Development Requester context", () => {
     expect(localStorage.getItem("toktickit.devRequesterId")).toBeNull();
   });
 
+  it("clears stored requester id when requester loading fails", async () => {
+    localStorage.setItem("toktickit.devRequesterId", "1");
+    vi.spyOn(api, "getRequesters").mockRejectedValue(new Error("network down"));
+
+    render(<App />);
+
+    expect(await screen.findByText(/Unable to load Development Requesters/i)).toBeInTheDocument();
+    expect(localStorage.getItem("toktickit.devRequesterId")).toBeNull();
+  });
+
   it("clears requester-owned screen data when changing requester", async () => {
     vi.spyOn(api, "getRequesters").mockResolvedValue([
       { id: 1, name: "Anong Student", email: "anong.student@example.test" },

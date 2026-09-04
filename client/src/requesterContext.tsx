@@ -40,6 +40,7 @@ export function useRequesterContext() {
     } catch (error) {
       setRequesters([]);
       setSelectedRequester(null);
+      localStorage.removeItem(STORAGE_KEY);
       setErrorMessage(error instanceof Error ? error.message : "Unable to load Development Requesters.");
       setState("error");
     }
