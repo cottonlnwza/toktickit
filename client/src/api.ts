@@ -16,6 +16,64 @@ export interface Requester {
   email: string;
 }
 
+export interface RelatedSystem {
+  id: number;
+  name: string;
+}
+
+export interface CreateTicketRequest {
+  requesterId: number;
+  categoryId: number;
+  relatedSystemId: number;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+}
+
+export interface CreatedTicket extends CreateTicketRequest {
+  id: number;
+  ticketNumber: string;
+  createdAt: string;
+  currentStatus: "NEW";
+  currentStatusLabel: "New";
+}
+
+export interface UploadedAttachment {
+  id: number;
+  ticketId: number;
+  originalFilename: string;
+  storedFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  removedAt: string | null;
+}
+
+async function parseError(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as { error?: string | { message?: string } };
+    if (typeof body.error === "string") return body.error;
+    return body.error?.message ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function getCategories(): Promise<Category[]> {
+  const response = await fetch(`${API_URL}/api/categories`);
+  if (!response.ok) {
+    throw new Error(await parseError(response, `Unable to load Categories. HTTP ${response.status}.`));
+  }
+  return (await response.json()) as Category[];
+}
+
+export async function getRelatedSystems(): Promise<RelatedSystem[]> {
+  const response = await fetch(`${API_URL}/api/related-systems`);
+  if (!response.ok) {
+    throw new Error(await parseError(response, `Unable to load Related Systems. HTTP ${response.status}.`));
+  }
+  return (await response.json()) as RelatedSystem[];
+}
+
 export async function getRequesters(): Promise<Requester[]> {
   let response: Response;
 
@@ -32,6 +90,36 @@ export async function getRequesters(): Promise<Requester[]> {
   return (await response.json()) as Requester[];
 }
 
+export async function createTicket(input: CreateTicketRequest): Promise<CreatedTicket> {
+  const response = await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Unable to create Ticket."));
+  }
+
+  return (await response.json()) as CreatedTicket;
+}
+
+export async function uploadTicketAttachment(ticketId: number, requesterId: number, file: File): Promise<UploadedAttachment> {
+  const body = new FormData();
+  body.append("file", file);
+
+  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments`, {
+    method: "POST",
+    body,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseError(response, "Unable to upload Attachment."));
+  }
+
+  return (await response.json()) as UploadedAttachment;
+}
+
 // Issue 2 + Issue 4 — call the backend.
 // Steps: fetch `${API_URL}/api/health`; if not ok, throw.
 //        then fetch `${API_URL}/api/categories`; if not ok, throw.
@@ -39,7 +127,6 @@ export async function getRequesters(): Promise<Requester[]> {
 // Throwing on failure lets the UI show a single Offline/error state.
 export async function checkSystem(): Promise<SystemStatus> {
   let healthResponse: Response;
-
   try {
     healthResponse = await fetch(`${API_URL}/api/health`);
   } catch {
@@ -50,19 +137,10 @@ export async function checkSystem(): Promise<SystemStatus> {
     throw new Error(`Backend health check failed with HTTP ${healthResponse.status}.`);
   }
 
-  let categoriesResponse: Response;
-
   try {
-    categoriesResponse = await fetch(`${API_URL}/api/categories`);
+    const categories = await getCategories();
+    return { online: true, categories };
   } catch {
     throw new Error("Category list request failed. Is the API server running?");
   }
-
-  if (!categoriesResponse.ok) {
-    throw new Error(`Category list request failed with HTTP ${categoriesResponse.status}.`);
-  }
-
-  const categories = (await categoriesResponse.json()) as Category[];
-
-  return { online: true, categories };
 }
