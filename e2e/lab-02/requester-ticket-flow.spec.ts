@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 type Requester = { id: number; name: string; email: string };
 
@@ -23,6 +25,16 @@ async function expectNoHorizontalOverflow(page: import("@playwright/test").Page)
   expect(widths.scrollWidth).toBeLessThanOrEqual(widths.clientWidth);
 }
 
+async function captureEvidence(
+  page: import("@playwright/test").Page,
+  area: "create-ticket" | "my-tickets" | "ticket-detail" | "responsive",
+  projectName: string,
+) {
+  const path = join("artifacts", "lab-02", "screenshots", area, `${projectName}.png`);
+  mkdirSync(dirname(path), { recursive: true });
+  await page.screenshot({ path, fullPage: true });
+}
+
 test("requester creates, finds, opens, and manages an owned Ticket", async ({ page }, testInfo) => {
   const requesters = await selectFirstRequester(page);
   const unique = `${testInfo.project.name}-${Date.now()}`;
@@ -33,6 +45,7 @@ test("requester creates, finds, opens, and manages an owned Ticket", async ({ pa
   await page.getByLabel("Requested Priority").selectOption("MEDIUM");
   await page.getByLabel("Ticket Summary").fill(summary);
   await page.getByLabel("Description").fill("This ticket verifies the complete requester workflow through Playwright.");
+  await captureEvidence(page, "create-ticket", testInfo.project.name);
   await page.getByRole("button", { name: "Submit Ticket" }).click();
 
   const success = page.getByRole("status").filter({ hasText: "Ticket created successfully" });
@@ -43,6 +56,11 @@ test("requester creates, finds, opens, and manages an owned Ticket", async ({ pa
   await page.getByRole("link", { name: "My Tickets" }).click();
   await page.getByRole("searchbox", { name: "Search Tickets" }).fill(summary);
   await expect(page.getByText(summary).filter({ visible: true })).toBeVisible();
+  if (testInfo.project.name === "tablet" || testInfo.project.name === "mobile") {
+    await expect(page.locator(".my-ticket-cards")).toBeVisible();
+    await expect(page.getByRole("button", { name: `Open Ticket ${ticketNumber}` }).filter({ visible: true })).toBeVisible();
+  }
+  await captureEvidence(page, "my-tickets", testInfo.project.name);
   await page.getByRole("button", { name: `Open Ticket ${ticketNumber}` }).filter({ visible: true }).click();
   await expect(page.getByRole("heading", { name: "Ticket Detail" })).toBeVisible();
 
@@ -60,6 +78,7 @@ test("requester creates, finds, opens, and manages an owned Ticket", async ({ pa
   await page.getByRole("button", { name: "Confirm removal" }).click();
   await expect(page.getByText(/Download unavailable/)).toBeVisible();
   await expect(download).toHaveCount(0);
+  await captureEvidence(page, "ticket-detail", testInfo.project.name);
 
   if (requesters.length > 1) {
     const ticketResponse = await page.request.get(
@@ -71,7 +90,7 @@ test("requester creates, finds, opens, and manages an owned Ticket", async ({ pa
   }
 
   await expectNoHorizontalOverflow(page);
-  await page.screenshot({ path: testInfo.outputPath("requester-ticket-flow.png"), fullPage: true });
+  await captureEvidence(page, "responsive", testInfo.project.name);
 });
 
 test("ticket remains created when an attachment upload fails and retry does not recreate it", async ({ page }, testInfo) => {

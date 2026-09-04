@@ -1,21 +1,25 @@
 # TokTickIT
 
-TokTickIT is the Lab 1 full-stack starter project for the CPE334 Software
-Engineering course.
+TokTickIT is a requester-facing IT ticketing application for the CPE334
+Software Engineering course. Lab 2 adds requester context, ticket creation and
+discovery, requester-owned detail views, and Attachment lifecycle management.
 
-## Lab 1 Technology Stack
+## Technology Stack
 
 - Frontend: React, TypeScript, Vite, Bootstrap
 - Backend: Node.js, Express, TypeScript
 - Database: PostgreSQL with Prisma ORM
 - API style: REST
-- Testing: Vitest and Supertest
+- Testing: Vitest, Supertest, and Playwright
 
 ## Project Structure
 
 - `client/` contains the React frontend application.
 - `server/` contains the Express backend API and Prisma setup.
 - `docs/lab-01/` contains Lab 1 documentation and evidence notes.
+- `docs/lab-02/` contains the Lab 2 engineering contract and evidence records.
+- `e2e/lab-02/` contains the required requester-flow Playwright tests.
+- `artifacts/lab-02/screenshots/` contains generated responsive visual evidence.
 
 ## Local Setup
 
@@ -81,8 +85,15 @@ cd server
 npm test
 ```
 
-## Issue Scope
+Run the Lab 2 Playwright flow from the repository root:
 
-Issue #1 establishes the project foundation only. Health check behavior,
-category database setup, category seed data, and category list UI behavior are
-implemented in later Lab 1 issues.
+```bash
+npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
+```
+
+## Lab 2 Scope
+
+Lab 2 provides Development Requester selection for testing, Create Ticket, My
+Tickets, requester-owned Ticket Detail, and Attachment upload, download, and
+soft removal. It does not provide authentication, IT Staff or Administrator
+workflows, comments, Internal Notes, Actions Taken, or later status workflows.
