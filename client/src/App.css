@@ -89,10 +89,18 @@
   padding: 0.9rem 1rem;
 }
 
+.readonly-field.compact {
+  margin: 0;
+}
+
 .ticket-grid {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.readonly-grid {
+  margin-bottom: 1rem;
 }
 
 .attachment-help {

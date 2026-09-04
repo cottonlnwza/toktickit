@@ -45,6 +45,60 @@ describe("Lab 2 Ticket validation", () => {
     );
   });
 
+  it("enforces Summary and Description boundary lengths", () => {
+    const tooShort = validateCreateTicketInput({
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "1234",
+      description: "too short",
+      requestedPriority: "MEDIUM",
+    });
+    const validLowerBoundary = validateCreateTicketInput({
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "12345",
+      description: "12345678901234567890",
+      requestedPriority: "MEDIUM",
+    });
+    const validUpperBoundary = validateCreateTicketInput({
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "a".repeat(120),
+      description: "b".repeat(2000),
+      requestedPriority: "MEDIUM",
+    });
+    const tooLong = validateCreateTicketInput({
+      requesterId: 1,
+      categoryId: 2,
+      relatedSystemId: 3,
+      summary: "a".repeat(121),
+      description: "b".repeat(2001),
+      requestedPriority: "MEDIUM",
+    });
+
+    expect(tooShort.valid).toBe(false);
+    if (tooShort.valid) throw new Error("Expected short input to fail.");
+    expect(tooShort.errors).toEqual(
+      expect.arrayContaining([
+        { field: "summary", message: "Summary must be 5-120 characters." },
+        { field: "description", message: "Description must be 20-2000 characters." },
+      ]),
+    );
+    expect(validLowerBoundary.valid).toBe(true);
+    expect(validUpperBoundary.valid).toBe(true);
+    expect(tooLong.valid).toBe(false);
+    if (tooLong.valid) throw new Error("Expected long input to fail.");
+    expect(tooLong.errors).toEqual(
+      expect.arrayContaining([
+        { field: "summary", message: "Summary must be 5-120 characters." },
+        { field: "description", message: "Description must be 20-2000 characters." },
+      ]),
+    );
+  });
+
   it("rejects invalid attachment type, size, and max-five boundary", () => {
     expect(validateAttachmentCandidate({ filename: "error-log.pdf", sizeBytes: 5 * 1024 * 1024 }, 0)).toEqual({
       valid: true,

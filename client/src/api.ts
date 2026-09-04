@@ -49,8 +49,9 @@ export interface UploadedAttachment {
 
 async function parseError(response: Response, fallback: string) {
   try {
-    const body = (await response.json()) as { error?: string };
-    return body.error ?? fallback;
+    const body = (await response.json()) as { error?: string | { message?: string } };
+    if (typeof body.error === "string") return body.error;
+    return body.error?.message ?? fallback;
   } catch {
     return fallback;
   }
@@ -104,10 +105,9 @@ export async function createTicket(input: CreateTicketRequest): Promise<CreatedT
 
 export async function uploadTicketAttachment(ticketId: number, requesterId: number, file: File): Promise<UploadedAttachment> {
   const body = new FormData();
-  body.append("requesterId", String(requesterId));
   body.append("file", file);
 
-  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
+  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments`, {
     method: "POST",
     body,
   });

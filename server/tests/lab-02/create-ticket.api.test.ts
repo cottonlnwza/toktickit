@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { access, unlink } from "fs/promises";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import { getPrisma } from "../../src/prisma.js";
@@ -16,8 +17,13 @@ async function cleanupTickets(ticketNumbers: string[]) {
   if (knownTicketNumbers.length === 0) return;
 
   const prisma = getPrisma();
+  const attachments = await prisma.attachment.findMany({
+    where: { ticket: { ticketNumber: { in: knownTicketNumbers } } },
+    select: { storagePath: true },
+  });
   await prisma.attachment.deleteMany({ where: { ticket: { ticketNumber: { in: knownTicketNumbers } } } });
   await prisma.ticket.deleteMany({ where: { ticketNumber: { in: knownTicketNumbers } } });
+  await Promise.all(attachments.map((attachment) => unlink(attachment.storagePath).catch(() => undefined)));
 }
 
 describe("Lab 2 Create Ticket API", () => {
@@ -89,15 +95,18 @@ describe("Lab 2 Create Ticket API", () => {
 
     expect(res.status).toBe(400);
     expect(res.body).toEqual({
-      error: "Ticket validation failed.",
-      fields: expect.arrayContaining([
-        { field: "requesterId", message: "Requester is required." },
-        { field: "categoryId", message: "Category is required." },
-        { field: "relatedSystemId", message: "Related System is required." },
-        { field: "summary", message: "Summary is required." },
-        { field: "description", message: "Description is required." },
-        { field: "requestedPriority", message: "Requested Priority must be LOW, MEDIUM, HIGH, or URGENT." },
-      ]),
+      error: {
+        code: "VALIDATION_ERROR",
+        message: "Please correct the highlighted fields.",
+        fields: expect.objectContaining({
+          requesterId: "Requester is required.",
+          categoryId: "Category is required.",
+          relatedSystemId: "Related System is required.",
+          summary: "Summary is required.",
+          description: "Description is required.",
+          requestedPriority: "Requested Priority must be LOW, MEDIUM, HIGH, or URGENT.",
+        }),
+      },
     });
     expect(JSON.stringify(res.body)).not.toMatch(/SQL|stack|DATABASE_URL|\/Users|Prisma/i);
     await expect(getPrisma().ticket.count()).resolves.toBe(before);
@@ -116,8 +125,7 @@ describe("Lab 2 Create Ticket API", () => {
     if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
 
     const res = await request(app)
-      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
-      .field("requesterId", String(requester.id))
+      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
       .attach("file", Buffer.from("fake pdf content"), {
         filename: "evidence.pdf",
         contentType: "application/pdf",
@@ -128,6 +136,7 @@ describe("Lab 2 Create Ticket API", () => {
       id: expect.any(Number),
       ticketId: ticketRes.body.id,
       originalFilename: "evidence.pdf",
+      storedFilename: expect.stringMatching(/^[0-9a-f-]{36}\.pdf$/),
       mimeType: "application/pdf",
       sizeBytes: expect.any(Number),
       removedAt: null,
@@ -135,6 +144,7 @@ describe("Lab 2 Create Ticket API", () => {
 
     const attachment = await getPrisma().attachment.findUniqueOrThrow({ where: { id: res.body.id } });
     expect(attachment.ticketId).toBe(ticketRes.body.id);
+    await expect(access(attachment.storagePath)).resolves.toBeUndefined();
   });
 
   it("rejects invalid create-time attachments without creating an active Attachment", async () => {
@@ -151,15 +161,19 @@ describe("Lab 2 Create Ticket API", () => {
 
     const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
     const res = await request(app)
-      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
-      .field("requesterId", String(requester.id))
+      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
       .attach("file", Buffer.from("bad"), {
         filename: "malware.exe",
         contentType: "application/octet-stream",
       });
 
-    expect(res.status).toBe(400);
-    expect(res.body).toEqual({ error: "Only JPG, JPEG, PNG, WEBP, and PDF files are allowed." });
+    expect(res.status).toBe(415);
+    expect(res.body).toEqual({
+      error: {
+        code: "UNSUPPORTED_FILE_TYPE",
+        message: "Only JPG, JPEG, PNG, WEBP, and PDF files are allowed.",
+      },
+    });
     await expect(
       getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } }),
     ).resolves.toBe(before);

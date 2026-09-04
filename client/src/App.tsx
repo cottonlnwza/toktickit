@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   checkSystem,
   Category,
@@ -38,7 +38,14 @@ export default function App() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [ticketState, setTicketState] = useState<"idle" | "submitting" | "success" | "error">("idle");
   const [ticketError, setTicketError] = useState("");
+  const [referenceState, setReferenceState] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [createdTicket, setCreatedTicket] = useState<CreatedTicket | null>(null);
+
+  useEffect(() => {
+    if (requesterContext.selectedRequester && referenceState === "idle") {
+      void loadTicketReferences();
+    }
+  }, [requesterContext.selectedRequester, referenceState]);
 
   async function handleCheck() {
     setState("loading");
@@ -66,18 +73,37 @@ export default function App() {
   }
 
   async function loadTicketReferences() {
+    setReferenceState("loading");
+    setTicketError("");
     try {
       const [loadedCategories, loadedRelatedSystems] = await Promise.all([getCategories(), getRelatedSystems()]);
       setTicketCategories(loadedCategories);
       setRelatedSystems(loadedRelatedSystems);
+      setReferenceState("ready");
     } catch {
+      setTicketCategories([]);
+      setRelatedSystems([]);
+      setReferenceState("error");
       setTicketError("Unable to load Create Ticket reference data.");
     }
   }
 
   function validateAttachments(files: File[]) {
-    const remainingSlots = Math.max(0, 5 - attachments.filter((item) => item.status !== "invalid").length);
-    return files.slice(0, remainingSlots).map((file) => {
+    const activeSelections = attachments.filter((item) => item.status !== "invalid").length;
+    if (activeSelections + files.length > 5) {
+      setFieldErrors((current) => ({
+        ...current,
+        attachments: "A Ticket may have at most five active attachments.",
+      }));
+      return [];
+    }
+
+    setFieldErrors((current) => {
+      const { attachments: _attachments, ...rest } = current;
+      return rest;
+    });
+
+    return files.map((file) => {
       const filename = file.name.toLowerCase();
       const allowedType = allowedAttachmentExtensions.some((extension) => filename.endsWith(extension));
       if (!allowedType) {
@@ -99,8 +125,16 @@ export default function App() {
     const nextErrors: Record<string, string> = {};
     if (!categoryId) nextErrors.categoryId = "Category is required.";
     if (!relatedSystemId) nextErrors.relatedSystemId = "Related System is required.";
-    if (!summary.trim()) nextErrors.summary = "Summary is required.";
-    if (!description.trim()) nextErrors.description = "Description is required.";
+    const trimmedSummary = summary.trim();
+    const trimmedDescription = description.trim();
+    if (!trimmedSummary) nextErrors.summary = "Summary is required.";
+    else if (trimmedSummary.length < 5 || trimmedSummary.length > 120) {
+      nextErrors.summary = "Summary must be 5-120 characters.";
+    }
+    if (!trimmedDescription) nextErrors.description = "Description is required.";
+    else if (trimmedDescription.length < 20 || trimmedDescription.length > 2000) {
+      nextErrors.description = "Description must be 20-2000 characters.";
+    }
     setFieldErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   }
@@ -143,8 +177,8 @@ export default function App() {
         requesterId: requesterContext.selectedRequester.id,
         categoryId: Number(categoryId),
         relatedSystemId: Number(relatedSystemId),
-        summary,
-        description,
+        summary: summary.trim(),
+        description: description.trim(),
         requestedPriority,
       });
       setCreatedTicket(ticket);
@@ -184,6 +218,24 @@ export default function App() {
     setAttachments((current) => current.filter((_, currentIndex) => currentIndex !== index));
   }
 
+  function resetCreateTicketForm() {
+    setCategoryId("");
+    setRelatedSystemId("");
+    setSummary("");
+    setDescription("");
+    setRequestedPriority("MEDIUM");
+    setAttachments([]);
+    setFieldErrors({});
+    setTicketState("idle");
+    setTicketError("");
+    setCreatedTicket(null);
+  }
+
+  function handleChangeRequester() {
+    resetCreateTicketForm();
+    requesterContext.changeRequester();
+  }
+
   const selectedRequester = requesterContext.selectedRequester;
   const showSelector = !selectedRequester;
 
@@ -201,7 +253,7 @@ export default function App() {
           {selectedRequester ? (
             <>
               <span>Requester: {selectedRequester.name}</span>
-              <button className="btn btn-outline-light btn-sm" onClick={requesterContext.changeRequester}>
+              <button className="btn btn-outline-light btn-sm" onClick={handleChangeRequester}>
                 Change Requester
               </button>
             </>
@@ -289,6 +341,18 @@ export default function App() {
               </div>
             )}
 
+            {referenceState === "loading" && (
+              <div className="alert alert-info" role="status">
+                Loading Create Ticket reference data...
+              </div>
+            )}
+
+            {referenceState === "error" && (
+              <div className="alert alert-danger" role="alert">
+                {ticketError}
+              </div>
+            )}
+
             {ticketState === "success" && ticketError && (
               <div className="alert alert-warning" role="status">
                 {ticketError}
@@ -300,6 +364,21 @@ export default function App() {
               <strong>
                 {selectedRequester?.name} ({selectedRequester?.email})
               </strong>
+            </div>
+
+            <div className="ticket-grid readonly-grid">
+              <div className="readonly-field compact">
+                <span className="form-label">Ticket Number</span>
+                <strong>{createdTicket?.ticketNumber ?? "Generated after submit"}</strong>
+              </div>
+              <div className="readonly-field compact">
+                <span className="form-label">Ticket Date</span>
+                <strong>{createdTicket ? new Date().toISOString().slice(0, 10) : "Generated after submit"}</strong>
+              </div>
+              <div className="readonly-field compact">
+                <span className="form-label">Current Status</span>
+                <strong>{createdTicket?.currentStatusLabel ?? "New after submit"}</strong>
+              </div>
             </div>
 
             <div className="ticket-grid">
@@ -397,6 +476,7 @@ export default function App() {
               onChange={(event) => handleAttachmentSelection(event.target.files)}
             />
             <p className="attachment-help">JPG, JPEG, PNG, WEBP, and PDF only. Max 5 MB each. Max five files.</p>
+            {fieldErrors.attachments && <div className="invalid-feedback d-block">{fieldErrors.attachments}</div>}
 
             {attachments.length > 0 && (
               <ul className="attachment-list">
@@ -421,10 +501,14 @@ export default function App() {
             )}
 
             <div className="ticket-actions">
-              <button className="btn btn-outline-secondary" type="button">
+              <button className="btn btn-outline-secondary" type="button" onClick={resetCreateTicketForm}>
                 Cancel
               </button>
-              <button className="btn btn-success" disabled={ticketState === "submitting"} onClick={handleSubmitTicket}>
+              <button
+                className="btn btn-success"
+                disabled={ticketState === "submitting" || referenceState !== "ready"}
+                onClick={handleSubmitTicket}
+              >
                 {ticketState === "submitting" ? "Submitting..." : "Submit Ticket"}
               </button>
             </div>

@@ -1,5 +1,8 @@
 import express, { Request, Response } from "express";
 import cors from "cors";
+import { randomUUID } from "crypto";
+import { mkdir, unlink, writeFile } from "fs/promises";
+import path from "path";
 import { getPrisma } from "./prisma.js";
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
 // need the DB (Issue 4). It is intentionally unused until then.
@@ -37,6 +40,11 @@ interface MultipartFile {
   filename: string;
   contentType: string;
   sizeBytes: number;
+  content: Buffer;
+}
+
+function errorResponse(code: string, message: string, fields?: Record<string, string>) {
+  return { error: { code, message, ...(fields ? { fields } : {}) } };
 }
 
 export function buildTicketNumber(date: Date, sequence: number) {
@@ -67,7 +75,13 @@ export function validateCreateTicketInput(input: Record<string, unknown>):
   if (!categoryId) errors.push({ field: "categoryId", message: "Category is required." });
   if (!relatedSystemId) errors.push({ field: "relatedSystemId", message: "Related System is required." });
   if (!summary) errors.push({ field: "summary", message: "Summary is required." });
+  else if (summary.length < 5 || summary.length > 120) {
+    errors.push({ field: "summary", message: "Summary must be 5-120 characters." });
+  }
   if (!description) errors.push({ field: "description", message: "Description is required." });
+  else if (description.length < 20 || description.length > 2000) {
+    errors.push({ field: "description", message: "Description must be 20-2000 characters." });
+  }
   if (!allowedPriorities.includes(requestedPriority as RequestedPriorityInput)) {
     errors.push({
       field: "requestedPriority",
@@ -113,6 +127,11 @@ function sanitizeFilename(filename: string) {
   return filename.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function getAllowedExtension(filename: string) {
+  const extension = path.extname(filename).toLowerCase();
+  return allowedAttachmentExtensions.includes(extension) ? extension : null;
+}
+
 async function parseMultipartRequest(req: Request): Promise<{ fields: Record<string, string>; file: MultipartFile | null }> {
   const contentType = req.headers["content-type"] ?? "";
   const boundaryMatch = /boundary=([^;]+)/.exec(Array.isArray(contentType) ? contentType[0] : contentType);
@@ -145,6 +164,7 @@ async function parseMultipartRequest(req: Request): Promise<{ fields: Record<str
         filename: filenameMatch[1],
         contentType: contentTypeMatch?.[1] ?? "application/octet-stream",
         sizeBytes: Buffer.byteLength(rawContent, "binary"),
+        content: Buffer.from(rawContent, "binary"),
       };
     } else {
       fields[nameMatch[1]] = rawContent;
@@ -208,14 +228,15 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
 
     res.status(200).json(relatedSystems);
   } catch {
-    res.status(500).json({ error: "Unable to load Related Systems." });
+    res.status(500).json(errorResponse("REFERENCE_DATA_ERROR", "Unable to load Related Systems."));
   }
 });
 
 app.post("/api/tickets", async (req: Request, res: Response) => {
   const validation = validateCreateTicketInput(req.body);
   if (!validation.valid) {
-    res.status(400).json({ error: "Ticket validation failed.", fields: validation.errors });
+    const fields = Object.fromEntries(validation.errors.map((error) => [error.field, error.message]));
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
     return;
   }
 
@@ -234,7 +255,8 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
     if (!relatedSystem) referenceErrors.push({ field: "relatedSystemId", message: "Related System is not available." });
 
     if (referenceErrors.length > 0) {
-      res.status(400).json({ error: "Ticket validation failed.", fields: referenceErrors });
+      const fields = Object.fromEntries(referenceErrors.map((error) => [error.field, error.message]));
+      res.status(404).json(errorResponse("REFERENCE_NOT_FOUND", "Selected requester, category, or related system is not available.", fields));
       return;
     }
 
@@ -259,35 +281,34 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
 
     res.status(201).json({ ...ticket, currentStatusLabel: "New" });
   } catch {
-    res.status(500).json({ error: "Unable to create Ticket." });
+    res.status(500).json(errorResponse("CREATE_TICKET_ERROR", "Unable to create Ticket."));
   }
 });
 
-app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+  const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
+  if (!requesterId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester is required.", { requesterId: "Requester is required." }));
+    return;
+  }
   if (!ticketId) {
-    res.status(400).json({ error: "Ticket is required." });
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket is required.", { ticketId: "Ticket is required." }));
     return;
   }
 
   try {
-    const { fields, file } = await parseMultipartRequest(req);
-    const requesterId = toPositiveInteger(fields.requesterId);
-
-    if (!requesterId) {
-      res.status(400).json({ error: "Requester is required." });
-      return;
-    }
+    const { file } = await parseMultipartRequest(req);
 
     if (!file) {
-      res.status(400).json({ error: "Attachment file is required." });
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Attachment file is required.", { file: "Attachment file is required." }));
       return;
     }
 
     const prisma = getPrisma();
     const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, requesterId } });
     if (!ticket) {
-      res.status(404).json({ error: "Ticket not found." });
+      res.status(404).json(errorResponse("TICKET_NOT_FOUND", "Ticket not found."));
       return;
     }
 
@@ -298,27 +319,52 @@ app.post("/api/tickets/:ticketId/attachments", async (req: Request, res: Respons
     );
 
     if (!attachmentValidation.valid) {
-      res.status(attachmentValidation.error === "Attachment must be 5 MB or smaller." ? 413 : 400).json({
-        error: attachmentValidation.error,
-      });
+      const errorMessage = attachmentValidation.error ?? "Attachment is invalid.";
+      const status =
+        errorMessage === "Attachment must be 5 MB or smaller."
+          ? 413
+          : errorMessage === "A Ticket may have at most five active attachments."
+            ? 400
+            : 415;
+      const code =
+        status === 413 ? "FILE_TOO_LARGE" : status === 400 ? "VALIDATION_ERROR" : "UNSUPPORTED_FILE_TYPE";
+      res.status(status).json(errorResponse(code, errorMessage));
       return;
     }
 
-    const storedFilename = `${Date.now()}-${Math.random().toString(16).slice(2)}-${sanitizeFilename(file.filename)}`;
-    const attachment = await prisma.attachment.create({
-      data: {
-        ticketId,
-        originalFilename: file.filename,
-        storedFilename,
-        mimeType: file.contentType,
-        sizeBytes: file.sizeBytes,
-        storagePath: `server/uploads/lab-02/${storedFilename}`,
-      },
-    });
+    const extension = getAllowedExtension(file.filename);
+    if (!extension) {
+      res.status(415).json(errorResponse("UNSUPPORTED_FILE_TYPE", "Only JPG, JPEG, PNG, WEBP, and PDF files are allowed."));
+      return;
+    }
+
+    const storedFilename = `${randomUUID()}${extension}`;
+    const uploadDirectory = path.join(process.cwd(), "server", "uploads", "lab-02");
+    const storagePath = path.join(uploadDirectory, storedFilename);
+
+    await mkdir(uploadDirectory, { recursive: true });
+    await writeFile(storagePath, file.content);
+
+    let attachment;
+    try {
+      attachment = await prisma.attachment.create({
+        data: {
+          ticketId,
+          originalFilename: sanitizeFilename(file.filename),
+          storedFilename,
+          mimeType: file.contentType,
+          sizeBytes: file.sizeBytes,
+          storagePath,
+        },
+      });
+    } catch (error) {
+      await unlink(storagePath).catch(() => undefined);
+      throw error;
+    }
 
     res.status(201).json(attachment);
   } catch {
-    res.status(500).json({ error: "Unable to upload Attachment." });
+    res.status(500).json(errorResponse("UPLOAD_ATTACHMENT_ERROR", "Unable to upload Attachment."));
   }
 });
 
