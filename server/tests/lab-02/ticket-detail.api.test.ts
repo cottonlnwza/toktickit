@@ -96,9 +96,11 @@ describe("GET /api/requesters/:requesterId/tickets/:ticketId", () => {
       attachments: [{
         ...detail.attachments[0],
         uploadedAt: "2026-09-04T08:30:00.000Z",
+        state: "active",
+        downloadUrl: "/api/requesters/7/tickets/42/attachments/9/download",
       }],
     });
-    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|editPermissions|comments|statusActions/i);
+    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|removedByRequesterId|editPermissions|comments|statusActions/i);
   });
 
   it("rejects invalid Requester or Ticket IDs without querying the database", async () => {

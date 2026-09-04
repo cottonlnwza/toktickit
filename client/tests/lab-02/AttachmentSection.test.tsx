@@ -49,9 +49,10 @@ describe("Ticket Detail Attachment section", () => {
   it("distinguishes empty, active, and removed attachments and blocks removed download", async () => {
     mockApi();
     await openDetail();
-    expect(screen.getByRole("link", { name: /Download evidence.pdf/i })).toHaveAttribute("href", "/download/9");
+    expect(screen.getByRole("link", { name: /Download evidence.pdf/i })).toHaveAttribute("href", "http://localhost:3000/download/9");
+    expect(screen.getByText(/Active.*Uploaded 2026-09-04/i)).toBeInTheDocument();
     expect(screen.getByText("old.png")).toBeInTheDocument();
-    expect(screen.getByText(/Removed.*Duplicate/i)).toBeInTheDocument();
+    expect(screen.getByText(/Removed 2026-09-04.*Duplicate/i)).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Download old.png/i })).not.toBeInTheDocument();
   });
 
@@ -85,6 +86,25 @@ describe("Ticket Detail Attachment section", () => {
 
     rejectUpload(new Error("down"));
     expect(await screen.findByRole("alert")).toHaveTextContent(/Unable to upload Attachment/i);
+  });
+
+  it("shows the specific max-five error when a sixth active Attachment is uploaded", async () => {
+    const five = Array.from({ length: 5 }, (_, index) => ({
+      ...active,
+      id: index + 1,
+      originalFilename: `evidence-${index + 1}.pdf`,
+      downloadUrl: `/download/${index + 1}`,
+    }));
+    const fetch = mockApi(five);
+    const user = await openDetail();
+    fetch.mockImplementationOnce(() => json({
+      error: { code: "VALIDATION_ERROR", message: "A Ticket may have at most five active attachments." },
+    }, 400));
+
+    await user.upload(screen.getByLabelText(/Add Attachment/i), new File(["six"], "sixth.pdf", { type: "application/pdf" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("A Ticket may have at most five active attachments.");
+    expect(screen.queryByText(/Please retry/i)).not.toBeInTheDocument();
   });
 
   it("requires a trimmed reason, confirms removal, and retains removed metadata", async () => {

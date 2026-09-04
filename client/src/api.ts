@@ -109,6 +109,10 @@ async function parseError(response: Response, fallback: string) {
   }
 }
 
+function toApiUrl(value: string | undefined) {
+  return value ? new URL(value, API_URL).toString() : undefined;
+}
+
 export async function getCategories(): Promise<Category[]> {
   const response = await fetch(`${API_URL}/api/categories`);
   if (!response.ok) {
@@ -191,7 +195,14 @@ export async function getTicketDetail(requesterId: number, ticketId: number): Pr
   if (!response.ok) {
     throw new Error(await parseError(response, "Unable to load Ticket Detail."));
   }
-  return (await response.json()) as TicketDetail;
+  const detail = (await response.json()) as TicketDetail;
+  return {
+    ...detail,
+    attachments: detail.attachments.map((attachment) => ({
+      ...attachment,
+      downloadUrl: toApiUrl(attachment.downloadUrl),
+    })),
+  };
 }
 
 export async function addTicketAttachment(
@@ -206,7 +217,14 @@ export async function addTicketAttachment(
     body,
   });
   if (!response.ok) throw new Error(await parseError(response, "Unable to upload Attachment."));
-  return (await response.json()) as TicketAttachment;
+  const attachment = (await response.json()) as TicketAttachment;
+  return {
+    ...attachment,
+    state: "active",
+    downloadUrl: toApiUrl(
+      attachment.downloadUrl ?? `/api/requesters/${requesterId}/tickets/${ticketId}/attachments/${attachment.id}/download`,
+    ),
+  };
 }
 
 export async function removeTicketAttachment(

@@ -142,6 +142,22 @@ describe("Requester Attachment lifecycle API", () => {
     expect(mockReadFile).not.toHaveBeenCalled();
   });
 
+  it("blocks cross-requester soft removal without changing Attachment metadata", async () => {
+    const mocks = prismaMock();
+    mocks.attachmentFindFirst.mockResolvedValue(null);
+
+    const res = await request(app)
+      .delete("/api/requesters/8/tickets/42/attachments/9")
+      .send({ reason: "Not mine" });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: { code: "NOT_FOUND", message: "Attachment was not found." } });
+    expect(mocks.attachmentFindFirst).toHaveBeenCalledWith({
+      where: { id: 9, ticketId: 42, ticket: { requesterId: 8 } },
+    });
+    expect(mocks.attachmentUpdate).not.toHaveBeenCalled();
+  });
+
   it("soft-removes an active owned Attachment with a trimmed reason and retains metadata", async () => {
     const mocks = prismaMock();
 

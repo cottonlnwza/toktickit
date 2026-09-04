@@ -401,13 +401,15 @@ export default function App() {
       const attachment: TicketAttachment = {
         ...uploaded,
         state: "active",
-        downloadUrl: uploaded.downloadUrl ?? `/api/requesters/${selectedRequester.id}/tickets/${ticketDetail.id}/attachments/${uploaded.id}/download`,
+        downloadUrl: uploaded.downloadUrl,
       };
       setTicketDetail((current) => current ? { ...current, attachments: [...current.attachments, attachment] } : current);
       setDetailUploadState("idle");
-    } catch {
+    } catch (error) {
       setDetailUploadState("error");
-      setDetailUploadError("Unable to upload Attachment. Please retry.");
+      const message = error instanceof Error ? error.message : "";
+      const isValidationMessage = /Only JPG|5 MB or smaller|at most five active attachments/i.test(message);
+      setDetailUploadError(isValidationMessage ? message : "Unable to upload Attachment. Please retry.");
     }
   }
 
@@ -595,7 +597,9 @@ export default function App() {
                           <div>
                             <strong>{attachment.originalFilename}</strong>
                             <div className="attachment-meta">
-                              {attachment.state === "removed" ? `Removed - ${attachment.removalReason ?? "Reason unavailable"}` : `${attachment.mimeType} - ${attachment.sizeBytes} bytes`}
+                              {attachment.state === "removed"
+                                ? `Removed ${attachment.removedAt?.slice(0, 10) ?? "date unavailable"} - ${attachment.removalReason ?? "Reason unavailable"}`
+                                : `Active - Uploaded ${attachment.uploadedAt.slice(0, 10)} - ${attachment.mimeType} - ${attachment.sizeBytes} bytes`}
                             </div>
                           </div>
                           {attachment.state === "active" && attachment.downloadUrl && (

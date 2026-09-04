@@ -490,7 +490,14 @@ app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, r
       return;
     }
 
-    res.status(200).json({ ...ticket, currentStatusLabel: "New" });
+    res.status(200).json({
+      ...ticket,
+      currentStatusLabel: "New",
+      attachments: ticket.attachments.map((attachment) => attachmentMetadata(
+        attachment,
+        `/api/requesters/${requesterId}/tickets/${ticketId}/attachments/${attachment.id}/download`,
+      )),
+    });
   } catch {
     res.status(500).json(errorResponse("TICKET_DETAIL_ERROR", "Unable to load Ticket Detail."));
   }
