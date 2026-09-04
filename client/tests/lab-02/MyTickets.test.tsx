@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 import * as api from "../../src/api.js";
@@ -94,6 +94,23 @@ describe("My Tickets workflow", () => {
     expect(screen.getAllByText("Hardware").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("Corporate Laptop").length).toBeGreaterThanOrEqual(2);
     expect(getMyTickets).toHaveBeenCalledWith(1, expect.objectContaining({ page: 1, pageSize: 10 }));
+  });
+
+  it("provides Open Ticket controls in desktop and mobile views and shows mobile Last Updated", async () => {
+    mockBase();
+    mockMyTickets();
+
+    await selectRequesterAndOpenMyTickets();
+    await screen.findAllByText("TTK-20260904-0001");
+    const desktop = document.querySelector(".my-tickets-table-wrap");
+    const mobile = document.querySelector(".my-ticket-cards");
+
+    expect(desktop).not.toBeNull();
+    expect(mobile).not.toBeNull();
+    expect(within(desktop as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i })).toBeInTheDocument();
+    expect(within(mobile as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i })).toBeInTheDocument();
+    expect(within(mobile as HTMLElement).getByText("Last Updated")).toBeInTheDocument();
+    expect(within(mobile as HTMLElement).getByText("2026-09-04")).toBeInTheDocument();
   });
 
   it("shows a loading state while owned Tickets are being retrieved", async () => {

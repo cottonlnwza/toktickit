@@ -138,6 +138,11 @@
   display: none;
 }
 
+.open-ticket-action {
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
 .requester-panel h2,
 .ticket-panel h2 {
   color: #143326;

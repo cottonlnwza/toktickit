@@ -48,6 +48,7 @@ export default function App() {
   const [myTicketsState, setMyTicketsState] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [myTickets, setMyTickets] = useState<MyTicketsResponse | null>(null);
   const [myTicketsError, setMyTicketsError] = useState("");
+  const [ticketDetailNotice, setTicketDetailNotice] = useState("");
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketCategoryFilter, setTicketCategoryFilter] = useState("");
   const [ticketSystemFilter, setTicketSystemFilter] = useState("");
@@ -305,6 +306,7 @@ export default function App() {
     setMyTicketsState("idle");
     setMyTickets(null);
     setMyTicketsError("");
+    setTicketDetailNotice("");
     setTicketSearch("");
     setTicketCategoryFilter("");
     setTicketSystemFilter("");
@@ -517,6 +519,7 @@ export default function App() {
                 <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setMyTicketsReload((value) => value + 1)}>Retry</button>
               </div>
             )}
+            {ticketDetailNotice && <div className="alert alert-info" role="status">{ticketDetailNotice}</div>}
             {myTicketsState === "success" && myTickets?.items.length === 0 && (
               <div className="empty-state" role="status">
                 {hasMyTicketsQuery ? "No Tickets match your search or filters." : "You do not have any Tickets yet."}
@@ -526,13 +529,14 @@ export default function App() {
               <>
                 <div className="my-tickets-table-wrap">
                   <table className="table my-tickets-table">
-                    <thead><tr><th>Ticket Number</th><th>Summary</th><th>Category</th><th>Related System</th><th>Priority</th><th>Status</th><th>Updated</th></tr></thead>
+                    <thead><tr><th>Ticket Number</th><th>Summary</th><th>Category</th><th>Related System</th><th>Priority</th><th>Status</th><th>Updated</th><th>Action</th></tr></thead>
                     <tbody>{myTickets.items.map((ticket) => (
                       <tr key={ticket.id}>
                         <td>{ticket.ticketNumber}</td><td>{ticket.summary}</td><td>{ticket.category.name}</td>
                         <td>{ticket.relatedSystem.name}</td><td><span className="ticket-badge">{ticket.requestedPriority}</span></td>
                         <td><span className="ticket-badge status">{ticket.currentStatusLabel}</span></td>
                         <td>{ticket.updatedAt.slice(0, 10)}</td>
+                        <td><button className="btn btn-sm btn-outline-success" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => setTicketDetailNotice("Ticket Detail will be available in the next workflow.")}>Open</button></td>
                       </tr>
                     ))}</tbody>
                   </table>
@@ -541,7 +545,8 @@ export default function App() {
                   {myTickets.items.map((ticket) => (
                     <article key={ticket.id} className="my-ticket-card">
                       <strong>{ticket.ticketNumber}</strong><h3>{ticket.summary}</h3>
-                      <dl><dt>Category</dt><dd>{ticket.category.name}</dd><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd><dt>Priority</dt><dd>{ticket.requestedPriority}</dd><dt>Status</dt><dd>{ticket.currentStatusLabel}</dd></dl>
+                      <dl><dt>Category</dt><dd>{ticket.category.name}</dd><dt>Related System</dt><dd>{ticket.relatedSystem.name}</dd><dt>Priority</dt><dd>{ticket.requestedPriority}</dd><dt>Status</dt><dd>{ticket.currentStatusLabel}</dd><dt>Last Updated</dt><dd>{ticket.updatedAt.slice(0, 10)}</dd></dl>
+                      <button className="btn btn-sm btn-outline-success open-ticket-action" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => setTicketDetailNotice("Ticket Detail will be available in the next workflow.")}>Open</button>
                     </article>
                   ))}
                 </div>
