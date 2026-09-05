@@ -200,7 +200,7 @@ Detailed API behavior is defined in `api-spec.md`. Required capabilities include
 - [x] UI conforms to Zen Green specification and responsive requirements.
 - [x] Ownership checks protect Tickets and Attachments.
 - [x] Documentation and README are current.
-- [x] Peer reviewer approves and merges each PR into `lab2-staging`.
+- [ ] Peer reviewer approves and merges each PR into `lab2-staging`.
 - [ ] Release PR from `lab2-staging` to `main` is approved and merged by peer reviewer.
 - [ ] Final tests pass on final `main`.
 - [ ] Final PDF includes Answer Part 1 through Answer Part 9 in order.

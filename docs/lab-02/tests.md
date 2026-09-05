@@ -6,37 +6,37 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 
 ## 2. Planned Tests
 
-| Test ID | Test level | Scenario | Expected result | Planned test-file path | Related AC | Final |
+| Test ID | Test level | Scenario | Expected result | Planned test-file path | Related AC | Final `main` |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | Generate Ticket Number for a valid create date and sequence | Unique number matches approved format | `server/tests/lab-02/ticket-number.test.ts` | AC-05 | Pass |
-| UNIT-02 | Unit | Trim and validate Summary and Description boundaries | Valid boundaries pass; invalid boundaries fail | `server/tests/lab-02/ticket-validation.test.ts` | AC-07, AC-08 | Pass |
-| SEED-01 | API/Integration | Run Lab 2 seed repeatedly and inspect seeded reference data | Seed is idempotent; exactly four required Categories exist; at least six Related Systems exist; at least four active Requesters and at least one inactive Requester exist; inactive Requesters are excluded from selector results | `server/tests/lab-02/seed.test.ts` | AC-01 | Pass |
-| API-01 | API/Integration | Retrieve active Development Requesters | HTTP 200; inactive requester omitted | `server/tests/lab-02/requesters.api.test.ts` | AC-01 | Pass |
-| API-02 | API/Integration | Create valid Ticket | HTTP 201; one requester-owned Ticket saved; number returned | `server/tests/lab-02/create-ticket.api.test.ts` | AC-04, AC-05, AC-06 | Pass |
-| API-03 | API/Integration | Reject invalid create request | HTTP 400; safe validation details; no invalid Ticket saved | `server/tests/lab-02/create-ticket.api.test.ts` | AC-07, AC-08 | Pass |
-| API-04 | API/Integration | Persist valid create-time Attachments | Attachments are linked to created Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | AC-11 | Pass |
-| API-05 | API/Integration | Reject invalid Attachment type, size, and max-five boundary | HTTP 400 or 413; safe error; no invalid active Attachment | `server/tests/lab-02/create-ticket.api.test.ts` | AC-12 | Pass |
-| API-06 | API/Integration | Retrieve requester-owned Tickets with search/filter/sort/page | HTTP 200; requester-owned paginated results and metadata; priority ascending is LOW -> MEDIUM -> HIGH -> URGENT and descending is URGENT -> HIGH -> MEDIUM -> LOW | `server/tests/lab-02/my-tickets.api.test.ts` | AC-13, AC-15 | Pass |
-| API-07 | API/Integration | Reject cross-requester Ticket access | Safe ownership failure response | `server/tests/lab-02/ticket-detail.api.test.ts` | AC-14 | Pass |
-| API-08 | API/Integration | Retrieve owned Ticket Detail | HTTP 200; read-only detail payload | `server/tests/lab-02/ticket-detail.api.test.ts` | AC-18 | Pass |
-| API-09 | API/Integration | Upload, download, soft-remove, and block removed Attachment | Active download works; removed metadata remains; removed download blocked | `server/tests/lab-02/attachments.api.test.ts` | AC-19, AC-20, AC-21 | Pass |
-| API-10 | API/Integration | Reject cross-requester Attachment access | Safe ownership failure response | `server/tests/lab-02/attachments.api.test.ts` | AC-22 | Pass |
-| UI-01 | UI Component | Development Requester selector loads active choices | Dropdown shows active Requesters and not inactive Requesters | `client/tests/lab-02/RequesterSelector.test.tsx` | AC-01, AC-02 | Pass |
-| UI-02 | UI Component | Selected Requester appears in app shell | Name and Change Requester action are visible | `client/tests/lab-02/RequesterContext.test.tsx` | AC-03 | Pass |
-| UI-03 | UI Component | Create Ticket valid submit flow | Submit busy state then success with Ticket Number | `client/tests/lab-02/CreateTicket.test.tsx` | AC-04, AC-05, AC-09 | Pass |
-| UI-04 | UI Component | Create Ticket validation and API failure | Field messages appear; failed API keeps form values | `client/tests/lab-02/CreateTicket.test.tsx` | AC-07, AC-10, AC-12 | Pass |
-| UI-05 | UI Component | My Tickets requester switching and controls | Previous requester Tickets disappear; controls update results | `client/tests/lab-02/MyTickets.test.tsx` | AC-13, AC-15, AC-16, AC-17 | Pass |
-| UI-06 | UI Component | Ticket Detail read-only view and Attachment states | Detail is read-only; active/removed/unavailable states render | `client/tests/lab-02/RequesterTicketDetail.test.tsx` | AC-18, AC-19, AC-21 | Pass |
-| UI-07 | UI Component | Attachment section upload retry, invalid, active, removed, and unavailable states | AttachmentSection renders required states and retry guidance | `client/tests/lab-02/AttachmentSection.test.tsx` | AC-12, AC-19, AC-20, AC-21, AC-22 | Pass |
-| UI-08 | UI Component | Requester selection missing, inactive, reload, and switching behavior | Stored invalid requester is cleared; switching reloads requester-owned data | `client/tests/lab-02/RequesterContext.test.tsx` | AC-02, AC-03, AC-13 | Pass |
-| UI-09 | UI Component | My Tickets loading, empty, no-results, and failure states | Correct state-specific feedback appears | `client/tests/lab-02/MyTickets.test.tsx` | AC-15, AC-16, AC-17 | Pass |
-| STYLE-01 | UI Style | Required labels, asterisks, messages, field states, and button hierarchy | Required UI classes/states are present | `client/tests/lab-02/ui-style.test.tsx` | AC-23, AC-24 | Pass |
-| RESP-01 | Responsive | Desktop viewport `>= 992px` | No clipping, overlap, hidden buttons, or horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
-| RESP-02 | Responsive | Tablet viewport `768-991px` | Layout remains usable with readable fields and attachments | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
-| RESP-03 | Responsive | Mobile viewport `< 768px` | Fields stack; touch controls usable; no horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
-| E2E-01 | E2E | Full requester flow from selector to create, list, detail, attachment removal | Flow succeeds for the selected requester | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-01, AC-04, AC-13, AC-18, AC-21 | Pass |
-| E2E-02 | E2E | One Attachment upload fails after successful Ticket creation, then is retried | Ticket remains created; failed file displays Retry/Remove; retry succeeds without creating the Ticket again | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-04, AC-12, AC-19 | Pass |
-| DOC-01 | Documentation | Final reviewer and AI-use documents contain only real evidence | No invented PR, review, prompt, or approval evidence | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md` | AC-25 | Pass |
+| UNIT-01 | Unit | Generate Ticket Number for a valid create date and sequence | Unique number matches approved format | `server/tests/lab-02/ticket-number.test.ts` | AC-05 | Pending |
+| UNIT-02 | Unit | Trim and validate Summary and Description boundaries | Valid boundaries pass; invalid boundaries fail | `server/tests/lab-02/ticket-validation.test.ts` | AC-07, AC-08 | Pending |
+| SEED-01 | API/Integration | Run Lab 2 seed repeatedly and inspect seeded reference data | Seed is idempotent; exactly four required Categories exist; at least six Related Systems exist; at least four active Requesters and at least one inactive Requester exist; inactive Requesters are excluded from selector results | `server/tests/lab-02/seed.test.ts` | AC-01 | Pending |
+| API-01 | API/Integration | Retrieve active Development Requesters | HTTP 200; inactive requester omitted | `server/tests/lab-02/requesters.api.test.ts` | AC-01 | Pending |
+| API-02 | API/Integration | Create valid Ticket | HTTP 201; one requester-owned Ticket saved; number returned | `server/tests/lab-02/create-ticket.api.test.ts` | AC-04, AC-05, AC-06 | Pending |
+| API-03 | API/Integration | Reject invalid create request | HTTP 400; safe validation details; no invalid Ticket saved | `server/tests/lab-02/create-ticket.api.test.ts` | AC-07, AC-08 | Pending |
+| API-04 | API/Integration | Persist valid create-time Attachments | Attachments are linked to created Ticket | `server/tests/lab-02/create-ticket.api.test.ts` | AC-11 | Pending |
+| API-05 | API/Integration | Reject invalid Attachment type, size, and max-five boundary | HTTP 400 or 413; safe error; no invalid active Attachment | `server/tests/lab-02/create-ticket.api.test.ts` | AC-12 | Pending |
+| API-06 | API/Integration | Retrieve requester-owned Tickets with search/filter/sort/page | HTTP 200; requester-owned paginated results and metadata; priority ascending is LOW -> MEDIUM -> HIGH -> URGENT and descending is URGENT -> HIGH -> MEDIUM -> LOW | `server/tests/lab-02/my-tickets.api.test.ts` | AC-13, AC-15 | Pending |
+| API-07 | API/Integration | Reject cross-requester Ticket access | Safe ownership failure response | `server/tests/lab-02/ticket-detail.api.test.ts` | AC-14 | Pending |
+| API-08 | API/Integration | Retrieve owned Ticket Detail | HTTP 200; read-only detail payload | `server/tests/lab-02/ticket-detail.api.test.ts` | AC-18 | Pending |
+| API-09 | API/Integration | Upload, download, soft-remove, and block removed Attachment | Active download works; removed metadata remains; removed download blocked | `server/tests/lab-02/attachments.api.test.ts` | AC-19, AC-20, AC-21 | Pending |
+| API-10 | API/Integration | Reject cross-requester Attachment access | Safe ownership failure response | `server/tests/lab-02/attachments.api.test.ts` | AC-22 | Pending |
+| UI-01 | UI Component | Development Requester selector loads active choices | Dropdown shows active Requesters and not inactive Requesters | `client/tests/lab-02/RequesterSelector.test.tsx` | AC-01, AC-02 | Pending |
+| UI-02 | UI Component | Selected Requester appears in app shell | Name and Change Requester action are visible | `client/tests/lab-02/RequesterContext.test.tsx` | AC-03 | Pending |
+| UI-03 | UI Component | Create Ticket valid submit flow | Submit busy state then success with Ticket Number | `client/tests/lab-02/CreateTicket.test.tsx` | AC-04, AC-05, AC-09 | Pending |
+| UI-04 | UI Component | Create Ticket validation and API failure | Field messages appear; failed API keeps form values | `client/tests/lab-02/CreateTicket.test.tsx` | AC-07, AC-10, AC-12 | Pending |
+| UI-05 | UI Component | My Tickets requester switching and controls | Previous requester Tickets disappear; controls update results | `client/tests/lab-02/MyTickets.test.tsx` | AC-13, AC-15, AC-16, AC-17 | Pending |
+| UI-06 | UI Component | Ticket Detail read-only view and Attachment states | Detail is read-only; active/removed/unavailable states render | `client/tests/lab-02/RequesterTicketDetail.test.tsx` | AC-18, AC-19, AC-21 | Pending |
+| UI-07 | UI Component | Attachment section upload retry, invalid, active, removed, and unavailable states | AttachmentSection renders required states and retry guidance | `client/tests/lab-02/AttachmentSection.test.tsx` | AC-12, AC-19, AC-20, AC-21 | Pending |
+| UI-08 | UI Component | Requester selection missing, inactive, reload, and switching behavior | Stored invalid requester is cleared; switching reloads requester-owned data | `client/tests/lab-02/RequesterContext.test.tsx` | AC-02, AC-03, AC-13 | Pending |
+| UI-09 | UI Component | My Tickets loading, empty, no-results, and failure states | Correct state-specific feedback appears | `client/tests/lab-02/MyTickets.test.tsx` | AC-15, AC-16, AC-17 | Pending |
+| STYLE-01 | UI Style | Required labels, asterisks, messages, field states, and button hierarchy | Required UI classes/states are present | `client/tests/lab-02/ui-style.test.tsx` | AC-23, AC-24 | Pending |
+| RESP-01 | Responsive | Desktop viewport `>= 992px` | No clipping, overlap, hidden buttons, or horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pending |
+| RESP-02 | Responsive | Tablet viewport `768-991px` | Layout remains usable with readable fields and attachments | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pending |
+| RESP-03 | Responsive | Mobile viewport `< 768px` | Fields stack; touch controls usable; no horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pending |
+| E2E-01 | E2E | Full requester flow from selector to create, list, detail, attachment removal | Flow succeeds for the selected requester | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-01, AC-04, AC-13, AC-18, AC-21 | Pending |
+| E2E-02 | E2E | One Attachment upload fails after successful Ticket creation, then is retried | Ticket remains created; failed file displays Retry/Remove; retry succeeds without creating the Ticket again | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-04, AC-12, AC-19 | Pending |
+| DOC-01 | Documentation | Final reviewer and AI-use documents contain only real evidence | No invented PR, review, prompt, or approval evidence | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md` | AC-25 | Pending |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -63,7 +63,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | AC-19 | API-09, UI-06, UI-07, E2E-02 |
 | AC-20 | API-09, UI-07 |
 | AC-21 | API-09, UI-06, UI-07, E2E-01 |
-| AC-22 | API-10, UI-07 |
+| AC-22 | API-10 |
 | AC-23 | STYLE-01, RESP-01, RESP-02, RESP-03 |
 | AC-24 | STYLE-01 |
 | AC-25 | DOC-01 |
@@ -113,11 +113,13 @@ npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
 
 ## 6. Screenshot Evidence
 
-The following repository evidence was manually reviewed for clear state labels,
-visible actions, and no clipped or horizontally overflowing content. These are
-pre-release screenshots; final GitHub, `main`, and PDF evidence remains pending.
+The following available repository evidence was manually reviewed for clear
+state labels, visible actions, and no clipped or horizontally overflowing
+content. It is a pre-release subset, not a claim that every Lab Sheet action is
+captured. Final GitHub, `main`, complete action coverage, and PDF evidence remain
+pending.
 
-| Evidence area | Required states | Repository screenshots |
+| Evidence area | Captured states | Repository screenshots |
 |---|---|---|
 | Create Ticket | Validation error, submitting/loading, success, API failure | [Validation error](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-validation-error.png), [submitting](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-submitting.png), [success](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-success.png), [API failure](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-api-failure.png) |
 | My Tickets | Requester A, Requester B ownership separation, empty list, no-results | [Requester A](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-a.png), [Requester B](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-b.png), [empty list](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-empty.png), [no-results](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-no-results.png) |
@@ -126,7 +128,14 @@ pre-release screenshots; final GitHub, `main`, and PDF evidence remains pending.
 | Responsive tablet | Complete layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/tablet.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/tablet.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/tablet.png) |
 | Responsive mobile | Stacked layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/mobile.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/mobile.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/mobile.png) |
 
-## 7. Final Results
+Still required for the final PDF screenshot package:
+
+- Create Ticket entry and Development Requester selector.
+- My Tickets search, filter, sort, and pagination actions.
+- Attachment add, active download, remove, blocked removed-file download, and
+  cross-requester Attachment access.
+
+## 7. Pre-release Verification Results
 
 These results were rerun on the P13 correction branch
 `feature/lab2-release-final-evidence` on 5 September 2026. Run the same commands
@@ -153,9 +162,9 @@ again on final `main` before submission.
 - [x] Answer Part 2: rendered `specification.md`, numbered FR/BR/AC/DoD, and PR #23 history showing the contract preceded implementation PRs.
 - [ ] Answer Part 3: rendered `tests.md` and complete unit/API/UI output. Final `main` rerun evidence is pending.
 - [x] Answer Part 4: rendered `ai-use.md` with seven selected prompts and brief reflection.
-- [x] Answer Part 5: Development Requester selector evidence is included with Create Ticket evidence.
-- [x] Answer Part 6: Create Ticket validation, submitting, success, and API failure screenshot evidence is linked above.
-- [x] Answer Part 7: Requester A/B ownership separation, empty list, and no-results My Tickets screenshot evidence is linked above.
-- [x] Answer Part 8: Owned detail, unauthorized access, invalid Attachment, and removed/unavailable Attachment screenshot evidence is linked above.
-- [x] Answer Part 9: Desktop, tablet, and mobile visual evidence is linked above and shows complete actions without horizontal overflow.
+- [ ] Answer Part 5: Development Requester selector screenshot evidence remains pending.
+- [ ] Answer Part 6: Captured Create Ticket states are linked above; entry/selector evidence remains pending.
+- [ ] Answer Part 7: Captured ownership, empty, and no-results states are linked above; search/filter/sort/pagination action evidence remains pending.
+- [ ] Answer Part 8: Captured detail and Attachment states are linked above; add/download/remove/blocked-download and cross-requester action evidence remains pending.
+- [ ] Answer Part 9: Responsive screenshots are linked above, but the complete final visual evidence package remains pending with Answer Parts 5-8.
 - [ ] Final PDF: compile Answer Part 1 through Answer Part 9 in the required order after the release PR and final `main` verification.
