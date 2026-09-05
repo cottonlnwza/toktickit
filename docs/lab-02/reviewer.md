@@ -34,8 +34,8 @@ Each recorded blocker was corrected on its original feature branch and verified 
 
 | PR | Repository | Lab 2 issue / title | Author | My review action | Evidence |
 |---|---|---|---|---|---|
-| [#25](https://github.com/thananun-7203/toktickit/pull/25) | `thananun-7203/toktickit` | [Lab 2] Issue_5: Ticket Detail & Attachments | Pending verification | Pending verification | PR number/title supplied as screenshot evidence; GitHub record was not accessible during audit |
-| [#30](https://github.com/thananun-7203/toktickit/pull/30) | `thananun-7203/toktickit` | [Lab 2] Issue_7: Zen Green UI Alignment | Pending verification | Pending verification | PR number/title supplied as screenshot evidence; GitHub record was not accessible during audit |
+| [#25](https://github.com/thananun-7203/toktickit/pull/25) | `thananun-7203/toktickit` | [Lab 2] Issue_5: Ticket Detail & Attachments | @thananun-7203 | Changes requested; later approved; merged by @cottonlnwza | User-provided GitHub PR page evidence; branch `feature/5-ticket-detail-and-attachments` -> `lab2-staging`; related issue #27; changes requested `pullrequestreview-5109423798`; approval `pullrequestreview-5109714097`; merge `d40ef62`; GitHub page showed yesterday; topics: attachment concurrency fixes, atomic soft removal, removal reason requirement, retained metadata, AI-use documentation/model/prompt table, CI/test evidence |
+| [#30](https://github.com/thananun-7203/toktickit/pull/30) | `thananun-7203/toktickit` | [Lab 2] Issue_7: Zen Green UI Alignment | @thananun-7203 | Approved; merged by @cottonlnwza | User-provided GitHub PR page evidence; branch `feature/7-zen-green-ui-alignment` -> `lab2-staging`; related issue #27; approval `pullrequestreview-5113383184`; merge `3daa3b8`; GitHub page showed 16 hours ago; topics: Zen Green color tokens, requester UI redesign, responsive desktop/tablet/mobile behavior, no horizontal overflow, navbar/menu behavior, UI tests and Playwright evidence |
 | Other Lab 2 PRs | `thananun-7203/toktickit` | Pending verification | Pending verification | Pending verification | No additional public record could be verified |
 
 ## Notes

@@ -52,7 +52,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | AC-08 | UNIT-02, API-03 |
 | AC-09 | UI-03 |
 | AC-10 | UI-04 |
-| AC-11 | API-04, E2E-01 |
+| AC-11 | API-04 |
 | AC-12 | API-05, UI-04, UI-07, E2E-02 |
 | AC-13 | API-06, UI-05, UI-08, E2E-01 |
 | AC-14 | API-07 |
@@ -92,8 +92,15 @@ npm test --prefix client
 ```
 
 Playwright/E2E is required by Lab 2 and is configured at the repository root.
-The dependency was proposed separately as `CHANGE-P9-LAB2-E2E-DEPENDENCY-001`
-and approved by the Project Manager before `@playwright/test` was installed.
+The dependency was proposed separately as `CHANGE-P9-LAB2-E2E-DEPENDENCY-001`.
+The Project Manager approval record states this change was approved before
+`@playwright/test` was installed. Approved scope: install root-level
+`@playwright/test` as a development dependency; install Chromium through
+Playwright without system dependencies; add `playwright.config.ts`; add
+`e2e/lab-02/requester-ticket-flow.spec.ts`; update `.gitignore` only for
+generated Playwright output. No product, schema, migration, seed, database, or
+documentation changes were included in this dependency stage. Approval evidence
+permalink: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
 
 ```bash
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
