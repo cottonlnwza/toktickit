@@ -92,17 +92,15 @@ npm test --prefix client
 ```
 
 Playwright/E2E is required by Lab 2 and is configured at the repository root.
-The dependency was proposed separately as `CHANGE-P9-LAB2-E2E-DEPENDENCY-001`.
-The Project Manager approval record says this change was approved before
-`@playwright/test` was installed, but the available permalink is an Issue #22
-comment recording that approval record after reviewer feedback. Independent
-pre-`47cbfae` approval evidence has not been verified. Approved scope: install
-root-level `@playwright/test` as a development dependency; install Chromium
-through Playwright without system dependencies; add `playwright.config.ts`; add
-`e2e/lab-02/requester-ticket-flow.spec.ts`; update `.gitignore` only for
-generated Playwright output. No product, schema, migration, seed, database, or
-documentation changes were included in this dependency stage. Approval-record
-reference: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
+Dependency change note: Playwright was added in commit `47cbfae` for Issue #22
+E2E coverage. No separate pre-install proposal/approval evidence could be
+verified before that commit, so this is recorded as a process deviation /
+evidence gap. The Issue #22 permalink records the later approval/evidence
+correction: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
+
+Installed scope: root-level `@playwright/test`, Playwright Chromium runtime,
+`playwright.config.ts`, `e2e/lab-02/requester-ticket-flow.spec.ts`, and
+`.gitignore` entries for generated Playwright output.
 
 ```bash
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
