@@ -14,7 +14,7 @@
 | [#27](https://github.com/cottonlnwza/toktickit/pull/27) | `feature/lab2-5-my-tickets` | #20 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T12:02:51Z`; merge `8a14d4c`; corrections `7e86710`, `8a8a54f` |
 | [#28](https://github.com/cottonlnwza/toktickit/pull/28) | `feature/lab2-6-ticket-detail-attachments` | #21 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T14:24:56Z`; merge `168e262`; corrections `66037c0`, `c668eb2` |
 | [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @chaproi | Changes requested; corrected; approved; merged | @chaproi | Approved `pullrequestreview-5120269140`; final reviewed commit `5132c27`; merged by @chaproi with merge `0769c70`; PR closed and feature branch deleted |
-| Pending | `lab2-staging` to `main` | Release PR | Pending | Pending | Pending | Pending |
+| [#30](https://github.com/cottonlnwza/toktickit/pull/30) | `lab2-staging` to `main` | Release PR | Pending | Open / awaiting peer review | Pending | Release PR exists; approval and merge evidence pending |
 
 ## Review Comments Received
 
@@ -45,4 +45,5 @@ Each recorded blocker was corrected on its original feature branch and verified 
 - Peer reviewer must approve and merge PRs.
 - The author and AI assistant must not merge PRs.
 - PR #29 was approved by @chaproi and merged into `lab2-staging`; Issue #22 is complete.
-- The `lab2-staging` to `main` release PR does not exist yet and remains pending.
+- Process deviation: commit `176f24d` (`docs: record Issue 22 PR merge evidence`) was pushed directly on `lab2-staging`.
+- The `lab2-staging` to `main` release PR #30 is open and awaiting peer review; approval and merge evidence remain pending.
