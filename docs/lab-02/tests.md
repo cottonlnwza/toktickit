@@ -113,27 +113,24 @@ npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
 
 ## 6. Screenshot Evidence
 
-The following available repository evidence was manually reviewed for clear
-state labels, visible actions, and no clipped or horizontally overflowing
-content. It is a pre-release subset, not a claim that every Lab Sheet action is
-captured. Final GitHub, `main`, complete action coverage, and PDF evidence remain
-pending.
+The following repository evidence was manually reviewed for clear state labels,
+visible actions, and no clipped or horizontally overflowing content. It covers
+the required pre-release app states and actions. Final GitHub, `main`, and PDF
+evidence remains pending.
 
 | Evidence area | Captured states | Repository screenshots |
 |---|---|---|
-| Create Ticket | Validation error, submitting/loading, success, API failure | [Validation error](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-validation-error.png), [submitting](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-submitting.png), [success](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-success.png), [API failure](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-api-failure.png) |
-| My Tickets | Requester A, Requester B ownership separation, empty list, no-results | [Requester A](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-a.png), [Requester B](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-b.png), [empty list](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-empty.png), [no-results](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-no-results.png) |
-| Ticket Detail | Owned detail with Attachments, unauthorized/not found, invalid Attachment, removed metadata and unavailable download | [Owned detail](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-owned-attachments.png), [unauthorized](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-unauthorized.png), [invalid Attachment](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-invalid-attachment.png), [removed metadata](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-removed-metadata.png) |
+| Development Requester | Selector before selection, selected active Requester, selected identity on Create Ticket | [Selector](../../artifacts/lab-02/screenshots/final-evidence/lab2-requester-selector.png), [selected Requester](../../artifacts/lab-02/screenshots/final-evidence/lab2-requester-selector-selected.png), [Create Ticket entry](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-entry-requester-visible.png) |
+| Create Ticket | Entry/default form, validation error, submitting/loading, success, API failure | [Entry/default form](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-entry-requester-visible.png), [validation error](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-validation-error.png), [submitting](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-submitting.png), [success](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-success.png), [API failure](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-api-failure.png) |
+| My Tickets | Requester A/B ownership separation, empty/no-results, search, combined filters and sort, page size, pagination | [Requester A](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-a.png), [Requester B](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-b.png), [empty list](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-empty.png), [no-results](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-no-results.png), [search results](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-search-results.png), [filters/sort/page size](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-filter-sort-page-size.png), [pagination page 2](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-pagination-page-2.png) |
+| Ticket Detail | Owned detail, invalid Attachment, add success, active download, removal confirmation, removed/blocked download, unauthorized Ticket and cross-requester Attachment | [Owned detail](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-owned-attachments.png), [invalid Attachment](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-invalid-attachment.png), [add success and active Download](../../artifacts/lab-02/screenshots/final-evidence/lab2-attachment-add-success-active-download.png), [removal confirmation](../../artifacts/lab-02/screenshots/final-evidence/lab2-attachment-remove-confirmation.png), [removed and blocked download](../../artifacts/lab-02/screenshots/final-evidence/lab2-attachment-removed-blocked-download.png), [unauthorized Ticket](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-unauthorized.png), [cross-requester Attachment](../../artifacts/lab-02/screenshots/final-evidence/lab2-attachment-cross-requester-access-blocked.png) |
 | Responsive desktop | Create Ticket, My Tickets, Ticket Detail | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/desktop.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/desktop.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/desktop.png) |
 | Responsive tablet | Complete layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/tablet.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/tablet.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/tablet.png) |
 | Responsive mobile | Stacked layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/mobile.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/mobile.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/mobile.png) |
 
-Still required for the final PDF screenshot package:
-
-- Create Ticket entry and Development Requester selector.
-- My Tickets search, filter, sort, and pagination actions.
-- Attachment add, active download, remove, blocked removed-file download, and
-  cross-requester Attachment access.
+During capture, the active Attachment download endpoint returned HTTP 200. The
+cross-requester request used the same Ticket and Attachment IDs with Requester B
+and returned the safe `NOT_FOUND` response shown in the linked evidence.
 
 ## 7. Pre-release Verification Results
 
@@ -162,9 +159,9 @@ again on final `main` before submission.
 - [x] Answer Part 2: rendered `specification.md`, numbered FR/BR/AC/DoD, and PR #23 history showing the contract preceded implementation PRs.
 - [ ] Answer Part 3: rendered `tests.md` and complete unit/API/UI output. Final `main` rerun evidence is pending.
 - [x] Answer Part 4: rendered `ai-use.md` with seven selected prompts and brief reflection.
-- [ ] Answer Part 5: Development Requester selector screenshot evidence remains pending.
-- [ ] Answer Part 6: Captured Create Ticket states are linked above; entry/selector evidence remains pending.
-- [ ] Answer Part 7: Captured ownership, empty, and no-results states are linked above; search/filter/sort/pagination action evidence remains pending.
-- [ ] Answer Part 8: Captured detail and Attachment states are linked above; add/download/remove/blocked-download and cross-requester action evidence remains pending.
-- [ ] Answer Part 9: Responsive screenshots are linked above, but the complete final visual evidence package remains pending with Answer Parts 5-8.
+- [x] Answer Part 5: Development Requester selector, selection, and selected identity evidence is linked above.
+- [x] Answer Part 6: Create Ticket entry, validation, submitting, success, and API failure evidence is linked above.
+- [x] Answer Part 7: Requester ownership, empty/no-results, search, filter, sort, page-size, and pagination evidence is linked above.
+- [x] Answer Part 8: Owned detail, Attachment add/download/remove/blocked-download, invalid input, and cross-requester denial evidence is linked above.
+- [x] Answer Part 9: Complete responsive desktop/tablet/mobile visual evidence is linked above with the Answer Parts 5-8 app-state package.
 - [ ] Final PDF: compile Answer Part 1 through Answer Part 9 in the required order after the release PR and final `main` verification.
