@@ -52,6 +52,12 @@ cp server/.env.example server/.env
 ```
 
 The real `.env` files are for local development only and must not be committed.
+The current server runtime reads `DATABASE_URL` from the shell environment, so
+export the same value before running Prisma commands or starting the API:
+
+```bash
+export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit_lab2"
+```
 
 ## Running The App
 
@@ -73,12 +79,12 @@ npm run dev
 
 The Prisma schema is located at `server/prisma/schema.prisma`.
 
-The backend uses the `DATABASE_URL` value from `server/.env` to connect to
+The backend uses the `DATABASE_URL` shell environment variable to connect to
 PostgreSQL.
 
 For Lab 2, create an empty PostgreSQL development database such as
-`toktickit_lab2`, then manually set `DATABASE_URL` in `server/.env` to that
-database without committing or sharing the value. Prepare it from `server/`:
+`toktickit_lab2`, then export `DATABASE_URL` to that database without committing
+or sharing the value. Prepare it from `server/`:
 
 ```bash
 npm exec -- prisma migrate deploy

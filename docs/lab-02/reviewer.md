@@ -13,7 +13,7 @@
 | [#26](https://github.com/cottonlnwza/toktickit/pull/26) | `feature/lab2-4-create-ticket` | #19 | @thananun-7203 | Changes requested twice; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T09:04:19Z`; merge `83b7520`; corrections `975d4e4`, `6fed5fe` |
 | [#27](https://github.com/cottonlnwza/toktickit/pull/27) | `feature/lab2-5-my-tickets` | #20 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T12:02:51Z`; merge `8a14d4c`; corrections `7e86710`, `8a8a54f` |
 | [#28](https://github.com/cottonlnwza/toktickit/pull/28) | `feature/lab2-6-ticket-detail-attachments` | #21 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T14:24:56Z`; merge `168e262`; corrections `66037c0`, `c668eb2` |
-| [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @thananun-7203 | Changes requested; correction in progress | Pending | Open; review requested changes `2026-09-04`; commits `47cbfae`, `bb53b3b` |
+| [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @thananun-7203 | Changes requested; correction in progress | Pending | Open; Issue #22 reopened after reviewer checked commit `469bb62`; approval and merge evidence pending |
 | Pending | `lab2-staging` to `main` | Release PR | Pending | Pending | Pending | Pending |
 
 ## Review Comments Received
@@ -25,6 +25,7 @@
 - PR #27 requested complete responsive ticket cards and ticket-specific Open actions.
 - PR #28 requested public Attachment metadata, API-origin download URLs, max-five and ownership checks, and complete removed-Attachment metadata.
 - PR #29 requested dependency-approval evidence, current review records, Answer Parts 1-9 evidence mapping, clean-clone E2E setup, accurate E2E-02 claims, and rendered primary-green actions.
+- PR #29 later requested correction for deterministic My Tickets client test behavior, truthful dependency-approval wording, incomplete Answer Parts 6-9 screenshot evidence claims, clean-clone `DATABASE_URL` setup, stronger keyboard evidence, and reopened Issue #22 status.
 
 ## My Responses To Review Comments
 
@@ -43,5 +44,5 @@ Each recorded blocker was corrected on its original feature branch and verified 
 - Record only real PR links, comments, approvals, and merge evidence.
 - Peer reviewer must approve and merge PRs.
 - The author and AI assistant must not merge PRs.
-- PR #29 exists and has requested changes in progress; approval and merge evidence remain pending.
+- PR #29 exists with requested changes in progress after commit `469bb62`; Issue #22 was reopened, and approval and merge evidence remain pending.
 - The `lab2-staging` to `main` release PR does not exist yet and remains pending.

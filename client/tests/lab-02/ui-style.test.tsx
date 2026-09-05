@@ -18,6 +18,9 @@ function mockReferenceData() {
     }
     if (url.endsWith("/api/categories")) return json([{ id: 1, name: "Hardware" }]);
     if (url.endsWith("/api/related-systems")) return json([{ id: 1, name: "Corporate Laptop" }]);
+    if (/\/api\/requesters\/1\/tickets/.test(url)) {
+      return json({ items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 0 });
+    }
     return json({ status: "ok", service: "TokTickIT API" });
   });
 }
@@ -67,9 +70,34 @@ describe("Lab 2 UI style and accessibility contract", () => {
     mockReferenceData();
     const user = await openCreateTicket();
 
-    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveAttribute("aria-current", "page");
+    const createTicketLink = screen.getByRole("link", { name: "Create Ticket" });
+    const myTicketsLink = screen.getByRole("link", { name: "My Tickets" });
+    expect(createTicketLink).toHaveAttribute("aria-current", "page");
+
+    myTicketsLink.focus();
+    expect(myTicketsLink).toHaveFocus();
+    expect(myTicketsLink).toBeVisible();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("heading", { name: "My Tickets" })).toBeInTheDocument();
+    expect(myTicketsLink).toHaveAttribute("aria-current", "page");
+
     await user.tab();
-    expect(document.activeElement).not.toBe(document.body);
+    expect(screen.getByRole("link", { name: "Create Ticket" })).toHaveFocus();
+    expect(document.activeElement).toBeVisible();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("heading", { name: "Create Ticket" })).toBeInTheDocument();
+
+    await user.tab();
+    expect(screen.getByRole("button", { name: /Change Requester/i })).toHaveFocus();
+    expect(document.activeElement).toBeVisible();
+    await user.tab();
+    expect(screen.getByLabelText(/Category/i)).toHaveFocus();
+    expect(document.activeElement).toBeVisible();
+    await user.tab();
+    expect(screen.getByLabelText(/Related System/i)).toHaveFocus();
+    expect(document.activeElement).toBeVisible();
+    await user.tab();
+    expect(screen.getByLabelText(/Requested Priority/i)).toHaveFocus();
     expect(document.activeElement).toBeVisible();
   });
 });

@@ -93,14 +93,16 @@ npm test --prefix client
 
 Playwright/E2E is required by Lab 2 and is configured at the repository root.
 The dependency was proposed separately as `CHANGE-P9-LAB2-E2E-DEPENDENCY-001`.
-The Project Manager approval record states this change was approved before
-`@playwright/test` was installed. Approved scope: install root-level
-`@playwright/test` as a development dependency; install Chromium through
-Playwright without system dependencies; add `playwright.config.ts`; add
+The Project Manager approval record says this change was approved before
+`@playwright/test` was installed, but the available permalink is an Issue #22
+comment recording that approval record after reviewer feedback. Independent
+pre-`47cbfae` approval evidence has not been verified. Approved scope: install
+root-level `@playwright/test` as a development dependency; install Chromium
+through Playwright without system dependencies; add `playwright.config.ts`; add
 `e2e/lab-02/requester-ticket-flow.spec.ts`; update `.gitignore` only for
 generated Playwright output. No product, schema, migration, seed, database, or
-documentation changes were included in this dependency stage. Approval evidence
-permalink: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
+documentation changes were included in this dependency stage. Approval-record
+reference: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
 
 ```bash
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
@@ -132,8 +134,8 @@ These results were recorded on the Issue #22 feature branch on 5 September 2026.
 - [ ] Answer Part 3: rendered `tests.md` and complete unit/API/UI output. Final `main` rerun evidence is pending.
 - [x] Answer Part 4: rendered `ai-use.md` with seven selected prompts and brief reflection.
 - [x] Answer Part 5: Development Requester selector evidence is included with Create Ticket evidence.
-- [x] Answer Part 6: Create Ticket states and responsive screenshots in `artifacts/lab-02/screenshots/create-ticket/`; automated API/UI evidence is listed above.
-- [x] Answer Part 7: My Tickets states and responsive screenshots in `artifacts/lab-02/screenshots/my-tickets/`; ownership and query tests are listed above.
-- [x] Answer Part 8: owned Ticket Detail and Attachment lifecycle screenshots in `artifacts/lab-02/screenshots/ticket-detail/`; ownership and lifecycle tests are listed above.
-- [x] Answer Part 9: rendered `ui-spec.md`, completed visual checklist, and desktop/tablet/mobile screenshots under `artifacts/lab-02/screenshots/`.
+- [ ] Answer Part 6: Pending complete screenshot evidence for Create Ticket validation, submitting, success, and API failure states; current automated API/UI evidence is listed above.
+- [ ] Answer Part 7: Pending complete screenshot evidence for Requester A/B ownership, empty list, and no-results My Tickets states; ownership and query tests are listed above.
+- [ ] Answer Part 8: Pending complete screenshot evidence for unauthorized access and invalid attachment states; ownership and lifecycle tests are listed above.
+- [ ] Answer Part 9: Pending complete visual evidence package until Answer Parts 6-8 screenshots are complete; responsive desktop/tablet/mobile screenshots exist under `artifacts/lab-02/screenshots/`.
 - [ ] Final PDF: compile Answer Part 1 through Answer Part 9 in the required order after the release PR and final `main` verification.
