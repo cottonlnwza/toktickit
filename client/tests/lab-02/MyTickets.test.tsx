@@ -108,12 +108,13 @@ describe("My Tickets workflow", () => {
     expect(desktop).not.toBeNull();
     expect(mobile).not.toBeNull();
     const desktopOpen = within(desktop as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i });
+    vi.spyOn(api, "getTicketDetail").mockReturnValue(new Promise(() => undefined));
     expect(desktopOpen).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByRole("button", { name: /Open Ticket TTK-20260904-0001/i })).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByText("Last Updated")).toBeInTheDocument();
     expect(within(mobile as HTMLElement).getByText("2026-09-04")).toBeInTheDocument();
     await user.click(desktopOpen);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading Ticket Detail...");
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading Ticket Detail...");
   });
 
   it("shows a loading state while owned Tickets are being retrieved", async () => {

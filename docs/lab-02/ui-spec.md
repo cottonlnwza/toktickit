@@ -117,6 +117,10 @@ States:
 | Destructive | Remove Attachment confirmation | Red/danger styling and confirmation required |
 | Disabled | Invalid or processing state | Visually distinct and not clickable |
 
+Primary Bootstrap success buttons are scoped under `.toktickit-app` to render
+with Primary green `#006B3C`; hover, focus, and active states use Secondary
+green `#0B7A46`.
+
 ## 10. Attachment Presentation
 
 - Show original filename, type, size, upload timestamp, and state.
@@ -161,6 +165,8 @@ States:
 | Ticket Detail | `artifacts/lab-02/screenshots/ticket-detail/` | Read-only detail, add/download/remove Attachment, unauthorized access |
 | Responsive | `artifacts/lab-02/screenshots/responsive/` | Desktop, tablet, mobile, no clipping/overlap/horizontal overflow |
 
+Each directory contains `desktop.png`, `tablet.png`, and `mobile.png`. The Issue #22 visual inspection confirmed readable controls and no horizontal overflow at `1440x900`, `820x1180`, and `390x844`. My Tickets uses the card representation at tablet and mobile widths so the ticket-specific `Open` action remains visible.
+
 ## 15. UI Decisions
 
 - Field grouping follows Section 6. Rationale: keeps generated/read-only data separate from user input.
@@ -168,4 +174,4 @@ States:
 - CSS implementation starts from Bootstrap plus scoped Lab 2 CSS if needed. Rationale: preserves Lab 1 stack while allowing Zen Green tokens.
 - Priority badge ordering is LOW, MEDIUM, HIGH, URGENT. Rationale: matches data contract and sorting.
 - Attachment long filenames wrap within mobile cards and truncate with accessible full-name text on dense desktop rows. Rationale: prevents overflow while preserving inspectability.
-- USER CONFIRMATION REQUIRED: final visual polish must be checked against screenshots before final submission.
+- Visual inspection was completed on the Issue #22 feature branch against the screenshot paths in Section 14. Repeat the inspection if later UI changes alter these screens.

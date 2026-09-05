@@ -4,6 +4,18 @@
   color: #143326;
 }
 
+.toktickit-app .btn-success {
+  background-color: #006b3c;
+  border-color: #006b3c;
+}
+
+.toktickit-app .btn-success:hover,
+.toktickit-app .btn-success:focus,
+.toktickit-app .btn-success:active {
+  background-color: #0b7a46;
+  border-color: #0b7a46;
+}
+
 .app-shell {
   align-items: center;
   background: #006b3c;
@@ -316,6 +328,38 @@
 
 .required-marker {
   color: #9b1c1c;
+}
+
+@media (min-width: 768px) and (max-width: 991px) {
+  .my-tickets-table-wrap {
+    display: none;
+  }
+
+  .my-ticket-cards {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .my-ticket-card {
+    border: 1px solid #d8e6de;
+    border-radius: 8px;
+    padding: 1rem;
+  }
+
+  .my-ticket-card h3 {
+    font-size: 1rem;
+    margin: 0.5rem 0 1rem;
+  }
+
+  .my-ticket-card dl {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    margin: 0;
+  }
+
+  .my-ticket-card dd {
+    overflow-wrap: anywhere;
+  }
 }
 
 @media (max-width: 767px) {
