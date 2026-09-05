@@ -34,7 +34,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | RESP-01 | Responsive | Desktop viewport `>= 992px` | No clipping, overlap, hidden buttons, or horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
 | RESP-02 | Responsive | Tablet viewport `768-991px` | Layout remains usable with readable fields and attachments | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
 | RESP-03 | Responsive | Mobile viewport `< 768px` | Fields stack; touch controls usable; no horizontal scrolling | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-23 | Pass |
-| E2E-01 | E2E | Full requester flow from selector to create, list, detail, attachment removal | Flow succeeds and enforces requester ownership | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-01, AC-04, AC-13, AC-18, AC-21, AC-22 | Pass |
+| E2E-01 | E2E | Full requester flow from selector to create, list, detail, attachment removal | Flow succeeds for the selected requester | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-01, AC-04, AC-13, AC-18, AC-21 | Pass |
 | E2E-02 | E2E | One Attachment upload fails after successful Ticket creation, then is retried | Ticket remains created; failed file displays Retry/Remove; retry succeeds without creating the Ticket again | `e2e/lab-02/requester-ticket-flow.spec.ts` | AC-04, AC-12, AC-19 | Pass |
 | DOC-01 | Documentation | Final reviewer and AI-use documents contain only real evidence | No invented PR, review, prompt, or approval evidence | `docs/lab-02/reviewer.md`, `docs/lab-02/ai-use.md` | AC-25 | Pass |
 
@@ -63,7 +63,7 @@ Lab 2 uses Test DD and TDD. This file defines the required evidence before imple
 | AC-19 | API-09, UI-06, UI-07, E2E-02 |
 | AC-20 | API-09, UI-07 |
 | AC-21 | API-09, UI-06, UI-07, E2E-01 |
-| AC-22 | API-10, UI-07, E2E-01 |
+| AC-22 | API-10, UI-07 |
 | AC-23 | STYLE-01, RESP-01, RESP-02, RESP-03 |
 | AC-24 | STYLE-01 |
 | AC-25 | DOC-01 |
@@ -93,10 +93,15 @@ npm test --prefix client
 
 Playwright/E2E is required by Lab 2 and is configured at the repository root.
 Dependency change note: Playwright was added in commit `47cbfae` for Issue #22
-E2E coverage. No separate pre-install proposal/approval evidence could be
-verified before that commit, so this is recorded as a process deviation /
-evidence gap. The Issue #22 permalink records the later approval/evidence
-correction: https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288
+E2E coverage. No separately verifiable approval was recorded before the
+dependency was installed, so the sequence remains documented as a process
+deviation rather than being rewritten as prior approval. The Project Manager
+recorded a scoped exception in PR #30, and the peer reviewer explicitly
+accepted that exception for the Lab 2 release:
+
+- [Project Manager exception record](https://github.com/cottonlnwza/toktickit/pull/30#issuecomment-5552205372)
+- [Peer reviewer acceptance](https://github.com/cottonlnwza/toktickit/pull/30#issuecomment-5552220209)
+- [Issue #22 supporting correction record](https://github.com/cottonlnwza/toktickit/issues/22#issuecomment-5549715288)
 
 Installed scope: root-level `@playwright/test`, Playwright Chromium runtime,
 `playwright.config.ts`, `e2e/lab-02/requester-ticket-flow.spec.ts`, and
@@ -106,9 +111,26 @@ Installed scope: root-level `@playwright/test`, Playwright Chromium runtime,
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
 ```
 
-## 6. Final Results
+## 6. Screenshot Evidence
 
-These results were recorded on the Issue #22 feature branch on 5 September 2026. Run the same commands again on final `main` before submission.
+The following repository evidence was manually reviewed for clear state labels,
+visible actions, and no clipped or horizontally overflowing content. These are
+pre-release screenshots; final GitHub, `main`, and PDF evidence remains pending.
+
+| Evidence area | Required states | Repository screenshots |
+|---|---|---|
+| Create Ticket | Validation error, submitting/loading, success, API failure | [Validation error](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-validation-error.png), [submitting](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-submitting.png), [success](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-success.png), [API failure](../../artifacts/lab-02/screenshots/final-evidence/lab2-create-ticket-api-failure.png) |
+| My Tickets | Requester A, Requester B ownership separation, empty list, no-results | [Requester A](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-a.png), [Requester B](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-requester-b.png), [empty list](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-empty.png), [no-results](../../artifacts/lab-02/screenshots/final-evidence/lab2-my-tickets-no-results.png) |
+| Ticket Detail | Owned detail with Attachments, unauthorized/not found, invalid Attachment, removed metadata and unavailable download | [Owned detail](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-owned-attachments.png), [unauthorized](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-unauthorized.png), [invalid Attachment](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-invalid-attachment.png), [removed metadata](../../artifacts/lab-02/screenshots/final-evidence/lab2-ticket-detail-removed-metadata.png) |
+| Responsive desktop | Create Ticket, My Tickets, Ticket Detail | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/desktop.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/desktop.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/desktop.png) |
+| Responsive tablet | Complete layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/tablet.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/tablet.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/tablet.png) |
+| Responsive mobile | Stacked layouts with actions visible and no horizontal overflow | [Create Ticket](../../artifacts/lab-02/screenshots/create-ticket/mobile.png), [My Tickets](../../artifacts/lab-02/screenshots/my-tickets/mobile.png), [Ticket Detail](../../artifacts/lab-02/screenshots/ticket-detail/mobile.png) |
+
+## 7. Final Results
+
+These results were rerun on the P13 correction branch
+`feature/lab2-release-final-evidence` on 5 September 2026. Run the same commands
+again on final `main` before submission.
 
 | Command | Result | Notes |
 |---|---|---|
@@ -118,7 +140,7 @@ These results were recorded on the Issue #22 feature branch on 5 September 2026.
 | `npm run build --prefix server` | Pass | TypeScript build completed |
 | `npm run build --prefix client` | Pass | TypeScript and Vite production build completed |
 
-## 7. Known Limitations or Deferred Tests
+## 8. Known Limitations or Deferred Tests
 
 - Final test counts and commands must be recorded after the last verification run and rerun on final `main`.
 - Peer reviewer identity, final approval, and release-PR evidence remain pending until those events occur.
@@ -132,8 +154,8 @@ These results were recorded on the Issue #22 feature branch on 5 September 2026.
 - [ ] Answer Part 3: rendered `tests.md` and complete unit/API/UI output. Final `main` rerun evidence is pending.
 - [x] Answer Part 4: rendered `ai-use.md` with seven selected prompts and brief reflection.
 - [x] Answer Part 5: Development Requester selector evidence is included with Create Ticket evidence.
-- [ ] Answer Part 6: Pending complete screenshot evidence for Create Ticket validation, submitting, success, and API failure states; current automated API/UI evidence is listed above.
-- [ ] Answer Part 7: Pending complete screenshot evidence for Requester A/B ownership, empty list, and no-results My Tickets states; ownership and query tests are listed above.
-- [ ] Answer Part 8: Pending complete screenshot evidence for unauthorized access and invalid attachment states; ownership and lifecycle tests are listed above.
-- [ ] Answer Part 9: Pending complete visual evidence package until Answer Parts 6-8 screenshots are complete; responsive desktop/tablet/mobile screenshots exist under `artifacts/lab-02/screenshots/`.
+- [x] Answer Part 6: Create Ticket validation, submitting, success, and API failure screenshot evidence is linked above.
+- [x] Answer Part 7: Requester A/B ownership separation, empty list, and no-results My Tickets screenshot evidence is linked above.
+- [x] Answer Part 8: Owned detail, unauthorized access, invalid Attachment, and removed/unavailable Attachment screenshot evidence is linked above.
+- [x] Answer Part 9: Desktop, tablet, and mobile visual evidence is linked above and shows complete actions without horizontal overflow.
 - [ ] Final PDF: compile Answer Part 1 through Answer Part 9 in the required order after the release PR and final `main` verification.

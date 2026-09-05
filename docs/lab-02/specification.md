@@ -191,19 +191,25 @@ Detailed API behavior is defined in `api-spec.md`. Required capabilities include
 
 ## 10. Definition of Done
 
-- [ ] All approved scope is implemented through feature branches based on `lab2-staging`.
-- [ ] Engineering contract documents are complete before implementation.
-- [ ] Tests are planned before implementation and every AC maps to at least one planned test.
-- [ ] Each feature follows TDD with failing tests before implementation.
-- [ ] Required unit, API/integration, UI component, UI style, responsive, and E2E tests pass.
-- [ ] No required test is skipped, disabled, or unrelated to AC.
-- [ ] UI conforms to Zen Green specification and responsive requirements.
-- [ ] Ownership checks protect Tickets and Attachments.
-- [ ] Documentation and README are current.
-- [ ] Peer reviewer approves and merges each PR into `lab2-staging`.
+- [x] All approved scope is implemented through feature branches based on `lab2-staging`.
+- [x] Engineering contract documents are complete before implementation.
+- [x] Tests are planned before implementation and every AC maps to at least one planned test.
+- [x] Each feature follows TDD with failing tests before implementation.
+- [x] Required unit, API/integration, UI component, UI style, responsive, and E2E tests pass.
+- [x] No required test is skipped, disabled, or unrelated to AC.
+- [x] UI conforms to Zen Green specification and responsive requirements.
+- [x] Ownership checks protect Tickets and Attachments.
+- [x] Documentation and README are current.
+- [x] Peer reviewer approves and merges each PR into `lab2-staging`.
 - [ ] Release PR from `lab2-staging` to `main` is approved and merged by peer reviewer.
 - [ ] Final tests pass on final `main`.
 - [ ] Final PDF includes Answer Part 1 through Answer Part 9 in order.
+
+Pre-release DoD evidence is recorded in [`tests.md`](tests.md) and
+[`reviewer.md`](reviewer.md), including the feature PR history, automated test
+results, responsive screenshots, and the accepted Playwright process exception.
+The release merge, final `main` verification, and final PDF remain deliberately
+unchecked until those events occur.
 
 ## 11. Assumptions and Decisions
 
