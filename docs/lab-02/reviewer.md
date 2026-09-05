@@ -13,7 +13,7 @@
 | [#26](https://github.com/cottonlnwza/toktickit/pull/26) | `feature/lab2-4-create-ticket` | #19 | @thananun-7203 | Changes requested twice; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T09:04:19Z`; merge `83b7520`; corrections `975d4e4`, `6fed5fe` |
 | [#27](https://github.com/cottonlnwza/toktickit/pull/27) | `feature/lab2-5-my-tickets` | #20 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T12:02:51Z`; merge `8a14d4c`; corrections `7e86710`, `8a8a54f` |
 | [#28](https://github.com/cottonlnwza/toktickit/pull/28) | `feature/lab2-6-ticket-detail-attachments` | #21 | @thananun-7203 | Changes requested; corrected; approved; merged | @thananun-7203 | Merged `2026-09-04T14:24:56Z`; merge `168e262`; corrections `66037c0`, `c668eb2` |
-| [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @thananun-7203 | Changes requested; correction in progress | Pending | Open; Issue #22 reopened after reviewer checked commit `469bb62`; approval and merge evidence pending |
+| [#29](https://github.com/cottonlnwza/toktickit/pull/29) | `feature/lab2-7-responsive-e2e-doc-audit` | #22 | @chaproi | Changes requested; corrected; approved; merged | @chaproi | Approved `pullrequestreview-5120269140`; final reviewed commit `5132c27`; merged by @chaproi with merge `0769c70`; PR closed and feature branch deleted |
 | Pending | `lab2-staging` to `main` | Release PR | Pending | Pending | Pending | Pending |
 
 ## Review Comments Received
@@ -29,7 +29,7 @@
 
 ## My Responses To Review Comments
 
-Each recorded blocker was corrected on its original feature branch and verified before that PR was approved and merged by @thananun-7203.
+Each recorded blocker was corrected on its original feature branch and verified before that PR was approved and merged by the assigned reviewer.
 
 ## Pull Requests I Reviewed For My Partner
 
@@ -44,5 +44,5 @@ Each recorded blocker was corrected on its original feature branch and verified 
 - Record only real PR links, comments, approvals, and merge evidence.
 - Peer reviewer must approve and merge PRs.
 - The author and AI assistant must not merge PRs.
-- PR #29 exists with requested changes in progress after commit `469bb62`; Issue #22 was reopened, and approval and merge evidence remain pending.
+- PR #29 was approved by @chaproi and merged into `lab2-staging`; Issue #22 is complete.
 - The `lab2-staging` to `main` release PR does not exist yet and remains pending.
