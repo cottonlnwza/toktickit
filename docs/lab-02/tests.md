@@ -146,10 +146,17 @@ again on final `main` before submission.
 | `npm run build --prefix server` | Pass | TypeScript build completed |
 | `npm run build --prefix client` | Pass | TypeScript and Vite production build completed |
 
-## 8. Known Limitations or Deferred Tests
+## 8. Remaining Release-gated Evidence
 
-- Final test counts and commands must be recorded after the last verification run and rerun on final `main`.
-- Peer reviewer identity, final approval, and release-PR evidence remain pending until those events occur.
+- PR #32 must be approved by peer reviewer `thananun-7203` and merged into
+  `lab2-staging` before the peer-review DoD item can be completed.
+- Release PR #30 must then be re-reviewed, approved, and merged into `main`.
+- The full verification command set must be rerun on that final `main` commit;
+  only then may the planned-test `Final main` column and Answer Parts 1 and 3 be
+  completed.
+- The final commit graph, completed project board, final test-output capture,
+  and merged PR #30 evidence must be captured after the release merge.
+- The final PDF must be compiled last from Answer Parts 1-9 in order.
 - No test may be reconstructed afterward from whatever implementation happens to exist.
 - Required minimum test-file coverage includes `server/tests/lab-02/seed.test.ts`, `server/tests/lab-02/create-ticket.api.test.ts`, `server/tests/lab-02/my-tickets.api.test.ts`, `server/tests/lab-02/ticket-detail.api.test.ts`, `server/tests/lab-02/attachments.api.test.ts`, `client/tests/lab-02/CreateTicket.test.tsx`, `client/tests/lab-02/MyTickets.test.tsx`, `client/tests/lab-02/RequesterTicketDetail.test.tsx`, `client/tests/lab-02/AttachmentSection.test.tsx`, and `e2e/lab-02/requester-ticket-flow.spec.ts`.
 

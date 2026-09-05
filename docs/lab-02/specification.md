@@ -208,8 +208,9 @@ Detailed API behavior is defined in `api-spec.md`. Required capabilities include
 Pre-release DoD evidence is recorded in [`tests.md`](tests.md) and
 [`reviewer.md`](reviewer.md), including the feature PR history, automated test
 results, responsive screenshots, and the accepted Playwright process exception.
-The release merge, final `main` verification, and final PDF remain deliberately
-unchecked until those events occur.
+PR #32 peer approval/merge, the PR #30 release merge, final `main` verification,
+and the final PDF remain deliberately unchecked until those events occur in
+that order.
 
 ## 11. Assumptions and Decisions
 
