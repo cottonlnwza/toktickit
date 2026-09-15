@@ -54,7 +54,7 @@ TokTickIT must identify users through email/password authentication instead of a
 
 - **FR-06:** Every protected endpoint shall enforce authentication, role authorization, and ownership on the backend.
 - **FR-07:** Requester ownership shall be derived from the authenticated User and never from a client-supplied requester identity.
-- **FR-08:** Lab 2 Requester Create Ticket, My Tickets, Ticket Detail, and Attachment functions shall continue under authenticated identity.
+- **FR-08:** Lab 2 Requester Create Ticket, My Tickets, Ticket Detail, and Attachment functions shall continue under authenticated identity, including deterministic protection against duplicate Ticket creation when the client retries the same create request.
 - **FR-09:** The Development Requester selector and Change Requester action shall be removed from the Lab 3 application.
 - **FR-10:** A Requester shall be able to create/read Public Comments on an owned Ticket and indicate `Problem Appears Resolved` without formally changing Ticket status to Resolved or Closed.
 
@@ -90,33 +90,34 @@ TokTickIT must identify users through email/password authentication instead of a
 
 - **BR-01:** Only an active User with valid credentials may authenticate.
 - **BR-02:** A User marked `mustChangePassword` cannot enter normal application screens until a valid new password is saved.
-- **BR-03:** Email addresses are trimmed and compared case-insensitively by storing a normalized lowercase value; duplicate normalized emails are rejected.
-- **BR-04:** Passwords are exact values and are not silently trimmed or case-normalized.
-- **BR-05:** A valid new password is 12-128 characters, is not all whitespace, must differ from the current/initial password, and must match the confirmation field. No additional composition rule is imposed because length plus secure hashing is the primary control for this course lab.
-- **BR-06:** Passwords are never stored in plaintext. They are stored as versioned `scrypt` hashes with a unique random salt per password.
-- **BR-07:** Five failed login attempts for the same normalized email and client address within 15 minutes trigger a temporary 15-minute server-side throttle. This is not a permanent account lock and needs no Administrator unlock workflow.
-- **BR-08:** Invalid credentials return a generic authentication failure. An inactive valid account returns a clear inactive-account response without returning profile or credential details.
-- **BR-09:** An authenticated session expires after 8 hours absolute time. Expired/revoked sessions are rejected.
-- **BR-10:** Logout revokes the current session. A successful password change revokes other sessions for that User and rotates the current session/CSRF token. Browser authentication uses credentialed requests only from approved frontend origin(s); wildcard credentialed CORS is forbidden.
+- **BR-03:** The authenticated User identity, not a `requesterId` supplied by the client, determines ownership of Requester operations.
+- **BR-04:** Public Comments are visible to the Requester, IT Staff, and Administrator according to Ticket access rules. Internal Notes are visible only to IT Staff and Administrator and are never included in Requester responses.
+- **BR-05:** A Requester may indicate that the problem appears resolved, but cannot formally set the Ticket to Resolved or Closed.
+- **BR-06:** Email addresses are trimmed and compared case-insensitively by storing a normalized lowercase value; duplicate normalized emails are rejected.
+- **BR-07:** Passwords are exact values and are not silently trimmed or case-normalized.
+- **BR-08:** A valid new password is 12-128 characters, is not all whitespace, must differ from the current/initial password, and must match the confirmation field. No additional composition rule is imposed because length plus secure hashing is the primary control for this course lab.
+- **BR-09:** Passwords are never stored in plaintext. They are stored as versioned `scrypt` hashes with a unique random salt per password.
+- **BR-10:** Five failed login attempts for the same normalized email and client address within 15 minutes trigger a temporary 15-minute server-side throttle. This is not a permanent account lock and needs no Administrator unlock workflow.
+- **BR-11:** Invalid credentials return a generic authentication failure. An inactive valid account returns a clear inactive-account response without returning profile or credential details.
+- **BR-12:** An authenticated session expires after 8 hours absolute time. Expired/revoked sessions are rejected.
+- **BR-13:** Logout revokes the current session. A successful password change revokes other sessions for that User and rotates the current session/CSRF token. Browser authentication uses credentialed requests only from approved frontend origin(s); wildcard credentialed CORS is forbidden.
 
 ### 5.2 Identity, roles, and authorization
 
-- **BR-11:** Each User has exactly one role: `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR`.
-- **BR-12:** The authenticated User identity, not a requesterId supplied by the client, determines ownership of Requester operations.
-- **BR-13:** Hidden or disabled frontend controls are feedback only; authorization is always re-checked by the backend.
-- **BR-14:** A Requester attempting another Requester's Ticket/Attachment receives a safe not-found style response so resource existence is not leaked.
-- **BR-15:** A role-forbidden endpoint returns a safe forbidden response without protected Ticket, Attachment, Internal Note, or User data.
+- **BR-14:** Each User has exactly one role: `REQUESTER`, `IT_STAFF`, or `ADMINISTRATOR`.
+- **BR-15:** Hidden or disabled frontend controls are feedback only; authorization is always re-checked by the backend.
+- **BR-16:** A Requester attempting another Requester's Ticket/Attachment receives a safe not-found style response so resource existence is not leaked.
+- **BR-17:** A role-forbidden endpoint returns a safe forbidden response without protected Ticket, Attachment, Internal Note, or User data.
 
 ### 5.3 Ticket ownership, priority, and status
 
-- **BR-16:** A Ticket has zero or one primary owner. The owner, when present, must be an active IT Staff or Administrator User.
-- **BR-17:** A newly created or migrated Ticket may be unassigned.
-- **BR-18:** Requested Priority remains the Requester-submitted value and is never overwritten by IT Staff operations.
-- **BR-19:** On Ticket creation/migration, IT Priority initially equals Requested Priority. Only IT Staff or Administrator may later change IT Priority.
-- **BR-20:** Required status values are `New`, `Open`, `In Progress`, `Waiting for Requester`, `Resolved`, `Closed`, `Reopened`, and `Cancelled`.
-- **BR-21:** Requesters cannot directly change Ticket status. `Problem Appears Resolved` records a Requester indication timestamp/actor only and does not change status.
-- **BR-22:** Only IT Staff may perform normal status transitions in Lab 3. Administrator remains conceptually focused on User Management.
-- **BR-23:** Allowed IT Staff transitions are:
+- **BR-18:** A Ticket has zero or one primary owner. The owner, when present, must be an active IT Staff or Administrator User.
+- **BR-19:** A newly created or migrated Ticket may be unassigned.
+- **BR-20:** Requested Priority remains the Requester-submitted value and is never overwritten by IT Staff operations.
+- **BR-21:** On Ticket creation/migration, IT Priority initially equals Requested Priority. Only IT Staff or Administrator may later change IT Priority.
+- **BR-22:** Required status values are `New`, `Open`, `In Progress`, `Waiting for Requester`, `Resolved`, `Closed`, `Reopened`, and `Cancelled`.
+- **BR-23:** Only IT Staff may perform normal status transitions in Lab 3. Administrator remains conceptually focused on User Management.
+- **BR-24:** Allowed IT Staff transitions are:
 
 | From | Allowed to |
 |---|---|
@@ -129,31 +130,32 @@ TokTickIT must identify users through email/password authentication instead of a
 | Reopened | In Progress, Waiting for Requester, Resolved, Cancelled |
 | Cancelled | Reopened |
 
-- **BR-24:** Transitions to Resolved, Closed, Cancelled, or Reopened require explicit UI confirmation. The backend independently validates the transition whether or not the client displayed confirmation.
-- **BR-25:** Actions Taken are not modeled or validated in Lab 3; any future Actions-Taken resolution rule is deferred to Lab 4.
+- **BR-25:** Transitions to Resolved, Closed, Cancelled, or Reopened require explicit UI confirmation. The backend independently validates the transition whether or not the client displayed confirmation.
+- **BR-26:** Actions Taken are not modeled or validated in Lab 3; any future Actions-Taken resolution rule is deferred to Lab 4.
 
 ### 5.4 Public Comments and Internal Notes
 
-- **BR-26:** Public Comments are visible to the Ticket Requester, IT Staff, and Administrator subject to safe Ticket access rules.
-- **BR-27:** Internal Notes are visible only to IT Staff and Administrator and are never included in Requester responses.
-- **BR-28:** Public Comments and Internal Notes are append-only in Lab 3; editing and deletion are not exposed.
-- **BR-29:** Comment/Note author and creation timestamp are always assigned by the backend from the authenticated User and server clock.
-- **BR-30:** Comment/Note content is trimmed for validation, must contain 1-2000 characters after trimming, and is stored/rendered as plain text. User-supplied HTML/Markdown is not interpreted.
+- **BR-27:** Public Comments and Internal Notes are append-only in Lab 3; editing and deletion are not exposed.
+- **BR-28:** Comment/Note author and creation timestamp are always assigned by the backend from the authenticated User and server clock.
+- **BR-29:** Comment/Note content is trimmed for validation, must contain 1-2000 characters after trimming, and is stored/rendered as plain text. User-supplied HTML/Markdown is not interpreted.
 
 ### 5.5 Administrator safety rules
 
-- **BR-31:** Administrator may create a User only with one permitted role.
-- **BR-32:** Duplicate normalized email addresses and invalid role values are rejected.
-- **BR-33:** User accounts are deactivated, not deleted.
-- **BR-34:** An Administrator cannot deactivate their own account.
-- **BR-35:** An operation that would leave zero active Administrators, including deactivation or changing the last active Administrator to another role, is rejected.
-- **BR-36:** Setting a new initial password hashes the password and sets `mustChangePassword=true` for the target User. Deactivation, role change, or new-initial-password actions revoke the target User's active sessions; backend authorization also re-checks the User's current active state and role.
+- **BR-30:** Administrator may create a User only with one permitted role.
+- **BR-31:** Duplicate normalized email addresses and invalid role values are rejected.
+- **BR-32:** User accounts are deactivated, not deleted.
+- **BR-33:** An Administrator cannot deactivate their own account.
+- **BR-34:** An operation that would leave zero active Administrators, including deactivation or changing the last active Administrator to another role, is rejected.
+- **BR-35:** Setting a new initial password hashes the password and sets `mustChangePassword=true` for the target User. Deactivation, role change, or new-initial-password actions revoke the target User's active sessions; backend authorization also re-checks the User's current active state and role.
 
-### 5.6 Regression and failure behavior
+### 5.6 Migration, provisioning, regression, and failure behavior
 
-- **BR-37:** Existing Lab 2 Ticket and Attachment data must remain addressable after migration; no migration may silently discard ownership or Attachment metadata.
-- **BR-38:** Validation failures do not create partial domain records. Multi-record operations use a database transaction where atomicity is required.
-- **BR-39:** Unexpected errors return a safe generic server error and do not expose stack traces, password hashes, session tokens, CSRF tokens, storage paths, or protected-resource existence.
+- **BR-36:** Every legacy `RequesterUser` is migrated deterministically to a `User` with the exact same numeric `id`, name, normalized email, activation state, and timestamps. Existing `Ticket.requesterId` and Attachment removal actor references are repointed to that exact User id inside one migration transaction; if the exact id/email mapping cannot be satisfied, migration fails instead of silently remapping ownership.
+- **BR-37:** Legacy Requester credential provisioning is create-only and rerun-safe. A migrated Requester receives the documented local initial password only when its `User` row is first created, stored only as a salted hash with `mustChangePassword=true`. Re-running seed/provisioning logic must not overwrite an existing User's `passwordHash`, `mustChangePassword`, or already-changed credentials.
+- **BR-38:** Authenticated Ticket creation requires a client-generated `clientRequestId` UUID. The database enforces uniqueness per Requester. Replaying the same `clientRequestId` with the same normalized create payload returns the original Ticket without creating another row; reusing the same id with a different payload returns `409 IDEMPOTENCY_CONFLICT`.
+- **BR-39:** Existing Lab 2 Ticket and Attachment data must remain addressable after migration; no migration may silently discard ownership or Attachment metadata.
+- **BR-40:** Validation failures do not create partial domain records. Multi-record operations use a database transaction where atomicity is required.
+- **BR-41:** Unexpected errors return a safe generic server error and do not expose stack traces, password hashes, session tokens, CSRF tokens, storage paths, or protected-resource existence.
 
 ### 5.7 Authorization Matrix
 
@@ -203,6 +205,7 @@ Administrator Ticket permissions above are intentionally limited to the minimum 
 - Preserve `Category` and `RelatedSystem`.
 - Evolve `Ticket`:
   - `requesterId` now references `User` with role Requester;
+  - add nullable-at-database `clientRequestId` plus a unique composite constraint on `(requesterId, clientRequestId)` for create replay protection; legacy pre-Lab-3 Tickets may remain null, while every new Lab 3 create request must supply a UUID;
   - nullable `ownerId` references active IT Staff/Administrator;
   - keep `requestedPriority`;
   - add `itPriority`, initially copied from Requested Priority;
@@ -216,18 +219,21 @@ Administrator Ticket permissions above are intentionally limited to the minimum 
 ### 7.2 Migration decisions
 
 1. Create the new User/role/credential structures without deleting existing Ticket/Attachment tables.
-2. Copy every Lab 2 `RequesterUser` to `User` as role `REQUESTER`, preserving the numeric id where practical so existing `Ticket.requesterId` values remain stable.
-3. Give migrated Requesters a clearly documented local-development initial password hash and set `mustChangePassword=true`.
-4. Repoint Ticket requester and Attachment remover foreign keys to `User`; verify counts and referential integrity before removing the obsolete `RequesterUser` table.
-5. Add Ticket operational fields with migration-safe defaults: `ownerId=NULL`, `itPriority=requestedPriority`, existing status `NEW` maps to `New`.
-6. Add session/comment/note tables and indexes.
-7. Remove the temporary Requester selector endpoint/client state from normal Lab 3 behavior only after authenticated Requester regression tests exist.
+2. Insert every Lab 2 `RequesterUser` into `User` as role `REQUESTER` using the exact same numeric `id`; preserve name, normalized email, `isActive`, `createdAt`, and `updatedAt`. If an id/email collision would prevent exact preservation, abort the migration rather than generating a replacement id.
+3. Provision each newly migrated Requester with the documented local-development initial password `Lab3-ChangeMe-2026`, but persist only a unique salted `scrypt` hash and `mustChangePassword=true`. This credential assignment occurs only when the User row is first created.
+4. Repoint `Ticket.requesterId` and Attachment removal actor references to the exact preserved User ids, then verify Ticket/Attachment row counts and referential integrity before removing the obsolete `RequesterUser` table.
+5. Reset the `User.id` database sequence to a value above the migrated maximum id before newly seeded IT Staff/Administrator accounts are inserted.
+6. Add Ticket operational fields with migration-safe defaults: `ownerId=NULL`, `itPriority=requestedPriority`, existing status `NEW` maps to `New`, and add `clientRequestId` replay protection without recreating existing Ticket rows.
+7. Add session/comment/note tables and indexes.
+8. Remove the temporary Requester selector endpoint/client state from normal Lab 3 behavior only after authenticated Requester regression tests exist.
+
+Migration/provisioning is tested as a deterministic operation. If a development/test provisioning helper is executed again against already migrated users, it must validate the existing id/email mapping and leave password hashes, `mustChangePassword`, activation state changes made after migration, and other already-provisioned credentials untouched.
 
 No migration step may recreate Ticket or Attachment data from scratch.
 
 ### 7.3 Required seed decisions
 
-- Seed is idempotent using stable unique emails/ticket numbers and upsert/update logic.
+- Seed is idempotent using stable unique emails/ticket numbers and create-if-missing/update-safe logic. Seed reruns may repair non-credential fixture fields intentionally owned by seed data, but they must never reset an existing User's password hash or `mustChangePassword` state.
 - Minimum accounts: 4 active + 1 inactive Requester; 3 active + 1 inactive IT Staff; at least 1 active Administrator.
 - All seeded accounts use clearly labeled local-lab credentials only. Default development initial password: `Lab3-ChangeMe-2026`; seeded Users start with `mustChangePassword=true` unless a specific test fixture requires an already-changed password.
 - Seed realistic Tickets across Requesters, all relevant status/priority combinations, and assigned/unassigned ownership.
@@ -274,8 +280,8 @@ Exact shapes and query parameters are defined in `docs/lab-03/api-spec.md`.
 - **AC-04:** Given an authenticated User, when Logout succeeds or the session expires, then subsequent protected access is rejected.
 - **AC-05:** Given an authenticated User, when the shell renders, then it shows the User name/role and only permitted navigation destinations.
 - **AC-06:** Given an authenticated Requester, when another requesterId is supplied or another Requester's resource is addressed, then the backend still applies authenticated ownership and does not disclose the other Requester's protected data.
-- **AC-07:** Given migrated Lab 2 data, when the Lab 3 schema/migration is applied, then existing Ticket ownership and Attachment metadata remain valid.
-- **AC-08:** Given authenticated Requesters, when they use Create Ticket, My Tickets, Ticket Detail, and Attachments, then the Lab 2 workflows continue without the Development Requester selector.
+- **AC-07:** Given migrated Lab 2 data, when the Lab 3 schema/migration is applied, then each legacy Requester keeps its exact numeric identity mapping, existing Ticket ownership and Attachment metadata remain valid, local initial credentials are hashed only on first provisioning, and rerun-safe provisioning does not reset already-changed credentials.
+- **AC-08:** Given authenticated Requesters, when they use Create Ticket, My Tickets, Ticket Detail, and Attachments, then the Lab 2 workflows continue without the Development Requester selector; retrying the same Ticket create `clientRequestId` does not create a duplicate Ticket and conflicting reuse is rejected safely.
 - **AC-09:** Given an owned Ticket, when a Requester posts a Public Comment, then it is stored with backend author/time and visible to permitted roles.
 - **AC-10:** Given an owned Ticket, when a Requester selects Problem Appears Resolved, then the indication is recorded without changing the Ticket to Resolved or Closed.
 - **AC-11:** Given IT Staff, when Queue queries use valid search/filter/sort/page parameters, then the correct permitted page and pagination metadata are returned; invalid parameters receive HTTP 400.
@@ -328,7 +334,9 @@ Lab 3 is product-complete only when all of the following are true:
 - **AD-08:** The optional Administrator role filter is included because it is small, useful, and explicitly allowed; advanced filtering/pagination/sorting remain excluded.
 - **AD-09:** `Problem Appears Resolved` is modeled as an indication, not a Ticket status transition, to preserve the handout rule that Requesters cannot formally resolve/close.
 - **AD-10:** The existing Lab 2 responsive breakpoints remain authoritative: desktop `>=992px`, tablet `768-991px`, mobile `<768px`.
-- **AD-11:** Local development keeps the existing Vite client on `http://localhost:5173` and API on `http://localhost:3000`; the API therefore uses an explicit allowed-origin CORS configuration with `credentials: true`, and authenticated client fetches use `credentials: "include"`. Production/cloud deployment design remains out of scope.
-- **AD-12:** Login throttling is process-local for this course lab and may reset when the development server restarts. It limits repeated attempts without introducing the excluded account-lock/unlock workflow.
-- **AD-13:** Repeating `Problem Appears Resolved` is idempotent: it returns the existing indication instead of creating duplicate status-like events.
-- **AD-14:** `GET /api/auth/me` may rotate the CSRF token for the current session so the server can store only a hash while still giving a reloaded client a fresh token. Session authorization always reads the User's current role/active state rather than trusting stale role data stored in the browser.
+- **AD-11:** Ticket create replay protection is explicitly contracted in Lab 3 using `clientRequestId` because Requester Create Ticket continuity must remain retry-safe. First submission returns `201`; an identical replay returns `200` with the original Ticket and `replayed=true`; conflicting reuse returns `409 IDEMPOTENCY_CONFLICT`.
+- **AD-12:** Exact legacy Requester id preservation is chosen instead of a translation table because current Lab 2 Ticket and Attachment foreign keys already use those numeric ids. A collision is a migration error, not a reason to silently remap ownership.
+- **AD-13:** Local development keeps the existing Vite client on `http://localhost:5173` and API on `http://localhost:3000`; the API therefore uses an explicit allowed-origin CORS configuration with `credentials: true`, and authenticated client fetches use `credentials: "include"`. Production/cloud deployment design remains out of scope.
+- **AD-14:** Login throttling is process-local for this course lab and may reset when the development server restarts. It limits repeated attempts without introducing the excluded account-lock/unlock workflow.
+- **AD-15:** Repeating `Problem Appears Resolved` is idempotent: it returns the existing indication instead of creating duplicate status-like events.
+- **AD-16:** `GET /api/auth/me` may rotate the CSRF token for the current session so the server can store only a hash while still giving a reloaded client a fresh token. Session authorization always reads the User's current role/active state rather than trusting stale role data stored in the browser.

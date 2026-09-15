@@ -16,10 +16,10 @@ Record or select only prompts that were actually used. Early real Sprint 3 examp
 3. Decompose Sprint 3 into GitHub Issues/Kanban work covering specification, migration, authentication, authorization, Requester regression, IT Staff interfaces, Administrator User Management, E2E, visual inspection, and release integration.
 4. Before every repository/GitHub state change, explain the step and wait for student approval; commit/push/PR/merge require explicit approval.
 5. During the work, capture only useful Lab 3 evidence/screenshots that correspond to the lab requirements and store working evidence under `pic/pic_lab3/` with descriptive names.
+6. Apply the real PR #43 peer-review feedback to the Engineering Contract: restore the handout's BR-01..BR-05 meanings, make migration/provisioning deterministic, define Ticket-create idempotency, make Test ID-to-file mappings explicit, align the Attachment DTO contract, and keep approval/merge evidence pending until it actually occurs.
 
 The final file should retain only 6-10 representative prompts that best demonstrate specification-agent and coding-agent use.
 
 ## My Reflection
 
 Pending until the Sprint 3 implementation/review cycle provides enough real evidence for a meaningful reflection.
-

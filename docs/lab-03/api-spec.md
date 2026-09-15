@@ -150,12 +150,15 @@ Existing Lab 2 behavior remains, but calls are made inside authenticated applica
 
 ### POST `/api/tickets`
 
-Continues Lab 2 create behavior but ignores/rejects any requester identity field. `requesterId` is always the authenticated Requester User id. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
+Continues Lab 2 Requester create behavior under authenticated identity and adds an explicit retry-safe idempotency contract. `requesterId` is always the authenticated Requester User id; any client-supplied requester identity field is rejected. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
+
+Every new Lab 3 create request requires a client-generated UUID `clientRequestId`. The value is unique per authenticated Requester and is persisted with the Ticket. Legacy Tickets migrated from Lab 2 may have `clientRequestId=null` because they pre-date this contract.
 
 Request body:
 
 ```json
 {
+  "clientRequestId": "6e6f5842-4919-4ab8-aee8-8ad0fe5e6a11",
   "categoryId": 1,
   "relatedSystemId": 1,
   "summary": "Laptop battery drains quickly",
@@ -170,14 +173,24 @@ Success `201`:
 {
   "id": 1,
   "ticketNumber": "TTK-20260915-0001",
+  "clientRequestId": "6e6f5842-4919-4ab8-aee8-8ad0fe5e6a11",
   "currentStatus": "NEW",
   "currentStatusLabel": "New",
   "requesterId": 1,
   "requestedPriority": "MEDIUM",
   "itPriority": "MEDIUM",
-  "owner": null
+  "owner": null,
+  "replayed": false
 }
 ```
+
+Idempotency behavior:
+
+- First valid `(authenticated requester, clientRequestId)` submission creates exactly one Ticket and returns `201` with `replayed=false`.
+- Repeating the same `clientRequestId` with the same normalized create payload returns the original Ticket with `200` and `replayed=true`; it does not allocate a new Ticket Number or row.
+- Reusing the same `clientRequestId` with a different normalized payload returns `409 IDEMPOTENCY_CONFLICT` and does not modify the original Ticket.
+- The comparison payload is the validated/normalized Category, Related System, trimmed Summary, trimmed Description, and Requested Priority. Authentication identity is already part of the uniqueness scope.
+- `clientRequestId` must be a valid UUID; missing/invalid values return `400 VALIDATION_ERROR`.
 
 Summary/description/reference-data/priority validation remains the approved Lab 2 contract. Any supplied `requesterId` is rejected as an invalid protected identity field rather than trusted.
 
@@ -247,7 +260,7 @@ Requester detail intentionally omits primary owner, Internal Notes, and staff-on
 
 Existing Lab 2 type, size, max-five, soft-removal, ownership, and removed-download rules continue. Authenticated Requester identity replaces requesterId path/context.
 
-Attachment metadata item remains exactly:
+Attachment list/detail metadata keeps the Lab 2 DTO field names and lowercase `state` values:
 
 ```json
 {
@@ -258,12 +271,12 @@ Attachment metadata item remains exactly:
   "uploadedAt": "2026-09-15T08:00:00.000Z",
   "removedAt": null,
   "removalReason": null,
-  "state": "ACTIVE",
+  "state": "active",
   "downloadUrl": "/api/tickets/1/attachments/1/download"
 }
 ```
 
-Removed Attachments omit `downloadUrl`. Upload returns one metadata item with `201`; metadata list returns an array with `200`; soft-remove returns the removed metadata item with `200`; download returns the file body/content headers rather than JSON.
+Removed Attachments use `state="removed"` and omit `downloadUrl`. Upload returns one safe Attachment record with `201`, preserving the Lab 2 upload response field names (`id`, `ticketId`, `originalFilename`, `storedFilename`, `mimeType`, `sizeBytes`, `uploadedAt`, `removedAt`, removal-actor field, `removalReason`) while never returning `storagePath`. The removal-actor field is renamed from Lab 2 `removedByRequesterId` to `removedByUserId` because the foreign key now targets `User`; this intentional schema/DTO rename is part of the Lab 2 -> Lab 3 identity migration. Metadata list returns an array with `200`; soft-remove returns the removed metadata item with `200`; download returns the file body/content headers rather than JSON.
 
 ### GET `/api/tickets/:ticketId/comments`
 
