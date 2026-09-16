@@ -152,7 +152,7 @@ TokTickIT must identify users through email/password authentication instead of a
 
 - **BR-36:** Every legacy `RequesterUser` is migrated deterministically to a `User` with the exact same numeric `id`, name, normalized email, activation state, and timestamps. Existing `Ticket.requesterId` and Attachment removal actor references are repointed to that exact User id inside one migration transaction; if the exact id/email mapping cannot be satisfied, migration fails instead of silently remapping ownership.
 - **BR-37:** Legacy Requester credential provisioning is create-only and rerun-safe. A migrated Requester receives the documented local initial password only when its `User` row is first created, stored only as a salted hash with `mustChangePassword=true`. Re-running seed/provisioning logic must not overwrite an existing User's `passwordHash`, `mustChangePassword`, or already-changed credentials.
-- **BR-38:** Authenticated Ticket creation requires a client-generated `clientRequestId` UUID. The database enforces uniqueness per Requester. Replaying the same `clientRequestId` with the same normalized create payload returns the original Ticket without creating another row; reusing the same id with a different payload returns `409 IDEMPOTENCY_CONFLICT`.
+- **BR-38:** Authenticated Ticket creation continues to require the Lab 2 `Ticket.clientRequestId` client-generated UUID. The existing field remains globally unique. Replaying the same `clientRequestId` by the same authenticated Requester with the same normalized create payload returns the original Ticket without creating another row; reusing that id with a different payload or from a different Requester returns `409 IDEMPOTENCY_CONFLICT` without exposing another Requester's Ticket.
 - **BR-39:** Existing Lab 2 Ticket and Attachment data must remain addressable after migration; no migration may silently discard ownership or Attachment metadata.
 - **BR-40:** Validation failures do not create partial domain records. Multi-record operations use a database transaction where atomicity is required.
 - **BR-41:** Unexpected errors return a safe generic server error and do not expose stack traces, password hashes, session tokens, CSRF tokens, storage paths, or protected-resource existence.
@@ -205,7 +205,7 @@ Administrator Ticket permissions above are intentionally limited to the minimum 
 - Preserve `Category` and `RelatedSystem`.
 - Evolve `Ticket`:
   - `requesterId` now references `User` with role Requester;
-  - add nullable-at-database `clientRequestId` plus a unique composite constraint on `(requesterId, clientRequestId)` for create replay protection; legacy pre-Lab-3 Tickets may remain null, while every new Lab 3 create request must supply a UUID;
+  - preserve the existing Lab 2 required `clientRequestId` field and its global unique constraint exactly; existing Ticket values are migrated unchanged and Lab 3 must not replace it with a nullable or requester-scoped composite key;
   - nullable `ownerId` references active IT Staff/Administrator;
   - keep `requestedPriority`;
   - add `itPriority`, initially copied from Requested Priority;
@@ -223,7 +223,7 @@ Administrator Ticket permissions above are intentionally limited to the minimum 
 3. Provision each newly migrated Requester with the documented local-development initial password `Lab3-ChangeMe-2026`, but persist only a unique salted `scrypt` hash and `mustChangePassword=true`. This credential assignment occurs only when the User row is first created.
 4. Repoint `Ticket.requesterId` and Attachment removal actor references to the exact preserved User ids, then verify Ticket/Attachment row counts and referential integrity before removing the obsolete `RequesterUser` table.
 5. Reset the `User.id` database sequence to a value above the migrated maximum id before newly seeded IT Staff/Administrator accounts are inserted.
-6. Add Ticket operational fields with migration-safe defaults: `ownerId=NULL`, `itPriority=requestedPriority`, existing status `NEW` maps to `New`, and add `clientRequestId` replay protection without recreating existing Ticket rows.
+6. Add Ticket operational fields with migration-safe defaults: `ownerId=NULL`, `itPriority=requestedPriority`, and existing status `NEW` maps to `New`. Preserve every existing `Ticket.clientRequestId` value and its global unique constraint unchanged while carrying the existing replay key into the Lab 3 authenticated create flow.
 7. Add session/comment/note tables and indexes.
 8. Remove the temporary Requester selector endpoint/client state from normal Lab 3 behavior only after authenticated Requester regression tests exist.
 
@@ -334,7 +334,7 @@ Lab 3 is product-complete only when all of the following are true:
 - **AD-08:** The optional Administrator role filter is included because it is small, useful, and explicitly allowed; advanced filtering/pagination/sorting remain excluded.
 - **AD-09:** `Problem Appears Resolved` is modeled as an indication, not a Ticket status transition, to preserve the handout rule that Requesters cannot formally resolve/close.
 - **AD-10:** The existing Lab 2 responsive breakpoints remain authoritative: desktop `>=992px`, tablet `768-991px`, mobile `<768px`.
-- **AD-11:** Ticket create replay protection is explicitly contracted in Lab 3 using `clientRequestId` because Requester Create Ticket continuity must remain retry-safe. First submission returns `201`; an identical replay returns `200` with the original Ticket and `replayed=true`; conflicting reuse returns `409 IDEMPOTENCY_CONFLICT`.
+- **AD-11:** Ticket create replay protection continues the submitted Lab 2 `Ticket.clientRequestId @unique` baseline rather than introducing a new nullable/composite key. Lab 3 keeps the field globally unique while applying authenticated ownership to replay handling: first submission returns `201`; an identical replay by the owning Requester returns `200` with the original Ticket and `replayed=true`; conflicting or cross-Requester reuse returns `409 IDEMPOTENCY_CONFLICT`.
 - **AD-12:** Exact legacy Requester id preservation is chosen instead of a translation table because current Lab 2 Ticket and Attachment foreign keys already use those numeric ids. A collision is a migration error, not a reason to silently remap ownership.
 - **AD-13:** Local development keeps the existing Vite client on `http://localhost:5173` and API on `http://localhost:3000`; the API therefore uses an explicit allowed-origin CORS configuration with `credentials: true`, and authenticated client fetches use `credentials: "include"`. Production/cloud deployment design remains out of scope.
 - **AD-14:** Login throttling is process-local for this course lab and may reset when the development server restarts. It limits repeated attempts without introducing the excluded account-lock/unlock workflow.

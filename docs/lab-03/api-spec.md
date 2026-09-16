@@ -150,9 +150,9 @@ Existing Lab 2 behavior remains, but calls are made inside authenticated applica
 
 ### POST `/api/tickets`
 
-Continues Lab 2 Requester create behavior under authenticated identity and adds an explicit retry-safe idempotency contract. `requesterId` is always the authenticated Requester User id; any client-supplied requester identity field is rejected. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
+Continues Lab 2 Requester create behavior under authenticated identity and preserves the existing retry key. `requesterId` is always the authenticated Requester User id; any client-supplied requester identity field is rejected. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
 
-Every new Lab 3 create request requires a client-generated UUID `clientRequestId`. The value is unique per authenticated Requester and is persisted with the Ticket. Legacy Tickets migrated from Lab 2 may have `clientRequestId=null` because they pre-date this contract.
+`clientRequestId` is the existing required Lab 2 `Ticket.clientRequestId` field and remains globally unique in Lab 3. Migration preserves every existing value and the existing unique constraint; Lab 3 does not make the field nullable or replace it with `(requesterId, clientRequestId)` composite uniqueness.
 
 Request body:
 
@@ -186,10 +186,10 @@ Success `201`:
 
 Idempotency behavior:
 
-- First valid `(authenticated requester, clientRequestId)` submission creates exactly one Ticket and returns `201` with `replayed=false`.
-- Repeating the same `clientRequestId` with the same normalized create payload returns the original Ticket with `200` and `replayed=true`; it does not allocate a new Ticket Number or row.
-- Reusing the same `clientRequestId` with a different normalized payload returns `409 IDEMPOTENCY_CONFLICT` and does not modify the original Ticket.
-- The comparison payload is the validated/normalized Category, Related System, trimmed Summary, trimmed Description, and Requested Priority. Authentication identity is already part of the uniqueness scope.
+- First valid globally unique `clientRequestId` submission creates exactly one Ticket and returns `201` with `replayed=false`.
+- Repeating the same `clientRequestId` by the authenticated Requester who owns the original Ticket with the same normalized create payload returns that original Ticket with `200` and `replayed=true`; it does not allocate a new Ticket Number or row.
+- Reusing the same `clientRequestId` with a different normalized payload, or attempting to reuse an id belonging to another Requester, returns `409 IDEMPOTENCY_CONFLICT`, does not modify/create a Ticket, and does not disclose the other Ticket.
+- The comparison payload is the validated/normalized Category, Related System, trimmed Summary, trimmed Description, and Requested Priority. Authentication identity is checked against the original Ticket owner before any replay response is returned.
 - `clientRequestId` must be a valid UUID; missing/invalid values return `400 VALIDATION_ERROR`.
 
 Summary/description/reference-data/priority validation remains the approved Lab 2 contract. Any supplied `requesterId` is rejected as an invalid protected identity field rather than trusted.
