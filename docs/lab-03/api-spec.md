@@ -150,9 +150,9 @@ Existing Lab 2 behavior remains, but calls are made inside authenticated applica
 
 ### POST `/api/tickets`
 
-Continues Lab 2 Requester create behavior under authenticated identity and preserves the existing retry key. `requesterId` is always the authenticated Requester User id; any client-supplied requester identity field is rejected. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
+Continues Lab 2 Requester create behavior under authenticated identity and adds the reviewed retry-safe replay key. `requesterId` is always the authenticated Requester User id; any client-supplied requester identity field is rejected. Initial `currentStatus=NEW`, `ownerId=null`, `itPriority=requestedPriority`.
 
-`clientRequestId` is the existing required Lab 2 `Ticket.clientRequestId` field and remains globally unique in Lab 3. Migration preserves every existing value and the existing unique constraint; Lab 3 does not make the field nullable or replace it with `(requesterId, clientRequestId)` composite uniqueness.
+`clientRequestId` is introduced by Lab 3 because the verified Lab 2 repository/database baseline has no such Ticket column. The Lab 3 migration assigns each legacy Ticket a deterministic migration-only UUID (`00000000-0000-5000-8000-` plus its zero-padded 12-digit Ticket id), then enforces the same required global uniqueness used by all new Lab 3 Tickets. Every new authenticated create request must supply a client-generated UUID; Lab 3 does not use `(requesterId, clientRequestId)` composite uniqueness.
 
 Request body:
 
