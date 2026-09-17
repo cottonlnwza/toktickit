@@ -21,13 +21,13 @@ describe("GET /api/requesters", () => {
       { id: 3, name: "Chalida Staff", email: "chalida.staff@example.test" },
       { id: 4, name: "Darin Researcher", email: "darin.researcher@example.test" },
     ]);
-    mockGetPrisma.mockReturnValue({ requesterUser: { findMany } } as unknown as ReturnType<typeof getPrisma>);
+    mockGetPrisma.mockReturnValue({ user: { findMany } } as unknown as ReturnType<typeof getPrisma>);
 
     const res = await request(app).get("/api/requesters");
 
     expect(res.status).toBe(200);
     expect(findMany).toHaveBeenCalledWith({
-      where: { isActive: true },
+      where: { role: "REQUESTER", isActive: true },
       select: { id: true, name: true, email: true },
       orderBy: { id: "asc" },
     });
@@ -43,7 +43,7 @@ describe("GET /api/requesters", () => {
 
   it("returns a safe 500 response when requester lookup fails", async () => {
     const findMany = vi.fn().mockRejectedValue(new Error("SQL failed at /secret/path with DATABASE_URL"));
-    mockGetPrisma.mockReturnValue({ requesterUser: { findMany } } as unknown as ReturnType<typeof getPrisma>);
+    mockGetPrisma.mockReturnValue({ user: { findMany } } as unknown as ReturnType<typeof getPrisma>);
 
     const res = await request(app).get("/api/requesters");
 

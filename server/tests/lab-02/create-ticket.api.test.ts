@@ -7,7 +7,7 @@ import { getPrisma } from "../../src/prisma.js";
 
 async function getReferenceData() {
   const prisma = getPrisma();
-  const requester = await prisma.requesterUser.findFirstOrThrow({ where: { isActive: true } });
+  const requester = await prisma.user.findFirstOrThrow({ where: { role: "REQUESTER", isActive: true } });
   const category = await prisma.category.findFirstOrThrow({ where: { name: "Hardware" } });
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
   return { category, relatedSystem, requester };

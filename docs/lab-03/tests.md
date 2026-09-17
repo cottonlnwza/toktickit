@@ -22,8 +22,8 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | UNIT-02 | Unit | BR-08, BR-09; AC-03, AC-21, AC-23 | Password validation + scrypt hash/verify | Boundaries enforced; plaintext never stored; valid verify succeeds | `server/tests/lab-03/auth.unit.test.ts` | Pending |
 | UNIT-03 | Unit | BR-24, BR-25; AC-15 | Ticket status transition helper | Only matrix transitions accepted | `server/tests/lab-03/ticket-status.unit.test.ts` | Pending |
 | UNIT-04 | Unit | BR-29; AC-16 | Comment/note validation | Blank/over-limit rejected; valid plain text accepted | `server/tests/lab-03/comments-notes.unit.test.ts` | Pending |
-| MIG-01 | Migration/Regression | FR-24, BR-36, BR-37, BR-38, BR-39; AC-07 | Lab 2 Requester -> User migration/provisioning | Exact legacy ids/FKs/data/counts remain valid; email normalization collision preflight is enforced; the absent Lab 2 `clientRequestId` column is added nullable, legacy rows receive the specified deterministic UUID backfill, uniqueness/non-null are verified before constraints are enforced; Ticket backfills/nullability/default/FK/onDelete/index invariants match Section 7.1/7.2; first credential provisioning is hashed; rerun does not reset changed credentials | `server/tests/lab-03/migration.integration.test.ts` | Pending |
-| MIG-02 | Migration/Regression | FR-25, BR-37; AC-25 | Idempotent Lab 3 seed | Required active/inactive roles/data exist without duplicates or credential reset on rerun | `server/tests/lab-03/seed.integration.test.ts` | Pending |
+| MIG-01 | Migration/Regression | FR-24, BR-36, BR-37, BR-38, BR-39; AC-07 | Lab 2 Requester -> User migration/provisioning | Exact legacy ids/FKs/data/counts remain valid; email normalization collision preflight is enforced; the absent Lab 2 `clientRequestId` column is added nullable, legacy rows receive the specified deterministic UUID backfill, uniqueness/non-null are verified before constraints are enforced; Ticket backfills/nullability/default/FK/onDelete/index invariants match Section 7.1/7.2; first credential provisioning is hashed; rerun does not reset changed credentials | `server/tests/lab-03/migration.integration.test.ts` | Pass — Issue #34 local isolated PostgreSQL / Node 22 |
+| MIG-02 | Migration/Regression | FR-25, BR-37; AC-25 | Idempotent Lab 3 seed | Required active/inactive roles/data exist without duplicates or credential reset on rerun | `server/tests/lab-03/seed.integration.test.ts` | Pass — Issue #34 local isolated PostgreSQL / Node 22 |
 | API-01 | API | FR-01; AC-01 | Valid active login | 200; session established; safe User + CSRF returned | `server/tests/lab-03/auth.api.test.ts` | Pending |
 | API-02 | API/Security | FR-01; AC-02 | Invalid credentials | 401 generic error; no secrets/profile leak | `server/tests/lab-03/auth.api.test.ts` | Pending |
 | API-03 | API/Security | BR-01, BR-11; AC-02 | Inactive account login | 403 inactive safe error; no profile/secret data | `server/tests/lab-03/auth.api.test.ts` | Pending |
@@ -183,6 +183,18 @@ npx playwright test e2e/lab-03/authentication.spec.ts
 npx playwright test e2e/lab-03/staff-ticket-flow.spec.ts
 npx playwright test e2e/lab-03/user-administration.spec.ts
 ```
+
+### Issue #34 execution evidence
+
+The Issue #34 migration/seed implementation was verified locally with Node `22.22.2` using isolated PostgreSQL databases only. `TEST_DATABASE_URL` targeted `toktickit_lab3_test`; the broader regression run used a separate `toktickit_lab3_suite_test`, so neither destructive migration setup nor seed tests targeted the normal development database.
+
+- `npm run test:lab3:migration --prefix server`: 2 files / 6 tests passed.
+- `npm test --prefix server`: 12 files / 48 tests passed with the isolated suite/test databases.
+- `npm test --prefix client`: 8 files / 45 tests passed.
+- `npm run build --prefix server`: passed.
+- `npm run build --prefix client`: passed.
+- `prisma validate`: passed for the Lab 3 schema.
+- Read-only check after testing confirmed the normal development database was still on the untouched Lab 2 schema with 5 Requesters, 99 Tickets, and 91 Attachments.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
 

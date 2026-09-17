@@ -8,7 +8,9 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:lab3": "tsx prisma/lab3-migrate.ts",
     "prisma:seed": "tsx prisma/seed.ts",
+    "test:lab3:migration": "vitest run tests/lab-03/migration.integration.test.ts tests/lab-03/seed.integration.test.ts",
     "test": "vitest run"
   },
   "prisma": { "seed": "tsx prisma/seed.ts" },
