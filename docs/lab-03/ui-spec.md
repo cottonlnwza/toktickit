@@ -238,17 +238,38 @@ Repository-required application screenshots:
 ```text
 artifacts/lab-03/screenshots/
 ├── authentication/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 ├── requester-create-ticket/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 ├── requester-my-tickets/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 ├── requester-ticket-detail/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 ├── staff-queue/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 ├── staff-ticket-detail/
+│   ├── desktop.png
+│   ├── tablet.png
+│   └── mobile.png
 └── user-management/
+    ├── desktop.png
+    ├── tablet.png
+    └── mobile.png
 ```
 
 Working evidence captured during the lab may additionally be stored under `pic/pic_lab3/` using descriptive filenames. Evidence files are not application source and are committed only if explicitly approved.
 
-Each major UI area must ultimately have readable desktop/tablet/mobile evidence for Answer Part 9. Authentication evidence also covers valid/invalid/inactive/first-password-change/logout. Requester evidence is explicit rather than implied: `requester-create-ticket/` covers authenticated Create Ticket and validation/success states; `requester-my-tickets/` covers search/filter/sort/pagination plus empty/no-results/failure states; `requester-ticket-detail/` covers owned Ticket Detail, Attachment states, Public Comments, and `Problem Appears Resolved`. Queue covers query/states; Staff Detail covers operations/comments/notes/Attachments; User Management covers allowed create/edit/activation/password operations and safety rules.
+Each major UI area must ultimately have the three exact breakpoint files above for Answer Part 9. Those three files prove the base screen/layout at desktop/tablet/mobile; additional state screenshots may be added with descriptive names when Parts 5-8 need validation/failure/success evidence. Requester evidence is explicit rather than implied: every `requester-create-ticket/{desktop,tablet,mobile}.png` must show the authenticated Create Ticket screen including Attachment controls; every `requester-my-tickets/{desktop,tablet,mobile}.png` must show the authenticated list/search/filter/sort/pagination layout; every `requester-ticket-detail/{desktop,tablet,mobile}.png` must show owned Ticket Detail with the Attachment area, Public Comments, and the `Problem Appears Resolved` action/state visible in the captured workflow. Authentication evidence also covers valid/invalid/inactive/first-password-change/logout. Queue covers query/states; Staff Detail covers operations/comments/notes/Attachments; User Management covers allowed create/edit/activation/password operations and safety rules.
 
 Required Part 9 breakpoint evidence matrix:
 

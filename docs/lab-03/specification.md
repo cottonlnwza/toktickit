@@ -216,6 +216,8 @@ The following Prisma-level contract removes migration ambiguity. `Required` mean
 | `createdAt` | `DateTime @default(now())` | Required | Preserve the legacy Requester timestamp during migration. |
 | `updatedAt` | `DateTime @updatedAt` | Required | Preserve the legacy Requester value during initial migration, then Prisma maintains it. |
 
+User relation names are fixed for implementation: `requestedTickets` (Ticket requester), `ownedTickets` (Ticket owner), `problemResolutionIndications`, `attachmentRemovals`, `publicComments`, `internalNotes`, and `sessions`. The database stores only the normalized lowercase email in `User.email`; there is no second display-email column. Case-insensitive uniqueness is therefore deterministic: trim + lowercase before insert/update, then enforce `User.email @unique`. Migration must preflight the normalized legacy emails and abort before writes if two legacy rows would normalize to the same value.
+
 #### AuthSession
 
 | Field | Prisma type / constraint | Nullability / default | Relationship / index contract |
@@ -227,6 +229,8 @@ The following Prisma-level contract removes migration ambiguity. `Required` mean
 | `createdAt` | `DateTime @default(now())` | Required | Server-created timestamp. |
 | `expiresAt` | `DateTime` | Required; no default | Absolute eight-hour expiry calculated at session creation; add `@@index([expiresAt])`. |
 | `revokedAt` | `DateTime?` | Nullable; default `NULL` | Non-null means the session is invalid even before expiry. |
+
+The Prisma relation is fixed as `user User @relation(fields: [userId], references: [id], onDelete: Cascade)`. Session lookup uses the unique `tokenHash`; cleanup/authorization may use `@@index([userId, revokedAt])` and `@@index([expiresAt])`. No session field is backfilled for migrated Users because sessions are created only after Lab 3 authentication exists.
 
 #### Ticket changes
 
@@ -242,6 +246,8 @@ Existing `Ticket.id`, `ticketNumber`, `categoryId`, `relatedSystemId`, `summary`
 | `currentStatus` | expanded `TicketStatus @default(NEW)` | Required; default `NEW` | Enum exactly `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, `CANCELLED`; add `@@index([currentStatus, updatedAt])`. |
 | `problemAppearsResolvedAt` | `DateTime?` | Nullable; default `NULL` | Requester indication timestamp only; never changes `currentStatus`. |
 | `problemAppearsResolvedById` | `Int?` | Nullable; default `NULL` | FK `User(id)` with `onDelete: SetNull`; actor must be the authenticated Requester for that Ticket. |
+
+Ticket relation declarations are fixed as follows: `requester User @relation("RequestedTickets", fields: [requesterId], references: [id], onDelete: Restrict)`, `owner User? @relation("OwnedTickets", fields: [ownerId], references: [id], onDelete: SetNull)`, and `problemAppearsResolvedBy User? @relation("ProblemResolutionIndications", fields: [problemAppearsResolvedById], references: [id], onDelete: SetNull)`. Existing Category/RelatedSystem/Attachment relations remain.
 
 Staff Queue also requires `@@index([updatedAt])`, `@@index([categoryId, updatedAt])`, and `@@index([relatedSystemId, updatedAt])`. Existing Requester-scoped Lab 2 indexes remain unless a migration is explicitly reviewed to replace an equivalent index.
 
@@ -261,20 +267,27 @@ Staff Queue also requires `@@index([updatedAt])`, `@@index([categoryId, updatedA
 | `InternalNote.content` | `String` | Required; no default | Application validation enforces trimmed length `1..2000`; stored/rendered as plain text. |
 | `InternalNote.createdAt` | `DateTime @default(now())` | Required | Backend/server timestamp. |
 
-`Category` and `RelatedSystem` remain structurally unchanged.
+`Attachment.removedByUser` uses `@relation("AttachmentRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)`. `PublicComment.ticket` / `InternalNote.ticket` use `onDelete: Restrict`; their `author` relations to `User` also use `onDelete: Restrict` so authorship cannot be silently erased. User deletion is not a Lab 3 product operation; deactivation is the supported lifecycle. `Category` and `RelatedSystem` remain structurally unchanged.
 
 ### 7.2 Migration decisions
 
-1. Create the new User/role/credential structures without deleting existing Ticket/Attachment tables.
-2. Insert every Lab 2 `RequesterUser` into `User` as role `REQUESTER` using the exact same numeric `id`; preserve name, normalized email, `isActive`, `createdAt`, and `updatedAt`. If an id/email collision would prevent exact preservation, abort the migration rather than generating a replacement id.
-3. Provision each newly migrated Requester with the documented local-development initial password `Lab3-ChangeMe-2026`, but persist only a unique salted `scrypt` hash and `mustChangePassword=true`. This credential assignment occurs only when the User row is first created.
-4. Repoint `Ticket.requesterId` and Attachment removal actor references to the exact preserved User ids, then verify Ticket/Attachment row counts and referential integrity before removing the obsolete `RequesterUser` table.
-5. Reset the `User.id` database sequence to a value above the migrated maximum id before newly seeded IT Staff/Administrator accounts are inserted.
-6. Add Ticket operational fields with migration-safe defaults: `ownerId=NULL`, `itPriority=requestedPriority`, and existing status `NEW` maps to `New`. Preserve every existing `Ticket.clientRequestId` value and its global unique constraint unchanged while carrying the existing replay key into the Lab 3 authenticated create flow.
-7. Add session/comment/note tables and indexes.
-8. Remove the temporary Requester selector endpoint/client state from normal Lab 3 behavior only after authenticated Requester regression tests exist.
+The migration order is frozen so implementation does not choose a different backfill/FK sequence:
 
-Migration/provisioning is tested as a deterministic operation. If a development/test provisioning helper is executed again against already migrated users, it must validate the existing id/email mapping and leave password hashes, `mustChangePassword`, activation state changes made after migration, and other already-provisioned credentials untouched.
+1. **Preflight only, no writes:** record row counts for `RequesterUser`, `Ticket`, and `Attachment`; verify every existing `Ticket.clientRequestId` is non-null and globally unique; compute trimmed lowercase legacy emails and abort if normalization would create a duplicate.
+2. **Create types/tables:** create `UserRole`; create `User` with all required columns/constraints except application relations that still depend on legacy FKs. Do not drop or rename `RequesterUser` yet.
+3. **Copy legacy Requesters deterministically:** insert one `User` per `RequesterUser` using the exact same numeric `id`, trimmed name, normalized lowercase email, preserved `isActive`, `createdAt`, and `updatedAt`, role `REQUESTER`, a newly generated salted hash of local initial password `Lab3-ChangeMe-2026`, and `mustChangePassword=true`. Any id/email collision aborts the migration; no alternate id is generated.
+4. **Reset identity sequence:** set the `User.id` sequence above `MAX(User.id)` before any new IT Staff/Administrator seed rows are inserted.
+5. **Prepare Ticket columns:** add `ownerId Int? DEFAULT NULL`, `itPriority RequestedPriority?`, `problemAppearsResolvedAt DateTime? DEFAULT NULL`, and `problemAppearsResolvedById Int? DEFAULT NULL`; expand `TicketStatus` to the eight approved values while preserving existing `NEW`. Do not alter `clientRequestId`, `ticketNumber`, requester/category/system IDs, or existing Ticket timestamps/content.
+6. **Backfill before NOT NULL:** set `itPriority = requestedPriority` for every existing Ticket; verify zero `itPriority` nulls, then alter `itPriority` to required/non-null. `ownerId` and both problem-resolution fields remain null for all legacy Tickets.
+7. **Repoint ownership FKs:** replace `Ticket.requesterId -> RequesterUser(id)` with `Ticket.requesterId -> User(id) ON DELETE RESTRICT` without changing any requester id values. Rename `Attachment.removedByRequesterId` to `removedByUserId`, preserve every existing value/null, and replace its FK with `User(id) ON DELETE SET NULL`.
+8. **Create new relations/tables:** create `AuthSession`, `PublicComment`, and `InternalNote` with the exact fields/FKs/delete behaviors in Section 7.1. Add Ticket owner/problem-resolution FKs and all indexes listed in Section 7.1. No legacy comments/notes/sessions are invented during migration.
+9. **Constraint/index verification:** verify `User.email @unique`, existing global `Ticket.clientRequestId @unique`, all new required/non-null constraints, and all named index groups from Section 7.1 exist. Verify every non-null owner/problem actor/removal actor resolves to `User`.
+10. **Data-preservation verification:** assert Ticket and Attachment row counts equal the preflight counts; every original Ticket keeps the same `id`, `ticketNumber`, `clientRequestId`, `requesterId`, requested priority, Category/RelatedSystem FK, timestamps, and Attachment linkage/metadata.
+11. **Remove legacy identity table only after verification:** drop `RequesterUser` only after Steps 1-10 succeed. A failure rolls back/aborts rather than leaving partially migrated ownership.
+12. **Provision/seed rerun rule:** seed new IT Staff/Administrator/sample data with create-if-missing/update-safe logic. If a User already exists, seed/provisioning must not overwrite `passwordHash`, `mustChangePassword`, or post-migration activation/role changes unless that exact mutation is the explicit subject of the seed fixture.
+13. **Client cutover:** retire the Development Requester selector endpoint/client state only after authenticated Requester regression tests exist and the migrated ownership checks pass.
+
+Migration/provisioning is deterministic and rerun-safe. A development/test rerun must validate existing id/email mappings and constraints, make no duplicate Users/Tickets/reference rows, and never reset already-changed credentials.
 
 No migration step may recreate Ticket or Attachment data from scratch.
 
