@@ -62,9 +62,9 @@ Lab 3 uses Test DD and TDD across unit, API/integration, UI component, UI style,
 | STYLE-01 | UI Style | FR-26, FR-27; AC-26, AC-27 | Zen Green/auth/badge/read-only/editable styling | Required semantic classes/states remain consistent | `client/tests/lab-03/ui-style.test.tsx` | Pending |
 | SEC-01 | Security/API | FR-06; AC-06, AC-17, AC-24 | Direct API authorization matrix | Wrong role/owner cannot bypass UI | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | SEC-02 | Security/API | BR-41; AC-02, AC-06, AC-17, AC-22 | Safe errors | No hash/token/path/protected existence leakage | `server/tests/lab-03/authorization.api.test.ts` | Pending |
-| RESP-01 | Responsive/E2E | FR-27; AC-27 | Desktop `>=992px` | No clipping/overlap/overflow; all actions reachable | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| RESP-02 | Responsive/E2E | FR-27; AC-27 | Tablet `768-991px` | Queue/list/detail/forms remain usable | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| RESP-03 | Responsive/E2E | FR-27; AC-27 | Mobile `<768px` | Cards/stacked fields; touch controls; no page overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
+| RESP-01 | Responsive/E2E | FR-27; AC-27 | Desktop `>=992px` | Login/Change Password/shell, Requester Create Ticket, My Tickets, Requester Ticket Detail with Attachments/Public Comments, Staff Queue, Staff Detail, and User Management have no clipping/overlap/overflow and all required actions are reachable | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
+| RESP-02 | Responsive/E2E | FR-27; AC-27 | Tablet `768-991px` | The same major-screen set, including all three Requester screens and Attachment/Public Comment states, remains usable without hidden controls or page-level overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
+| RESP-03 | Responsive/E2E | FR-27; AC-27 | Mobile `<768px` | The same major-screen set uses stacked/card layouts where specified; Requester Create/My Tickets/Detail, Attachments/Public Comments, Staff and Admin actions remain reachable with no page overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
 | A11Y-01 | Accessibility | FR-27; AC-27 | Keyboard/focus/names/non-color status | Major workflows keyboard-operable with visible focus | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
 | E2E-01 | E2E | AC-01-AC-05 | Authentication flow | Login invalid/valid/inactive; mandatory change; role shell; logout; blocked direct access | `e2e/lab-03/authentication.spec.ts` | Pending |
 | E2E-02 | E2E | AC-08-AC-19 | Staff/Requester Ticket flow | Requester regression + Queue -> Detail -> claim/priority/status/comment/note/Attachment | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pending |
@@ -182,11 +182,13 @@ Final release verification may run `npx playwright test` when the complete integ
 
 ## 7. Manual / Visual Verification
 
-- Verify desktop/tablet/mobile major screens against `ui-spec.md` and screenshot structure.
+- Verify desktop/tablet/mobile major screens against `ui-spec.md` and screenshot structure. The required screen set is explicit: Login/Change Password/authenticated shell, Requester Create Ticket, Requester My Tickets, Requester Ticket Detail with Attachment/Public Comment/Problem Appears Resolved states, IT Staff Queue, IT Staff Ticket Detail, and Administrator User Management.
 - Verify visible keyboard focus and role-navigation differences.
 - Verify Public Comments/Internal Notes are visually distinct.
 - Verify editable/read-only styling, status/requested/IT priority/role badges, validation placement, clipping, overlap, and horizontal overflow.
 - Verify protected direct URLs/API calls fail safely after logout and for wrong roles.
+
+Part 9 screenshot traceability uses the following fixed folders from `ui-spec.md`: `authentication/`, `requester-create-ticket/`, `requester-my-tickets/`, `requester-ticket-detail/`, `staff-queue/`, `staff-ticket-detail/`, and `user-management/`. Each folder must contain readable desktop, tablet, and mobile evidence before final release evidence is marked complete.
 
 ## 8. Final Results Log
 

@@ -5,14 +5,15 @@ This file records only real Sprint 3 peer-review events. Do not add approvals, c
 ## Reviewer Identity
 
 - Author: Thanakorn Soison (`@cottonlnwza`)
-- Peer reviewer for Issue #33 / PR #43: `@thananun-7203`
-- Additional review requests currently visible on PR #43: `@chaproi`, `@Tanaboonnnnn`, `@Chxtamos`
+- Peer reviewer, first two review rounds: ธนนันท์ ครังตุ้ย — Student ID `67070507203` — `@thananun-7203`.
+- Peer reviewer, current review round: Chartanat Upthaipiboon — Student ID `67070507210` — `@Chxtamos`.
+- Additional review requests may appear on PR #43; only submitted reviews are recorded as review evidence below.
 
 ## Review Log
 
 | Issue | Feature branch | PR | Reviewer | Review / comment | Author response / correction | Approval | Merge |
 |---|---|---|---|---|---|---|---|
-| #33 Engineering Contract | `feature/lab3-1-engineering-contract` | [PR #43](https://github.com/cottonlnwza/toktickit/pull/43) | `@thananun-7203` | First review requested four contract corrections (BR-01..BR-05, deterministic migration/provisioning, Ticket-create idempotency, explicit Test ID -> file paths). Re-review of commit `ad1832b` confirmed those corrections and left one blocker: align the `clientRequestId` migration/data wording with the submitted Lab 2 baseline where `Ticket.clientRequestId` already exists as a unique field. Minor: update the PR summary to 41 Business Rules. | First-round corrections were pushed in `ad1832b`. Current follow-up correction is prepared to preserve the existing globally unique `clientRequestId` field/values instead of introducing nullable requester-scoped composite uniqueness, while retaining the reviewed UUID/replay/conflict behavior. The inaccurate baseline explanation has been removed. Approval and merge remain Pending until this correction is pushed and re-reviewed. | Pending | Pending |
+| #33 Engineering Contract | `feature/lab3-1-engineering-contract` | [PR #43](https://github.com/cottonlnwza/toktickit/pull/43) | ธนนันท์ ครังตุ้ย (`@thananun-7203`, `67070507203`); Chartanat Upthaipiboon (`@Chxtamos`, `67070507210`) | Review [`pullrequestreview-5208048077`](https://github.com/cottonlnwza/toktickit/pull/43#pullrequestreview-5208048077) requested four contract corrections; review [`pullrequestreview-5209147892`](https://github.com/cottonlnwza/toktickit/pull/43#pullrequestreview-5209147892) on `ad1832b` accepted those corrections except the Lab 2 `clientRequestId` baseline wording; review [`pullrequestreview-5232289027`](https://github.com/cottonlnwza/toktickit/pull/43#pullrequestreview-5232289027) on exact commit `e72edde` confirmed the `clientRequestId` correction and requested deterministic data-model field/null/default/index/FK details plus explicit Requester desktop/tablet/mobile screenshot traceability. | `ad1832b` fixed the first review set. `e72edde` aligned the existing globally unique `clientRequestId` baseline. Current correction defines exact Prisma-level User/AuthSession/Ticket/Comment/Note/Attachment data contracts and explicitly adds Requester Create Ticket, My Tickets, Requester Ticket Detail, Attachment/Public Comment responsive/evidence coverage. Re-review of the new pushed commit is required before Approval. | Pending | Pending |
 | #34 User Migration and Seed | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | #35 Authentication | Pending | Pending | Pending | Pending | Pending | Pending | Pending |
 | #36 Authorization and Requester Regression | Pending | Pending | Pending | Pending | Pending | Pending | Pending |

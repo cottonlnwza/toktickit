@@ -200,21 +200,68 @@ Administrator Ticket permissions above are intentionally limited to the minimum 
 
 ### 7.1 Planned models and fields
 
-- Replace/evolve `RequesterUser` into `User` with: `id`, `name`, normalized unique `email`, `role`, `isActive`, `passwordHash`, `mustChangePassword`, timestamps.
-- Add `AuthSession` with: `id`, `userId`, hashed opaque session token, hashed CSRF token, `createdAt`, `expiresAt`, optional revocation timestamp; index User and expiration fields.
-- Preserve `Category` and `RelatedSystem`.
-- Evolve `Ticket`:
-  - `requesterId` now references `User` with role Requester;
-  - preserve the existing Lab 2 required `clientRequestId` field and its global unique constraint exactly; existing Ticket values are migrated unchanged and Lab 3 must not replace it with a nullable or requester-scoped composite key;
-  - nullable `ownerId` references active IT Staff/Administrator;
-  - keep `requestedPriority`;
-  - add `itPriority`, initially copied from Requested Priority;
-  - expand `currentStatus` to all eight required states;
-  - add nullable `problemAppearsResolvedAt` and `problemAppearsResolvedById` so the Requester indication is testable without changing Ticket status;
-  - preserve `createdAt`/`updatedAt` and add indexes needed by Queue filters/order.
-- Rename/evolve `Attachment.removedByRequesterId` to nullable `removedByUserId` referencing `User`, without discarding existing removal metadata.
-- Add `PublicComment`: `id`, `ticketId`, `authorId`, plain-text `content`, `createdAt`; indexed by Ticket/time.
-- Add `InternalNote`: `id`, `ticketId`, `authorId`, plain-text `content`, `createdAt`; indexed by Ticket/time.
+The following Prisma-level contract removes migration ambiguity. `Required` means the column is non-null after the migration is complete. `No default` means creation/migration code must supply the value explicitly.
+
+#### User
+
+| Field | Prisma type / constraint | Nullability / default | Relationship / index contract |
+|---|---|---|---|
+| `id` | `Int @id @default(autoincrement())` | Required | Legacy Requesters keep the exact existing numeric id; reset the sequence above the migrated maximum before inserting new Users. |
+| `name` | `String` | Required; no default | Trimmed non-empty application validation. |
+| `email` | `String @unique` | Required; no default | Stored normalized lowercase; global unique constraint is the duplicate-email boundary. |
+| `role` | `UserRole` | Required; no default | Enum exactly `REQUESTER`, `IT_STAFF`, `ADMINISTRATOR`; no implicit role is assigned. Add `@@index([role, isActive])` for role/activation lookup. |
+| `isActive` | `Boolean @default(true)` | Required; default `true` | Migrated Requesters preserve their existing activation value. |
+| `passwordHash` | `String` | Required; no default | Stores only the versioned salted `scrypt` hash; plaintext is never persisted. |
+| `mustChangePassword` | `Boolean @default(true)` | Required; default `true` | First local credential and Administrator initial-password reset set this to `true`; successful change sets `false`. |
+| `createdAt` | `DateTime @default(now())` | Required | Preserve the legacy Requester timestamp during migration. |
+| `updatedAt` | `DateTime @updatedAt` | Required | Preserve the legacy Requester value during initial migration, then Prisma maintains it. |
+
+#### AuthSession
+
+| Field | Prisma type / constraint | Nullability / default | Relationship / index contract |
+|---|---|---|---|
+| `id` | `String @id @default(uuid())` | Required | Session record identifier; not used as the browser credential. |
+| `userId` | `Int` | Required; no default | FK `User(id)` with `onDelete: Cascade`; add `@@index([userId, revokedAt])`. |
+| `tokenHash` | `String @unique` | Required; no default | SHA-256 hash of the opaque session token; raw token exists only in the `HttpOnly` cookie. |
+| `csrfTokenHash` | `String` | Required; no default | Hash of the current CSRF token; rotated when the contract requires it. |
+| `createdAt` | `DateTime @default(now())` | Required | Server-created timestamp. |
+| `expiresAt` | `DateTime` | Required; no default | Absolute eight-hour expiry calculated at session creation; add `@@index([expiresAt])`. |
+| `revokedAt` | `DateTime?` | Nullable; default `NULL` | Non-null means the session is invalid even before expiry. |
+
+#### Ticket changes
+
+Existing `Ticket.id`, `ticketNumber`, `categoryId`, `relatedSystemId`, `summary`, `description`, `requestedPriority`, `createdAt`, `updatedAt`, and their existing foreign keys/constraints are preserved unless explicitly changed below.
+
+| Field | Prisma type / constraint | Nullability / default | Relationship / index contract |
+|---|---|---|---|
+| `requesterId` | `Int` | Required; no default | FK changes from `RequesterUser(id)` to `User(id)` with `onDelete: Restrict`; migrated id value is unchanged. Deactivation does not break ownership. |
+| `clientRequestId` | `String @unique` | Required; no default | Preserve every submitted Lab 2 value and the existing global unique constraint exactly; never convert to nullable/composite uniqueness. |
+| `ownerId` | `Int?` | Nullable; default `NULL` | FK `User(id)` with `onDelete: SetNull`; application validation permits only active `IT_STAFF`/`ADMINISTRATOR`. Add `@@index([ownerId, updatedAt])`. |
+| `requestedPriority` | existing `RequestedPriority` | Required | Preserved requester-submitted value. Add `@@index([requestedPriority, updatedAt])` for Staff Queue filtering/order. |
+| `itPriority` | `RequestedPriority` | Required; no static DB default | Migration sets `itPriority=requestedPriority`; create does the same explicitly. Add `@@index([itPriority, updatedAt])`. |
+| `currentStatus` | expanded `TicketStatus @default(NEW)` | Required; default `NEW` | Enum exactly `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, `CANCELLED`; add `@@index([currentStatus, updatedAt])`. |
+| `problemAppearsResolvedAt` | `DateTime?` | Nullable; default `NULL` | Requester indication timestamp only; never changes `currentStatus`. |
+| `problemAppearsResolvedById` | `Int?` | Nullable; default `NULL` | FK `User(id)` with `onDelete: SetNull`; actor must be the authenticated Requester for that Ticket. |
+
+Staff Queue also requires `@@index([updatedAt])`, `@@index([categoryId, updatedAt])`, and `@@index([relatedSystemId, updatedAt])`. Existing Requester-scoped Lab 2 indexes remain unless a migration is explicitly reviewed to replace an equivalent index.
+
+#### Attachment, PublicComment, and InternalNote
+
+| Model / field | Prisma type / constraint | Nullability / default | Relationship / index contract |
+|---|---|---|---|
+| `Attachment.removedByUserId` | `Int?` | Nullable; default `NULL` | Replaces `removedByRequesterId` without losing values; FK `User(id)` with `onDelete: SetNull`. Existing Attachment metadata and `@@index([ticketId, removedAt])` remain. |
+| `PublicComment.id` | `Int @id @default(autoincrement())` | Required | — |
+| `PublicComment.ticketId` | `Int` | Required | FK `Ticket(id)` with `onDelete: Restrict`; add `@@index([ticketId, createdAt])`. |
+| `PublicComment.authorId` | `Int` | Required | FK `User(id)` with `onDelete: Restrict`; backend supplies authenticated author; add `@@index([authorId])`. |
+| `PublicComment.content` | `String` | Required; no default | Application validation enforces trimmed length `1..2000`; stored/rendered as plain text. |
+| `PublicComment.createdAt` | `DateTime @default(now())` | Required | Backend/server timestamp. |
+| `InternalNote.id` | `Int @id @default(autoincrement())` | Required | — |
+| `InternalNote.ticketId` | `Int` | Required | FK `Ticket(id)` with `onDelete: Restrict`; add `@@index([ticketId, createdAt])`. |
+| `InternalNote.authorId` | `Int` | Required | FK `User(id)` with `onDelete: Restrict`; backend supplies authenticated author; add `@@index([authorId])`. |
+| `InternalNote.content` | `String` | Required; no default | Application validation enforces trimmed length `1..2000`; stored/rendered as plain text. |
+| `InternalNote.createdAt` | `DateTime @default(now())` | Required | Backend/server timestamp. |
+
+`Category` and `RelatedSystem` remain structurally unchanged.
 
 ### 7.2 Migration decisions
 

@@ -238,6 +238,9 @@ Repository-required application screenshots:
 ```text
 artifacts/lab-03/screenshots/
 ├── authentication/
+├── requester-create-ticket/
+├── requester-my-tickets/
+├── requester-ticket-detail/
 ├── staff-queue/
 ├── staff-ticket-detail/
 └── user-management/
@@ -245,7 +248,19 @@ artifacts/lab-03/screenshots/
 
 Working evidence captured during the lab may additionally be stored under `pic/pic_lab3/` using descriptive filenames. Evidence files are not application source and are committed only if explicitly approved.
 
-Each major UI area must ultimately have readable desktop/tablet/mobile evidence for Answer Part 9. Authentication evidence also covers valid/invalid/inactive/first-password-change/logout; Queue covers query/states; Staff Detail covers operations/comments/notes/Attachments; User Management covers CRUD-like allowed operations and safety rules.
+Each major UI area must ultimately have readable desktop/tablet/mobile evidence for Answer Part 9. Authentication evidence also covers valid/invalid/inactive/first-password-change/logout. Requester evidence is explicit rather than implied: `requester-create-ticket/` covers authenticated Create Ticket and validation/success states; `requester-my-tickets/` covers search/filter/sort/pagination plus empty/no-results/failure states; `requester-ticket-detail/` covers owned Ticket Detail, Attachment states, Public Comments, and `Problem Appears Resolved`. Queue covers query/states; Staff Detail covers operations/comments/notes/Attachments; User Management covers allowed create/edit/activation/password operations and safety rules.
+
+Required Part 9 breakpoint evidence matrix:
+
+| Major screen / area | Desktop `>=992px` | Tablet `768-991px` | Mobile `<768px` | Required detail |
+|---|---|---|---|---|
+| Login / Change Password / authenticated shell | Required | Required | Required | Role navigation, validation/failure, first-password gate, logout/access state. |
+| Requester Create Ticket | Required | Required | Required | Authenticated identity, fields, Attachments, validation, submitting/success/failure. |
+| Requester My Tickets | Required | Required | Required | Search/filter/sort/pagination and empty/no-results/failure representation. |
+| Requester Ticket Detail | Required | Required | Required | Ticket data, Attachment lifecycle presentation, Public Comments, Problem Appears Resolved. |
+| IT Staff Ticket Queue | Required | Required | Required | Table/card representation, filters, status/priority/owner badges, empty/no-results/failure. |
+| IT Staff Ticket Detail | Required | Required | Required | Claim/owner, IT Priority, status, Comments/Notes, Attachments, validation/failure. |
+| Administrator User Management | Required | Required | Required | List/search/filter/create/edit/activation/initial-password and safety feedback. |
 
 ## 13. Visual Inspection Checklist
 
