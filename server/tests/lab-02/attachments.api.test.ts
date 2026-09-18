@@ -4,6 +4,10 @@ import { getPrisma } from "../../src/prisma.js";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: vi.fn() }));
+vi.mock("../../src/auth/session.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
+  return { ...actual, requireNormalAccess: (_req: unknown, _res: unknown, next: () => void) => next() };
+});
 vi.mock("fs/promises", () => ({
   mkdir: vi.fn(),
   readFile: vi.fn(),

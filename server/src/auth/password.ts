@@ -57,3 +57,18 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 export function isVersionedScryptHash(value: string): boolean {
   return /^scrypt\$v1\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/.test(value);
 }
+
+export function validateNewPassword(currentPassword: string, newPassword: string, confirmPassword: string) {
+  const fields: Record<string, string> = {};
+  if (newPassword.length < 12 || newPassword.length > 128) {
+    fields.newPassword = "New password must be 12-128 characters.";
+  } else if (newPassword.trim().length === 0) {
+    fields.newPassword = "New password cannot be all whitespace.";
+  } else if (newPassword === currentPassword) {
+    fields.newPassword = "New password must differ from the current password.";
+  }
+  if (confirmPassword !== newPassword) {
+    fields.confirmPassword = "Password confirmation must match the new password.";
+  }
+  return fields;
+}

@@ -1,5 +1,87 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  csrfToken: string;
+}
+
+export class AuthApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly fields: Record<string, string> = {},
+  ) {
+    super(message);
+  }
+}
+
+async function parseAuthError(response: Response, fallback: string): Promise<AuthApiError> {
+  try {
+    const body = (await response.json()) as {
+      error?: { code?: string; message?: string; fields?: Record<string, string> };
+    };
+    return new AuthApiError(
+      response.status,
+      body.error?.code ?? "AUTH_ERROR",
+      body.error?.message ?? fallback,
+      body.error?.fields ?? {},
+    );
+  } catch {
+    return new AuthApiError(response.status, "AUTH_ERROR", fallback);
+  }
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to sign in. Please try again.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function getCurrentUser(): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+  if (!response.ok) throw await parseAuthError(response, "Authentication required.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function changePassword(
+  csrfToken: string,
+  input: { currentPassword: string; newPassword: string; confirmPassword: string },
+): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to change password. Please try again.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function logout(csrfToken: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to sign out. Please try again.");
+}
+
 export interface Category {
   id: number;
   name: string;
@@ -114,7 +196,7 @@ function toApiUrl(value: string | undefined) {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const response = await fetch(`${API_URL}/api/categories`);
+  const response = await fetch(`${API_URL}/api/categories`, { credentials: "include" });
   if (!response.ok) {
     throw new Error(await parseError(response, `Unable to load Categories. HTTP ${response.status}.`));
   }
@@ -122,7 +204,7 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getRelatedSystems(): Promise<RelatedSystem[]> {
-  const response = await fetch(`${API_URL}/api/related-systems`);
+  const response = await fetch(`${API_URL}/api/related-systems`, { credentials: "include" });
   if (!response.ok) {
     throw new Error(await parseError(response, `Unable to load Related Systems. HTTP ${response.status}.`));
   }
@@ -133,7 +215,7 @@ export async function getRequesters(): Promise<Requester[]> {
   let response: Response;
 
   try {
-    response = await fetch(`${API_URL}/api/requesters`);
+    response = await fetch(`${API_URL}/api/requesters`, { credentials: "include" });
   } catch {
     throw new Error("Unable to load Development Requesters. Is the API server running?");
   }
@@ -148,6 +230,7 @@ export async function getRequesters(): Promise<Requester[]> {
 export async function createTicket(input: CreateTicketRequest): Promise<CreatedTicket> {
   const response = await fetch(`${API_URL}/api/tickets`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
   });
@@ -165,6 +248,7 @@ export async function uploadTicketAttachment(ticketId: number, requesterId: numb
 
   const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments`, {
     method: "POST",
+    credentials: "include",
     body,
   });
 
@@ -183,6 +267,7 @@ export async function getMyTickets(requesterId: number, query: MyTicketsQuery = 
   const queryString = parameters.toString();
   const response = await fetch(
     `${API_URL}/api/requesters/${requesterId}/tickets${queryString ? `?${queryString}` : ""}`,
+    { credentials: "include" },
   );
   if (!response.ok) {
     throw new Error(await parseError(response, "Unable to load Tickets."));
@@ -191,7 +276,7 @@ export async function getMyTickets(requesterId: number, query: MyTicketsQuery = 
 }
 
 export async function getTicketDetail(requesterId: number, ticketId: number): Promise<TicketDetail> {
-  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}`);
+  const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}`, { credentials: "include" });
   if (!response.ok) {
     throw new Error(await parseError(response, "Unable to load Ticket Detail."));
   }
@@ -214,6 +299,7 @@ export async function addTicketAttachment(
   body.append("file", file);
   const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments`, {
     method: "POST",
+    credentials: "include",
     body,
   });
   if (!response.ok) throw new Error(await parseError(response, "Unable to upload Attachment."));
@@ -237,6 +323,7 @@ export async function removeTicketAttachment(
     `${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}/attachments/${attachmentId}`,
     {
       method: "DELETE",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ reason }),
     },

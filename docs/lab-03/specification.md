@@ -97,7 +97,7 @@ TokTickIT must identify users through email/password authentication instead of a
 - **BR-07:** Passwords are exact values and are not silently trimmed or case-normalized.
 - **BR-08:** A valid new password is 12-128 characters, is not all whitespace, must differ from the current/initial password, and must match the confirmation field. No additional composition rule is imposed because length plus secure hashing is the primary control for this course lab.
 - **BR-09:** Passwords are never stored in plaintext. They are stored as versioned `scrypt` hashes with a unique random salt per password.
-- **BR-10:** Five failed login attempts for the same normalized email and client address within 15 minutes trigger a temporary 15-minute server-side throttle. This is not a permanent account lock and needs no Administrator unlock workflow.
+- **BR-10:** Five failed login attempts for the same normalized email and client address within 15 minutes trigger a temporary 15-minute server-side throttle. A successful login does not erase failed attempts that are still inside that 15-minute counting window. This is not a permanent account lock and needs no Administrator unlock workflow.
 - **BR-11:** Invalid credentials return a generic authentication failure. An inactive valid account returns a clear inactive-account response without returning profile or credential details.
 - **BR-12:** An authenticated session expires after 8 hours absolute time. Expired/revoked sessions are rejected.
 - **BR-13:** Logout revokes the current session. A successful password change revokes other sessions for that User and rotates the current session/CSRF token. Browser authentication uses credentialed requests only from approved frontend origin(s); wildcard credentialed CORS is forbidden.

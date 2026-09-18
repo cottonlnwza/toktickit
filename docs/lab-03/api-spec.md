@@ -35,7 +35,7 @@ Status: Draft contract for Issue #33. Implementation must follow this file unles
 - Verify derived hashes using `timingSafeEqual`.
 - New password: 12-128 characters, not all whitespace, not equal to current/initial password, confirmation must match. Do not trim the password value.
 - Normalize email using `trim().toLowerCase()` before lookup/uniqueness checks.
-- Five failed login attempts for normalized email + client address in 15 minutes trigger a temporary 15-minute HTTP 429 throttle. For this local course lab the throttle may be held in process memory and may reset on server restart; no permanent account lock/unlock workflow is introduced.
+- Five failed login attempts for normalized email + client address in 15 minutes trigger a temporary 15-minute HTTP 429 throttle. Successful authentication does not clear failures that are still inside the 15-minute window; the counter is window-based, not consecutive-failure-based. For this local course lab the throttle may be held in process memory and may reset on server restart; no permanent account lock/unlock workflow is introduced.
 
 ## 3. Shared Response and Error Shapes
 
@@ -121,7 +121,7 @@ Request:
 }
 ```
 
-Success `200`: `mustChangePassword=false`, rotated session and CSRF token. Errors: `400` password rule/confirmation; `401` current password invalid; `500` safe failure.
+Success `200`: `mustChangePassword=false`, rotated session and CSRF token. Credential rotation is conditional on the password hash that was verified for the request, so concurrent password-change attempts cannot both overwrite the credential or invalidate a session returned by another successful change. If the verified credential changed before the atomic update wins, that request fails safely as `401 INVALID_CURRENT_PASSWORD` and does not rotate credentials/sessions. Other errors: `400` password rule/confirmation; `500` safe failure.
 
 ### POST `/api/auth/logout`
 
@@ -130,6 +130,8 @@ Requires session + CSRF. Revokes current session, clears cookie. Success `204`.
 ### Password-change gate
 
 If `mustChangePassword=true`, every protected domain endpoint except `/api/auth/me`, `/api/auth/change-password`, and `/api/auth/logout` returns `403 PASSWORD_CHANGE_REQUIRED`.
+
+As an Issue #35 compatibility boundary, every currently exported Lab 2-compatible Requester/Ticket/Attachment route also requires a valid normal-access session before its existing domain handler runs: `GET /api/requesters`, `GET /api/related-systems`, `POST /api/tickets`, the legacy `/api/requesters/:requesterId/tickets...` list/detail routes, and their Attachment list/upload/download/remove routes. This correction establishes authentication/mandatory-password gating only. The client-supplied `requesterId` ownership rewrite, cross-owner protection, canonical `/api/tickets/mine` paths, and role authorization remain Issue #36 work governed by Sections 6 and 12 below.
 
 ## 5. Reference Data
 

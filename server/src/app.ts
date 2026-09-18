@@ -6,6 +6,16 @@ import path from "path";
 import { fileURLToPath } from "url";
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
+import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
+import {
+  clearSessionCookie,
+  createSession,
+  requireAuthenticated,
+  requireCsrf,
+  requireNormalAccess,
+  rotateCsrfToken,
+  setSessionCookie,
+} from "./auth/session.js";
 // getPrisma() is your lazy database handle. Call it INSIDE a route when you
 // need the DB (Issue 4). It is intentionally unused until then.
 
@@ -13,7 +23,16 @@ import { getPrisma } from "./prisma.js";
 // Supertest can import `app` without opening a port. Do not merge these files.
 export const app = express();
 
-app.use(cors());          // already wired: lets the Vite dev server call this API
+function frontendOrigin() {
+  return process.env.FRONTEND_ORIGIN ?? "http://localhost:5173";
+}
+
+app.use(cors({
+  credentials: true,
+  origin(origin, callback) {
+    callback(null, !origin || origin === frontendOrigin());
+  },
+}));
 app.use(express.json());
 
 const allowedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
@@ -52,6 +71,58 @@ interface MultipartFile {
 
 function errorResponse(code: string, message: string, fields?: Record<string, string>) {
   return { error: { code, message, ...(fields ? { fields } : {}) } };
+}
+
+function safeUser(user: { id: number; name: string; email: string; role: string; mustChangePassword: boolean }) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    mustChangePassword: user.mustChangePassword,
+  };
+}
+
+function requestOriginAllowed(req: Request) {
+  const origin = req.get("Origin");
+  return origin === frontendOrigin();
+}
+
+function requireApprovedOrigin(req: Request, res: Response, next: () => void) {
+  if (!requestOriginAllowed(req)) {
+    res.status(403).json(errorResponse("ORIGIN_FORBIDDEN", "Request origin is not allowed."));
+    return;
+  }
+  next();
+}
+
+const loginAttempts = new Map<string, { failures: number[]; blockedUntil: number | null }>();
+const loginWindowMs = 15 * 60 * 1000;
+
+function loginAttemptKey(req: Request, normalizedEmail: string) {
+  return `${normalizedEmail}|${req.ip ?? req.socket.remoteAddress ?? "unknown"}`;
+}
+
+function isLoginThrottled(key: string, now = Date.now()) {
+  const record = loginAttempts.get(key);
+  if (!record) return false;
+  if (record.blockedUntil && record.blockedUntil > now) return true;
+  const failures = record.failures.filter((time) => now - time <= loginWindowMs);
+  if (failures.length === 0) {
+    loginAttempts.delete(key);
+    return false;
+  }
+  loginAttempts.set(key, { failures, blockedUntil: null });
+  return false;
+}
+
+function recordLoginFailure(key: string, now = Date.now()) {
+  const current = loginAttempts.get(key);
+  const failures = [...(current?.failures ?? []).filter((time) => now - time <= loginWindowMs), now];
+  loginAttempts.set(key, {
+    failures,
+    blockedUntil: failures.length >= 5 ? now + loginWindowMs : null,
+  });
 }
 
 export function buildTicketNumber(date: Date, sequence: number) {
@@ -216,6 +287,137 @@ app.get("/api/health", (_req: Request, res: Response) => {
   res.status(200).json({ status: "ok", service: "TokTickIT API" });
 });
 
+app.post("/api/auth/login", requireApprovedOrigin, async (req: Request, res: Response) => {
+  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  if (!email || !email.includes("@") || !password) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Email and password are required."));
+    return;
+  }
+
+  const attemptKey = loginAttemptKey(req, email);
+  if (isLoginThrottled(attemptKey)) {
+    res.status(429).json(errorResponse("LOGIN_THROTTLED", "Too many login attempts. Please try again later."));
+    return;
+  }
+
+  try {
+    const user = await getPrisma().user.findUnique({ where: { email } });
+    const passwordValid = user ? await verifyPassword(password, user.passwordHash) : false;
+    if (!user || !passwordValid) {
+      recordLoginFailure(attemptKey);
+      res.status(401).json(errorResponse("INVALID_CREDENTIALS", "Invalid email or password."));
+      return;
+    }
+    if (!user.isActive) {
+      res.status(403).json(errorResponse("ACCOUNT_INACTIVE", "This account is inactive."));
+      return;
+    }
+
+    const created = await createSession(getPrisma(), user.id);
+    setSessionCookie(res, created.sessionToken, created.expiresAt);
+    res.status(200).json({ user: safeUser(user), csrfToken: created.csrfToken });
+  } catch {
+    res.status(500).json(errorResponse("AUTH_ERROR", "Unable to sign in."));
+  }
+});
+
+app.get("/api/auth/me", requireAuthenticated, async (req: Request, res: Response) => {
+  try {
+    const csrfToken = await rotateCsrfToken(req.auth!.sessionId);
+    res.status(200).json({ user: req.auth!.user, csrfToken });
+  } catch {
+    res.status(500).json(errorResponse("AUTH_ERROR", "Unable to load the current user."));
+  }
+});
+
+app.post(
+  "/api/auth/change-password",
+  requireApprovedOrigin,
+  requireAuthenticated,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+    const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+    const confirmPassword = typeof req.body?.confirmPassword === "string" ? req.body.confirmPassword : "";
+    if (!currentPassword || typeof req.body?.newPassword !== "string" || typeof req.body?.confirmPassword !== "string") {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please provide the current password, new password, and confirmation."));
+      return;
+    }
+
+    const validationFields = validateNewPassword(currentPassword, newPassword, confirmPassword);
+    if (Object.keys(validationFields).length > 0) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the password fields.", validationFields));
+      return;
+    }
+
+    try {
+      const prisma = getPrisma();
+      const user = await prisma.user.findUnique({ where: { id: req.auth!.user.id } });
+      if (!user || !user.isActive) {
+        clearSessionCookie(res);
+        res.status(401).json(errorResponse("AUTH_REQUIRED", "Authentication required."));
+        return;
+      }
+      if (!(await verifyPassword(currentPassword, user.passwordHash))) {
+        res.status(401).json(errorResponse("INVALID_CURRENT_PASSWORD", "Current password is incorrect."));
+        return;
+      }
+
+      const newHash = await hashPassword(newPassword);
+      const rotated = await prisma.$transaction(async (tx) => {
+        const credentialUpdate = await tx.user.updateMany({
+          where: {
+            id: user.id,
+            isActive: true,
+            passwordHash: user.passwordHash,
+          },
+          data: { passwordHash: newHash, mustChangePassword: false },
+        });
+        if (credentialUpdate.count !== 1) return null;
+
+        await tx.authSession.updateMany({
+          where: { userId: user.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        const updatedUser = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
+        const session = await createSession(tx, user.id);
+        return { updatedUser, ...session };
+      });
+
+      if (!rotated) {
+        clearSessionCookie(res);
+        res.status(401).json(errorResponse("INVALID_CURRENT_PASSWORD", "Current password is incorrect."));
+        return;
+      }
+
+      setSessionCookie(res, rotated.sessionToken, rotated.expiresAt);
+      res.status(200).json({ user: safeUser(rotated.updatedUser), csrfToken: rotated.csrfToken });
+    } catch {
+      res.status(500).json(errorResponse("AUTH_ERROR", "Unable to change password."));
+    }
+  },
+);
+
+app.post(
+  "/api/auth/logout",
+  requireApprovedOrigin,
+  requireAuthenticated,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    try {
+      await getPrisma().authSession.update({
+        where: { id: req.auth!.sessionId },
+        data: { revokedAt: new Date() },
+      });
+      clearSessionCookie(res);
+      res.status(204).send();
+    } catch {
+      res.status(500).json(errorResponse("AUTH_ERROR", "Unable to sign out."));
+    }
+  },
+);
+
 // ---------------------------------------------------------------------------
 // Issue 4 — Category list
 // Add:  GET /api/categories
@@ -223,7 +425,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
 //   -> return each { id, name } in a predictable (id) order
 //   -> on failure, respond 500 with a safe message (no internal details)
 // ---------------------------------------------------------------------------
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const categories = await getPrisma().category.findMany({
       where: { isActive: true, name: { in: supportedCategoryNames } },
@@ -237,7 +439,7 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters", async (_req: Request, res: Response) => {
+app.get("/api/requesters", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const requesters = await getPrisma().user.findMany({
       where: { role: "REQUESTER", isActive: true },
@@ -251,7 +453,7 @@ app.get("/api/requesters", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/related-systems", async (_req: Request, res: Response) => {
+app.get("/api/related-systems", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const relatedSystems = await getPrisma().relatedSystem.findMany({
       where: { isActive: true },
@@ -265,7 +467,7 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
   }
 });
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
+app.post("/api/tickets", requireNormalAccess, async (req: Request, res: Response) => {
   const validation = validateCreateTicketInput(req.body);
   if (!validation.valid) {
     const fields = Object.fromEntries(validation.errors.map((error) => [error.field, error.message]));
@@ -322,7 +524,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   if (!requesterId) {
     res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester ID must be a positive integer."));
@@ -446,7 +648,7 @@ app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Respon
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets/:ticketId", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
 
@@ -507,7 +709,7 @@ app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, r
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
   if (!requesterId || !ticketId) {
@@ -548,7 +750,7 @@ app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req
   }
 });
 
-app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
   if (!requesterId) {
@@ -633,6 +835,7 @@ app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (re
 
 app.get(
   "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId/download",
+  requireNormalAccess,
   async (req: Request, res: Response) => {
     const requesterId = toPositiveInteger(req.params.requesterId);
     const ticketId = toPositiveInteger(req.params.ticketId);
@@ -663,6 +866,7 @@ app.get(
 
 app.delete(
   "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId",
+  requireNormalAccess,
   async (req: Request, res: Response) => {
     const requesterId = toPositiveInteger(req.params.requesterId);
     const ticketId = toPositiveInteger(req.params.ticketId);

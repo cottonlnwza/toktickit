@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hashPassword, isVersionedScryptHash, verifyPassword } from "../../src/auth/password.js";
+import { hashPassword, isVersionedScryptHash, validateNewPassword, verifyPassword } from "../../src/auth/password.js";
 
 describe("Lab 3 password hashing", () => {
   it("hashes with the approved versioned scrypt format and verifies only the correct password", async () => {
@@ -20,5 +20,14 @@ describe("Lab 3 password hashing", () => {
   ])("fails closed for malformed or unsupported stored hashes: %s", async (storedHash) => {
     expect(isVersionedScryptHash(storedHash)).toBe(false);
     await expect(verifyPassword("any-password", storedHash)).resolves.toBe(false);
+  });
+
+  it("enforces the approved 12-128 character change-password boundaries without trimming exact password values", () => {
+    expect(validateNewPassword("Current-Lab3-Password", "Valid-New-Lab3-Password", "Valid-New-Lab3-Password")).toEqual({});
+    expect(validateNewPassword("Current-Lab3-Password", "12345678901", "12345678901")).toHaveProperty("newPassword");
+    expect(validateNewPassword("Current-Lab3-Password", "x".repeat(129), "x".repeat(129))).toHaveProperty("newPassword");
+    expect(validateNewPassword("Current-Lab3-Password", "            ", "            ")).toHaveProperty("newPassword");
+    expect(validateNewPassword("Exact-Password-Value", "Exact-Password-Value", "Exact-Password-Value")).toHaveProperty("newPassword");
+    expect(validateNewPassword("Current-Lab3-Password", "Valid-New-Lab3-Password", " valid-new-lab3-password ")).toHaveProperty("confirmPassword");
   });
 });
