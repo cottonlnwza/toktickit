@@ -8,7 +8,13 @@ vi.mock("../../src/prisma.js", () => ({
 
 vi.mock("../../src/auth/session.js", async () => {
   const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
-  return { ...actual, requireNormalAccess: (_req: unknown, _res: unknown, next: () => void) => next() };
+  return {
+    ...actual,
+    requireNormalAccess: (req: { params: { requesterId?: string }; auth?: unknown }, _res: unknown, next: () => void) => {
+      req.auth = { sessionId: "test", csrfTokenHash: "test", user: { id: Number(req.params.requesterId ?? 7), name: "Requester", email: "requester@example.test", role: "REQUESTER", mustChangePassword: false } };
+      next();
+    },
+  };
 });
 
 import { app } from "../../src/app.js";

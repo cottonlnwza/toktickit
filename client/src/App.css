@@ -174,7 +174,8 @@
 }
 
 .ticket-detail-heading,
-.detail-attachments-heading {
+.detail-attachments-heading,
+.detail-comments-heading {
   align-items: flex-start;
   display: flex;
   gap: 1rem;
@@ -215,9 +216,40 @@
   padding-top: 1.5rem;
 }
 
+.detail-comments {
+  border-top: 1px solid #d8e6de;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+}
+
 .detail-attachments h3,
+.detail-comments h3,
 .removal-confirmation h3 {
   font-size: 1.2rem;
+}
+
+.public-comment-list {
+  display: grid;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 1rem 0;
+  padding: 0;
+}
+
+.public-comment-item {
+  background: #eaf6ef;
+  border: 1px solid #c6dbcf;
+  border-radius: 8px;
+  padding: 0.9rem 1rem;
+}
+
+.public-comment-item p {
+  margin: 0.5rem 0;
+  white-space: pre-wrap;
+}
+
+.public-comment-item small {
+  color: #52665d;
 }
 
 .attachment-upload-button input {
@@ -505,7 +537,8 @@
   }
 
   .ticket-detail-heading,
-  .detail-attachments-heading {
+  .detail-attachments-heading,
+  .detail-comments-heading {
     align-items: stretch;
     flex-direction: column;
   }

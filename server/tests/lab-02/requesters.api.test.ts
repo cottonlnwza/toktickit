@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
-import { app } from "../../src/app.js";
-import { getPrisma } from "../../src/prisma.js";
 
 vi.mock("../../src/prisma.js", () => ({
-  getPrisma: vi.fn(),
+  getPrisma: vi.fn(() => {
+    throw new Error("Retired Development Requester endpoint must not query user data.");
+  }),
 }));
 
 vi.mock("../../src/auth/session.js", async () => {
@@ -12,48 +12,29 @@ vi.mock("../../src/auth/session.js", async () => {
   return { ...actual, requireNormalAccess: (_req: unknown, _res: unknown, next: () => void) => next() };
 });
 
-const mockGetPrisma = vi.mocked(getPrisma);
+import { app } from "../../src/app.js";
 
-describe("GET /api/requesters", () => {
+describe("GET /api/requesters retirement under Lab 3 authenticated identity", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it("returns active Development Requesters only", async () => {
-    const findMany = vi.fn().mockResolvedValue([
-      { id: 1, name: "Anong Student", email: "anong.student@example.test" },
-      { id: 2, name: "Burin Lecturer", email: "burin.lecturer@example.test" },
-      { id: 3, name: "Chalida Staff", email: "chalida.staff@example.test" },
-      { id: 4, name: "Darin Researcher", email: "darin.researcher@example.test" },
-    ]);
-    mockGetPrisma.mockReturnValue({ user: { findMany } } as unknown as ReturnType<typeof getPrisma>);
-
+  it("returns a safe not-found response instead of exposing the Development Requester selector data source", async () => {
     const res = await request(app).get("/api/requesters");
 
-    expect(res.status).toBe(200);
-    expect(findMany).toHaveBeenCalledWith({
-      where: { role: "REQUESTER", isActive: true },
-      select: { id: true, name: true, email: true },
-      orderBy: { id: "asc" },
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      error: {
+        code: "NOT_FOUND",
+        message: "This endpoint is not available in the authenticated Requester workflow.",
+      },
     });
-    expect(res.body).toEqual(
-      [
-        { id: 1, name: "Anong Student", email: "anong.student@example.test" },
-        { id: 2, name: "Burin Lecturer", email: "burin.lecturer@example.test" },
-        { id: 3, name: "Chalida Staff", email: "chalida.staff@example.test" },
-        { id: 4, name: "Darin Researcher", email: "darin.researcher@example.test" },
-      ],
-    );
+    expect(JSON.stringify(res.body)).not.toMatch(/email|requesterId|passwordHash|tokenHash|DATABASE_URL/i);
   });
 
-  it("returns a safe 500 response when requester lookup fails", async () => {
-    const findMany = vi.fn().mockRejectedValue(new Error("SQL failed at /secret/path with DATABASE_URL"));
-    mockGetPrisma.mockReturnValue({ user: { findMany } } as unknown as ReturnType<typeof getPrisma>);
-
+  it("does not consult requester/user storage for the retired selector endpoint", async () => {
     const res = await request(app).get("/api/requesters");
-
-    expect(res.status).toBe(500);
-    expect(res.body).toEqual({ error: "Unable to load Development Requesters." });
-    expect(JSON.stringify(res.body)).not.toMatch(/SQL|stack|DATABASE_URL|secret|\/secret\/path/i);
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(res.body)).not.toMatch(/SQL|stack|secret|Prisma/i);
   });
 });

@@ -1,0 +1,182 @@
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { getPrisma } from "../../src/prisma.js";
+import {
+  FRONTEND_ORIGIN,
+  cleanupIssue36Fixtures,
+  createIssue36Ticket,
+  fixtureUsers,
+  loginIssue36,
+  provisionIssue36User,
+} from "./requester-test-helpers.js";
+
+describe("Lab 3 Issue 4 Requester resolution indication", () => {
+  beforeEach(async () => {
+    await cleanupIssue36Fixtures();
+    await provisionIssue36User(fixtureUsers.requesterA);
+    await provisionIssue36User(fixtureUsers.requesterB);
+    await provisionIssue36User(fixtureUsers.staff);
+    await provisionIssue36User(fixtureUsers.admin);
+  });
+
+  afterAll(async () => {
+    await cleanupIssue36Fixtures();
+    await getPrisma().$disconnect();
+  });
+
+  it.each(["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"] as const)(
+    "API-14 records Problem Appears Resolved in eligible %s status without changing Ticket status",
+    async (status) => {
+      const prisma = getPrisma();
+      const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+      const ticket = await createIssue36Ticket(requester.id, { status });
+      const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+      const response = await agent
+        .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+        .set("Origin", FRONTEND_ORIGIN)
+        .set("X-CSRF-Token", login.body.csrfToken)
+        .send({ currentStatus: "RESOLVED" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.problemAppearsResolvedAt).toEqual(expect.any(String));
+      expect(response.body.currentStatus).toBe(status);
+      const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+      expect(stored.currentStatus).toBe(status);
+      expect(stored.problemAppearsResolvedById).toBe(requester.id);
+    },
+  );
+
+  it("API-14 repeats Problem Appears Resolved idempotently while the Ticket remains eligible", async () => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const ticket = await createIssue36Ticket(requester.id, { status: "WAITING_FOR_REQUESTER" });
+    const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+    const first = await agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({ currentStatus: "RESOLVED" });
+    expect(first.status).toBe(200);
+    expect(first.body.problemAppearsResolvedAt).toEqual(expect.any(String));
+    expect(first.body.currentStatus).toBe("WAITING_FOR_REQUESTER");
+
+    const storedAfterFirst = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    expect(storedAfterFirst.currentStatus).toBe("WAITING_FOR_REQUESTER");
+    expect(storedAfterFirst.problemAppearsResolvedById).toBe(requester.id);
+
+    const second = await agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({});
+    expect(second.status).toBe(200);
+    expect(second.body.problemAppearsResolvedAt).toBe(first.body.problemAppearsResolvedAt);
+    expect(second.body.currentStatus).toBe("WAITING_FOR_REQUESTER");
+  });
+
+  it.each(["NEW", "RESOLVED", "CLOSED", "CANCELLED"] as const)(
+    "API-14 rejects Problem Appears Resolved in ineligible %s status without writing an indication",
+    async (status) => {
+      const prisma = getPrisma();
+      const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+      const ticket = await createIssue36Ticket(requester.id, { status });
+      const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+      const response = await agent
+        .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+        .set("Origin", FRONTEND_ORIGIN)
+        .set("X-CSRF-Token", login.body.csrfToken)
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error?.code).toBe("RESOLUTION_INDICATION_NOT_ALLOWED");
+      const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+      expect(stored.currentStatus).toBe(status);
+      expect(stored.problemAppearsResolvedAt).toBeNull();
+      expect(stored.problemAppearsResolvedById).toBeNull();
+    },
+  );
+
+  it("API-14 keeps eligibility atomic when Staff changes an eligible Ticket to an ineligible status before the indication write", async () => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const ticket = await createIssue36Ticket(requester.id, { status: "OPEN" });
+    const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+    let signalStatusLocked!: () => void;
+    let releaseStatusCommit!: () => void;
+    const statusLocked = new Promise<void>((resolve) => { signalStatusLocked = resolve; });
+    const allowStatusCommit = new Promise<void>((resolve) => { releaseStatusCommit = resolve; });
+
+    const staffTransition = prisma.$transaction(async (tx) => {
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { currentStatus: "RESOLVED" },
+      });
+      signalStatusLocked();
+      await allowStatusCommit;
+    });
+
+    await statusLocked;
+    let indicationSettled = false;
+    const indicationPromise = agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({})
+      .then((response) => {
+        indicationSettled = true;
+        return response;
+      });
+
+    // Calling .then() starts the Supertest HTTP request immediately. While the Staff
+    // transaction still owns the Ticket row lock, the Requester request must remain pending.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(indicationSettled).toBe(false);
+
+    releaseStatusCommit();
+    await staffTransition;
+    const response = await indicationPromise;
+
+    expect(response.status).toBe(409);
+    expect(response.body.error?.code).toBe("RESOLUTION_INDICATION_NOT_ALLOWED");
+    const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    expect(stored.currentStatus).toBe("RESOLVED");
+    expect(stored.problemAppearsResolvedAt).toBeNull();
+    expect(stored.problemAppearsResolvedById).toBeNull();
+  });
+
+  it("API-14 returns safe not-found for another Requester's Ticket", async () => {
+    const prisma = getPrisma();
+    const requesterB = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterB.email } });
+    const ticket = await createIssue36Ticket(requesterB.id);
+    const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+    const response = await agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({});
+
+    expect(response.status).toBe(404);
+    expect(response.body.error?.code).toBe("NOT_FOUND");
+    expect(JSON.stringify(response.body)).not.toContain(ticket.ticketNumber);
+  });
+
+  it.each([fixtureUsers.staff, fixtureUsers.admin])("API-14 denies $role from the Requester-only indication action", async (fixture) => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const ticket = await createIssue36Ticket(requester.id);
+    const { agent, response: login } = await loginIssue36(fixture);
+
+    const response = await agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({});
+
+    expect(response.status).toBe(403);
+    expect(response.body.error?.code).toBe("FORBIDDEN");
+  });
+});

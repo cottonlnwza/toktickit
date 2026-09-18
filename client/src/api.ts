@@ -112,12 +112,31 @@ export interface CreateTicketRequest {
   requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
 }
 
-export interface CreatedTicket extends CreateTicketRequest {
+export interface AuthenticatedCreateTicketRequest {
+  clientRequestId: string;
+  categoryId: number;
+  relatedSystemId: number;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+}
+
+export interface CreatedTicket {
   id: number;
   ticketNumber: string;
+  clientRequestId?: string;
+  requesterId: number;
+  categoryId: number;
+  relatedSystemId: number;
+  summary: string;
+  description: string;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  itPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  owner?: null;
+  replayed?: boolean;
   createdAt: string;
-  currentStatus: "NEW";
-  currentStatusLabel: "New";
+  currentStatus: TicketStatus;
+  currentStatusLabel: string;
 }
 
 export interface UploadedAttachment {
@@ -130,6 +149,8 @@ export interface UploadedAttachment {
   removedAt: string | null;
 }
 
+export type TicketStatus = "NEW" | "OPEN" | "IN_PROGRESS" | "WAITING_FOR_REQUESTER" | "RESOLVED" | "CLOSED" | "REOPENED" | "CANCELLED";
+
 export interface MyTicket {
   id: number;
   ticketNumber: string;
@@ -137,8 +158,8 @@ export interface MyTicket {
   category: Category;
   relatedSystem: RelatedSystem;
   requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  currentStatus: "NEW";
-  currentStatusLabel: "New";
+  currentStatus: TicketStatus;
+  currentStatusLabel: string;
   updatedAt: string;
 }
 
@@ -147,7 +168,7 @@ export interface MyTicketsQuery {
   categoryId?: number;
   relatedSystemId?: number;
   requestedPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  currentStatus?: "NEW";
+  currentStatus?: TicketStatus;
   sortBy?: "createdAt" | "updatedAt" | "requestedPriority" | "ticketNumber";
   sortDirection?: "asc" | "desc";
   page?: number;
@@ -178,7 +199,15 @@ export interface TicketDetail extends MyTicket {
   description: string;
   requester: Requester;
   createdAt: string;
+  problemAppearsResolvedAt?: string | null;
   attachments: TicketAttachment[];
+}
+
+export interface PublicComment {
+  id: number;
+  content: string;
+  author: { id: number; name: string; role: UserRole };
+  createdAt: string;
 }
 
 async function parseError(response: Response, fallback: string) {
@@ -242,6 +271,20 @@ export async function createTicket(input: CreateTicketRequest): Promise<CreatedT
   return (await response.json()) as CreatedTicket;
 }
 
+export async function createAuthenticatedTicket(
+  csrfToken: string,
+  input: AuthenticatedCreateTicketRequest,
+): Promise<CreatedTicket> {
+  const response = await fetch(`${API_URL}/api/tickets`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to create Ticket."));
+  return (await response.json()) as CreatedTicket;
+}
+
 export async function uploadTicketAttachment(ticketId: number, requesterId: number, file: File): Promise<UploadedAttachment> {
   const body = new FormData();
   body.append("file", file);
@@ -275,6 +318,17 @@ export async function getMyTickets(requesterId: number, query: MyTicketsQuery = 
   return (await response.json()) as MyTicketsResponse;
 }
 
+export async function getAuthenticatedMyTickets(query: MyTicketsQuery = {}): Promise<MyTicketsResponse> {
+  const parameters = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") parameters.set(key, String(value));
+  });
+  const queryString = parameters.toString();
+  const response = await fetch(`${API_URL}/api/tickets/mine${queryString ? `?${queryString}` : ""}`, { credentials: "include" });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to load Tickets."));
+  return (await response.json()) as MyTicketsResponse;
+}
+
 export async function getTicketDetail(requesterId: number, ticketId: number): Promise<TicketDetail> {
   const response = await fetch(`${API_URL}/api/requesters/${requesterId}/tickets/${ticketId}`, { credentials: "include" });
   if (!response.ok) {
@@ -288,6 +342,80 @@ export async function getTicketDetail(requesterId: number, ticketId: number): Pr
       downloadUrl: toApiUrl(attachment.downloadUrl),
     })),
   };
+}
+
+export async function getAuthenticatedTicketDetail(ticketId: number): Promise<TicketDetail> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}`, { credentials: "include" });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to load Ticket Detail."));
+  const detail = (await response.json()) as TicketDetail;
+  return {
+    ...detail,
+    attachments: detail.attachments.map((attachment) => ({ ...attachment, downloadUrl: toApiUrl(attachment.downloadUrl) })),
+  };
+}
+
+export async function addAuthenticatedTicketAttachment(
+  csrfToken: string,
+  ticketId: number,
+  file: File,
+): Promise<TicketAttachment> {
+  const body = new FormData();
+  body.append("file", file);
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+    body,
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to upload Attachment."));
+  const attachment = (await response.json()) as TicketAttachment;
+  return { ...attachment, state: "active", downloadUrl: toApiUrl(attachment.downloadUrl) };
+}
+
+export async function removeAuthenticatedTicketAttachment(
+  csrfToken: string,
+  ticketId: number,
+  attachmentId: number,
+  reason: string,
+): Promise<TicketAttachment> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/attachments/${attachmentId}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to remove Attachment."));
+  return (await response.json()) as TicketAttachment;
+}
+
+export async function getPublicComments(ticketId: number): Promise<PublicComment[]> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, { credentials: "include" });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to load Public Comments."));
+  return (await response.json()) as PublicComment[];
+}
+
+export async function postPublicComment(csrfToken: string, ticketId: number, content: string): Promise<PublicComment> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/comments`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify({ content }),
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to post Public Comment."));
+  return (await response.json()) as PublicComment;
+}
+
+export async function markProblemAppearsResolved(
+  csrfToken: string,
+  ticketId: number,
+): Promise<{ problemAppearsResolvedAt: string; currentStatus: TicketStatus }> {
+  const response = await fetch(`${API_URL}/api/tickets/${ticketId}/problem-appears-resolved`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!response.ok) throw new Error(await parseError(response, "Unable to record resolution indication."));
+  return (await response.json()) as { problemAppearsResolvedAt: string; currentStatus: TicketStatus };
 }
 
 export async function addTicketAttachment(

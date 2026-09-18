@@ -60,7 +60,7 @@ function mockProductionRequesterApi() {
     if (url.endsWith("/api/requesters")) {
       return jsonResponse(500, { error: "Production requester flow must not use the Development Requester selector." });
     }
-    if (url.endsWith("/api/requesters/31/tickets/42/attachments") && init?.method === "POST") {
+    if (url.endsWith("/api/tickets/42/attachments") && init?.method === "POST") {
       return jsonResponse(201, {
         ...detail.attachments[0],
         id: 10,
@@ -68,8 +68,9 @@ function mockProductionRequesterApi() {
         downloadUrl: "/download/10",
       });
     }
-    if (url.endsWith("/api/requesters/31/tickets/42")) return jsonResponse(200, detail);
-    if (url.includes("/api/requesters/31/tickets")) {
+    if (url.endsWith("/api/tickets/42/comments")) return jsonResponse(200, []);
+    if (url.endsWith("/api/tickets/42")) return jsonResponse(200, detail);
+    if (url.includes("/api/tickets/mine")) {
       return jsonResponse(200, { items: [listTicket], page: 1, pageSize: 10, totalItems: 1, totalPages: 1 });
     }
     return jsonResponse(404, { error: "Not found" });
@@ -120,7 +121,7 @@ describe("Lab 3 production Requester workflow continuity", () => {
     expect(await screen.findByText("new.pdf")).toBeInTheDocument();
     await waitFor(() => {
       expect(fetchSpy).toHaveBeenCalledWith(
-        expect.stringContaining("/api/requesters/31/tickets/42/attachments"),
+        expect.stringContaining("/api/tickets/42/attachments"),
         expect.objectContaining({ method: "POST" }),
       );
     });
