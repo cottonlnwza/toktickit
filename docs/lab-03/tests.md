@@ -40,7 +40,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | API-11 | API/Regression | FR-08; AC-08 | Authenticated Requester create/list/detail | Lab 2 core flows work without selector | `server/tests/lab-03/requester-regression.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | API-12 | API/Regression | FR-08; AC-19 | Authenticated Attachment lifecycle | Existing upload/download/soft-remove rules and DTO names remain under authenticated ownership | `server/tests/lab-03/attachments-regression.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | API-13 | API | FR-10, FR-16; AC-09 | Requester Public Comment | Stored with backend author/time; visible to permitted roles | `server/tests/lab-03/comments-notes.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
-| API-14 | API | FR-10, BR-05, BR-42; AC-10 | Problem Appears Resolved | Only `OPEN`/`IN_PROGRESS`/`WAITING_FOR_REQUESTER`/`REOPENED` accept the indication; `NEW`/`RESOLVED`/`CLOSED`/`CANCELLED` return 409 without mutation; status remains unchanged; eligible repeats are idempotent | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
+| API-14 | API | FR-10, BR-05, BR-42; AC-10 | Problem Appears Resolved | Only `OPEN`/`IN_PROGRESS`/`WAITING_FOR_REQUESTER`/`REOPENED` accept the indication; `NEW`/`RESOLVED`/`CLOSED`/`CANCELLED` return 409 without mutation; status remains unchanged; eligible repeats are idempotent; concurrent eligible→ineligible Staff transition cannot be bypassed | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | API-15 | API | FR-11; AC-11 | Staff Queue default/query behavior | Correct search/filter/sort/page data + metadata | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
 | API-16 | API | FR-11; AC-11 | Queue invalid parameters | Unknown/invalid query returns 400 | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
 | API-17 | API/Security | FR-11, FR-06; AC-11, AC-24 | Queue role authorization | Requester/Admin normal Queue denied; IT Staff allowed | `server/tests/lab-03/staff-queue.api.test.ts` | Pending |
@@ -222,16 +222,16 @@ The older Lab 2 API unit-style files that mock Prisma also mock only `requireNor
 
 Issue #36 Authorization and Requester Regression followed TDD. The planned authorization/requester/attachment/comment/resolution tests were added first and produced a legitimate red state against the Issue #35 baseline because canonical authenticated Requester APIs, ownership enforcement, Public Comments, and Problem Appears Resolved did not yet exist. The implementation then converted the production Requester path to authenticated identity while preserving the Lab 2 Requester workflows.
 
-- Issue #36 focused server tests: `authorization.api.test.ts`, `requester-regression.api.test.ts`, `attachments-regression.api.test.ts`, `comments-notes.api.test.ts`, and the Requester resolution cases in `staff-ticket-detail.api.test.ts` = 5 files / 33 tests passed after the PR #47 lifecycle-rule correction.
+- Issue #36 focused server tests: `authorization.api.test.ts`, `requester-regression.api.test.ts`, `attachments-regression.api.test.ts`, `comments-notes.api.test.ts`, and the Requester resolution cases in `staff-ticket-detail.api.test.ts` = 5 files / 34 tests passed after the PR #47 lifecycle/race corrections.
 - Issue #36 focused client tests: `RequesterRegression.test.tsx` + `RequesterTicketDetail.test.tsx` = 2 files / 4 tests passed after adding ineligible-state UI coverage.
-- Full server regression suite: 19 files / 109 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
+- Full server regression suite: 19 files / 110 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
 - Full client regression suite: 14 files / 71 tests passed.
 - `npm run build --prefix server`: passed.
 - `npm run build --prefix client`: passed.
 - `prisma validate`: passed.
 - `git diff --check`: passed.
 
-Issue #36 verification covers authenticated Requester Ticket creation without a client-supplied Requester identity, required UUID replay/idempotency behavior, canonical `/api/tickets/mine` and owned Ticket Detail, safe cross-owner Ticket/Attachment 404 behavior, canonical Attachment metadata/upload/download/soft-remove behavior, Requester Public Comments with backend author/time, Requester denial from Internal Notes, lifecycle-gated/idempotent Problem Appears Resolved without formal status mutation, wrong-role denial on Requester-only APIs, production UI removal of the Development Requester selector, retry reuse of one `clientRequestId`, and Requester Ticket Detail Public Comment/resolution controls without staff-only status/Internal Note controls.
+Issue #36 verification covers authenticated Requester Ticket creation without a client-supplied Requester identity, required UUID replay/idempotency behavior, canonical `/api/tickets/mine` and owned Ticket Detail, safe cross-owner Ticket/Attachment 404 behavior, canonical Attachment metadata/upload/download/soft-remove behavior, Requester Public Comments with backend author/time, Requester denial from Internal Notes, lifecycle-gated/idempotent and race-safe Problem Appears Resolved without formal status mutation, wrong-role denial on Requester-only APIs, production UI removal of the Development Requester selector, retry reuse of one `clientRequestId`, and Requester Ticket Detail Public Comment/resolution controls without staff-only status/Internal Note controls.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
 

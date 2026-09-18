@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import {
@@ -1090,33 +1090,65 @@ app.post(
     try {
       const requesterId = req.auth!.user.id;
       const prisma = getPrisma();
-      let ticket = await prisma.ticket.findFirst({
-        where: { id: ticketId, requesterId },
-        select: { id: true, currentStatus: true, problemAppearsResolvedAt: true, problemAppearsResolvedById: true },
+      const outcome = await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{
+          id: number;
+          currentStatus: string;
+          problemAppearsResolvedAt: Date | null;
+          problemAppearsResolvedById: number | null;
+        }>>(Prisma.sql`
+          SELECT
+            "id",
+            "currentStatus",
+            "problemAppearsResolvedAt",
+            "problemAppearsResolvedById"
+          FROM "Ticket"
+          WHERE "id" = ${ticketId}
+            AND "requesterId" = ${requesterId}
+          FOR UPDATE
+        `);
+
+        const ticket = rows[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (!requesterResolutionEligibleStatuses.includes(
+          ticket.currentStatus as (typeof requesterResolutionEligibleStatuses)[number],
+        )) {
+          return { kind: "ineligible" as const };
+        }
+        if (ticket.problemAppearsResolvedAt) {
+          return {
+            kind: "success" as const,
+            problemAppearsResolvedAt: ticket.problemAppearsResolvedAt,
+            currentStatus: ticket.currentStatus,
+          };
+        }
+
+        const updated = await tx.ticket.update({
+          where: { id: ticketId },
+          data: { problemAppearsResolvedAt: new Date(), problemAppearsResolvedById: requesterId },
+          select: { currentStatus: true, problemAppearsResolvedAt: true },
+        });
+        return {
+          kind: "success" as const,
+          problemAppearsResolvedAt: updated.problemAppearsResolvedAt,
+          currentStatus: updated.currentStatus,
+        };
       });
-      if (!ticket) {
+
+      if (outcome.kind === "notFound") {
         res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
         return;
       }
-      if (!requesterResolutionEligibleStatuses.includes(
-        ticket.currentStatus as (typeof requesterResolutionEligibleStatuses)[number],
-      )) {
+      if (outcome.kind === "ineligible") {
         res.status(409).json(errorResponse(
           "RESOLUTION_INDICATION_NOT_ALLOWED",
           "Problem Appears Resolved is not available for the Ticket's current status.",
         ));
         return;
       }
-      if (!ticket.problemAppearsResolvedAt) {
-        ticket = await prisma.ticket.update({
-          where: { id: ticketId },
-          data: { problemAppearsResolvedAt: new Date(), problemAppearsResolvedById: requesterId },
-          select: { id: true, currentStatus: true, problemAppearsResolvedAt: true, problemAppearsResolvedById: true },
-        });
-      }
       res.status(200).json({
-        problemAppearsResolvedAt: ticket.problemAppearsResolvedAt,
-        currentStatus: ticket.currentStatus,
+        problemAppearsResolvedAt: outcome.problemAppearsResolvedAt,
+        currentStatus: outcome.currentStatus,
       });
     } catch {
       res.status(500).json(errorResponse("RESOLUTION_INDICATION_ERROR", "Unable to record the resolution indication."));

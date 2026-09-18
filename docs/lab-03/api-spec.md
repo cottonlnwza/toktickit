@@ -315,7 +315,7 @@ Success response is the newly created Public Comment using the same item shape a
 
 Requester-owned Ticket only. Records indication timestamp/actor without changing `currentStatus`.
 
-Lifecycle eligibility is explicit: the action is allowed only when `currentStatus` is `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, or `REOPENED`. These are the BR-24 states from which IT Staff can formally transition the Ticket to `RESOLVED`. `NEW`, `RESOLVED`, `CLOSED`, and `CANCELLED` return `409 RESOLUTION_INDICATION_NOT_ALLOWED` without changing `problemAppearsResolvedAt`, `problemAppearsResolvedById`, or `currentStatus`. Repeated request is idempotent and returns the existing indication `200` while the Ticket remains in an eligible state.
+Lifecycle eligibility is explicit: the action is allowed only when `currentStatus` is `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, or `REOPENED`. These are the BR-24 states from which IT Staff can formally transition the Ticket to `RESOLVED`. Ownership lookup, status eligibility, and the first indication write run under one database row lock/transaction; if a concurrent Staff status transition wins first, the Requester action re-evaluates the committed status and returns the appropriate safe result instead of writing through stale eligibility. `NEW`, `RESOLVED`, `CLOSED`, and `CANCELLED` return `409 RESOLUTION_INDICATION_NOT_ALLOWED` without changing `problemAppearsResolvedAt`, `problemAppearsResolvedById`, or `currentStatus`. Repeated request is idempotent and returns the existing indication `200` while the Ticket remains in an eligible state.
 
 Success `200`:
 

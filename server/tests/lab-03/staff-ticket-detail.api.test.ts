@@ -98,6 +98,46 @@ describe("Lab 3 Issue 4 Requester resolution indication", () => {
     },
   );
 
+  it("API-14 keeps eligibility atomic when Staff changes an eligible Ticket to an ineligible status before the indication write", async () => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const ticket = await createIssue36Ticket(requester.id, { status: "OPEN" });
+    const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+    let signalStatusLocked!: () => void;
+    let releaseStatusCommit!: () => void;
+    const statusLocked = new Promise<void>((resolve) => { signalStatusLocked = resolve; });
+    const allowStatusCommit = new Promise<void>((resolve) => { releaseStatusCommit = resolve; });
+
+    const staffTransition = prisma.$transaction(async (tx) => {
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data: { currentStatus: "RESOLVED" },
+      });
+      signalStatusLocked();
+      await allowStatusCommit;
+    });
+
+    await statusLocked;
+    const indicationRequest = agent
+      .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({});
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseStatusCommit();
+    await staffTransition;
+    const response = await indicationRequest;
+
+    expect(response.status).toBe(409);
+    expect(response.body.error?.code).toBe("RESOLUTION_INDICATION_NOT_ALLOWED");
+    const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    expect(stored.currentStatus).toBe("RESOLVED");
+    expect(stored.problemAppearsResolvedAt).toBeNull();
+    expect(stored.problemAppearsResolvedById).toBeNull();
+  });
+
   it("API-14 returns safe not-found for another Requester's Ticket", async () => {
     const prisma = getPrisma();
     const requesterB = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterB.email } });
