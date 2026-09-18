@@ -119,16 +119,25 @@ describe("Lab 3 Issue 4 Requester resolution indication", () => {
     });
 
     await statusLocked;
-    const indicationRequest = agent
+    let indicationSettled = false;
+    const indicationPromise = agent
       .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
       .set("Origin", FRONTEND_ORIGIN)
       .set("X-CSRF-Token", login.body.csrfToken)
-      .send({});
+      .send({})
+      .then((response) => {
+        indicationSettled = true;
+        return response;
+      });
 
+    // Calling .then() starts the Supertest HTTP request immediately. While the Staff
+    // transaction still owns the Ticket row lock, the Requester request must remain pending.
     await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(indicationSettled).toBe(false);
+
     releaseStatusCommit();
     await staffTransition;
-    const response = await indicationRequest;
+    const response = await indicationPromise;
 
     expect(response.status).toBe(409);
     expect(response.body.error?.code).toBe("RESOLUTION_INDICATION_NOT_ALLOWED");
