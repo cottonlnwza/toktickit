@@ -23,7 +23,30 @@ describe("Lab 3 Issue 4 Requester resolution indication", () => {
     await getPrisma().$disconnect();
   });
 
-  it("API-14 records Problem Appears Resolved idempotently without changing Ticket status", async () => {
+  it.each(["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"] as const)(
+    "API-14 records Problem Appears Resolved in eligible %s status without changing Ticket status",
+    async (status) => {
+      const prisma = getPrisma();
+      const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+      const ticket = await createIssue36Ticket(requester.id, { status });
+      const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+      const response = await agent
+        .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+        .set("Origin", FRONTEND_ORIGIN)
+        .set("X-CSRF-Token", login.body.csrfToken)
+        .send({ currentStatus: "RESOLVED" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.problemAppearsResolvedAt).toEqual(expect.any(String));
+      expect(response.body.currentStatus).toBe(status);
+      const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+      expect(stored.currentStatus).toBe(status);
+      expect(stored.problemAppearsResolvedById).toBe(requester.id);
+    },
+  );
+
+  it("API-14 repeats Problem Appears Resolved idempotently while the Ticket remains eligible", async () => {
     const prisma = getPrisma();
     const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
     const ticket = await createIssue36Ticket(requester.id, { status: "WAITING_FOR_REQUESTER" });
@@ -51,6 +74,29 @@ describe("Lab 3 Issue 4 Requester resolution indication", () => {
     expect(second.body.problemAppearsResolvedAt).toBe(first.body.problemAppearsResolvedAt);
     expect(second.body.currentStatus).toBe("WAITING_FOR_REQUESTER");
   });
+
+  it.each(["NEW", "RESOLVED", "CLOSED", "CANCELLED"] as const)(
+    "API-14 rejects Problem Appears Resolved in ineligible %s status without writing an indication",
+    async (status) => {
+      const prisma = getPrisma();
+      const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+      const ticket = await createIssue36Ticket(requester.id, { status });
+      const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
+
+      const response = await agent
+        .post(`/api/tickets/${ticket.id}/problem-appears-resolved`)
+        .set("Origin", FRONTEND_ORIGIN)
+        .set("X-CSRF-Token", login.body.csrfToken)
+        .send({});
+
+      expect(response.status).toBe(409);
+      expect(response.body.error?.code).toBe("RESOLUTION_INDICATION_NOT_ALLOWED");
+      const stored = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+      expect(stored.currentStatus).toBe(status);
+      expect(stored.problemAppearsResolvedAt).toBeNull();
+      expect(stored.problemAppearsResolvedById).toBeNull();
+    },
+  );
 
   it("API-14 returns safe not-found for another Requester's Ticket", async () => {
     const prisma = getPrisma();

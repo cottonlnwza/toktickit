@@ -93,6 +93,7 @@ No social login, password-reset email, self-registration, or Requester selector 
 - Add a **Public Comments** section with chronological comments, author, role, and timestamp.
 - Add plain-text comment composer with character guidance and Submit Comment busy state.
 - Add **Problem Appears Resolved** secondary/positive action with explanatory text that this does not formally resolve/close the Ticket.
+- Enable that action only while the Ticket is `Open`, `In Progress`, `Waiting for Requester`, or `Reopened`. For `New`, `Resolved`, `Closed`, or `Cancelled`, keep the action unavailable and show concise lifecycle guidance instead of implying the Requester can submit the indication.
 - After indication, show a read-only confirmation/timestamp and prevent confusing repeated submissions.
 - Do not show Internal Notes or IT Staff operational controls.
 

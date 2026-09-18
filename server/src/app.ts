@@ -37,6 +37,7 @@ app.use(express.json());
 
 const allowedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const allowedTicketStatuses = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"] as const;
+const requesterResolutionEligibleStatuses = ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"] as const;
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 const maxActiveAttachments = 5;
@@ -1095,6 +1096,15 @@ app.post(
       });
       if (!ticket) {
         res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      if (!requesterResolutionEligibleStatuses.includes(
+        ticket.currentStatus as (typeof requesterResolutionEligibleStatuses)[number],
+      )) {
+        res.status(409).json(errorResponse(
+          "RESOLUTION_INDICATION_NOT_ALLOWED",
+          "Problem Appears Resolved is not available for the Ticket's current status.",
+        ));
         return;
       }
       if (!ticket.problemAppearsResolvedAt) {

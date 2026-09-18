@@ -107,4 +107,44 @@ describe("Lab 3 Requester Ticket Detail additions", () => {
     });
     expect(screen.getAllByText(/Waiting for Requester/i).length).toBeGreaterThan(0);
   });
+
+  it("UI-05 disables Problem Appears Resolved when the Ticket lifecycle state is ineligible", async () => {
+    const newTicket = { ...ticket, currentStatus: "NEW", currentStatusLabel: "New" };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/api/auth/me")) return jsonResponse(200, { user: requester, csrfToken: "detail-csrf" });
+      if (url.endsWith("/api/categories")) return jsonResponse(200, [newTicket.category]);
+      if (url.endsWith("/api/related-systems")) return jsonResponse(200, [newTicket.relatedSystem]);
+      if (url.includes("/api/tickets/mine")) {
+        return jsonResponse(200, {
+          items: [{
+            id: newTicket.id,
+            ticketNumber: newTicket.ticketNumber,
+            summary: newTicket.summary,
+            category: newTicket.category,
+            relatedSystem: newTicket.relatedSystem,
+            requestedPriority: newTicket.requestedPriority,
+            currentStatus: newTicket.currentStatus,
+            currentStatusLabel: newTicket.currentStatusLabel,
+            updatedAt: newTicket.updatedAt,
+          }],
+          page: 1,
+          pageSize: 10,
+          totalItems: 1,
+          totalPages: 1,
+        });
+      }
+      if (url.endsWith(`/api/tickets/${newTicket.id}`)) return jsonResponse(200, newTicket);
+      if (url.endsWith(`/api/tickets/${newTicket.id}/comments`)) return jsonResponse(200, []);
+      return jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+    });
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(await screen.findByRole("link", { name: /My Tickets/i }));
+    await user.click((await screen.findAllByRole("button", { name: `Open Ticket ${newTicket.ticketNumber}` }))[0]);
+    expect(await screen.findByRole("heading", { name: /Ticket Detail/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Problem Appears Resolved/i })).toBeDisabled();
+    expect(screen.getByText(/available only while this Ticket is Open, In Progress, Waiting for Requester, or Reopened/i)).toBeInTheDocument();
+  });
 });

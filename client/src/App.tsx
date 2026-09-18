@@ -862,6 +862,9 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const hasMyTicketsQuery = Boolean(
     ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
   );
+  const resolutionIndicationEligible = ticketDetail
+    ? ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticketDetail.currentStatus)
+    : false;
 
   return (
     <div className={embedded ? "requester-workflow-embedded" : "toktickit-app"}>
@@ -1048,12 +1051,15 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
                       <button
                         className="btn btn-outline-success"
                         type="button"
-                        disabled={resolutionState === "saving" || Boolean(ticketDetail.problemAppearsResolvedAt)}
+                        disabled={resolutionState === "saving" || Boolean(ticketDetail.problemAppearsResolvedAt) || !resolutionIndicationEligible}
                         onClick={() => void handleProblemAppearsResolved()}
                       >
                         {resolutionState === "saving" ? "Saving..." : ticketDetail.problemAppearsResolvedAt ? "Problem Appears Resolved Recorded" : "Problem Appears Resolved"}
                       </button>
                     </div>
+                    {!resolutionIndicationEligible && !ticketDetail.problemAppearsResolvedAt && (
+                      <p className="text-muted">Problem Appears Resolved is available only while this Ticket is Open, In Progress, Waiting for Requester, or Reopened.</p>
+                    )}
                     {resolutionState === "success" && <div className="alert alert-success" role="status">Resolution indication recorded. Ticket status was not changed.</div>}
                     {resolutionError && <div className="alert alert-danger" role="alert">{resolutionError}</div>}
                     {publicCommentsState === "loading" && <div className="alert alert-info" role="status">Loading Public Comments...</div>}
