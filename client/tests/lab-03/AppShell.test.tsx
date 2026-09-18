@@ -24,6 +24,9 @@ function mockAuthenticatedFetch(user = currentUser) {
     if (url.endsWith("/api/auth/logout")) {
       return Promise.resolve(new Response(null, { status: 204 }));
     }
+    if (url.includes("/api/staff/tickets")) {
+      return Promise.resolve(jsonResponse(200, { items: [], page: 1, pageSize: 10, totalItems: 0, totalPages: 0 }));
+    }
     if (url.endsWith("/api/requesters")) {
       return Promise.resolve(jsonResponse(200, []));
     }

@@ -173,6 +173,105 @@
   max-width: 980px;
 }
 
+.staff-queue-panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
+  margin: 0 auto;
+  max-width: 1280px;
+  padding: 1.5rem;
+}
+
+.staff-queue-heading,
+.staff-queue-pagination,
+.staff-queue-card-heading,
+.queue-failure {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.queue-count,
+.queue-badge {
+  background: #eaf6ef;
+  border: 1px solid #c6dbcf;
+  border-radius: 999px;
+  color: #143326;
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.25rem 0.6rem;
+  white-space: nowrap;
+}
+
+.staff-queue-controls {
+  background: #f8fbf9;
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.9rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 1.25rem 0;
+  padding: 1rem;
+}
+
+.queue-search-control {
+  grid-column: span 2;
+}
+
+.queue-clear-control {
+  align-items: end;
+  display: flex;
+}
+
+.queue-state {
+  align-items: center;
+  background: #f8fbf9;
+  border: 1px dashed #b9cec2;
+  border-radius: 8px;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding: 1.25rem;
+}
+
+.staff-queue-table small {
+  color: #52665d;
+}
+
+.staff-queue-mobile {
+  display: none;
+}
+
+.staff-queue-card {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.staff-queue-card h3 {
+  font-size: 1rem;
+  margin: 0.75rem 0;
+}
+
+.staff-queue-card dl {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  margin: 0 0 1rem;
+}
+
+.staff-queue-card dd {
+  overflow-wrap: anywhere;
+}
+
+.staff-queue-pagination {
+  margin-top: 1.25rem;
+}
+
 .ticket-detail-heading,
 .detail-attachments-heading,
 .detail-comments-heading {
@@ -485,6 +584,23 @@
   .my-ticket-card dd {
     overflow-wrap: anywhere;
   }
+
+  .staff-queue-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .queue-search-control {
+    grid-column: span 2;
+  }
+
+  .staff-queue-desktop {
+    display: none;
+  }
+
+  .staff-queue-mobile {
+    display: grid;
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 767px) {
@@ -599,5 +715,34 @@
 
   .my-tickets-pagination .form-select {
     width: 100%;
+  }
+
+  .staff-queue-panel {
+    padding: 1rem;
+  }
+
+  .staff-queue-heading,
+  .staff-queue-pagination,
+  .queue-failure,
+  .queue-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-queue-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-search-control {
+    grid-column: auto;
+  }
+
+  .staff-queue-desktop {
+    display: none;
+  }
+
+  .staff-queue-mobile {
+    display: grid;
+    gap: 0.75rem;
   }
 }

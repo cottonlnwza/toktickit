@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Prisma } from "@prisma/client";
+import { Prisma, type RequestedPriority, type TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import {
@@ -38,6 +38,21 @@ app.use(express.json());
 const allowedPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"] as const;
 const allowedTicketStatuses = ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"] as const;
 const requesterResolutionEligibleStatuses = ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"] as const;
+const staffQueueSortFields = ["updatedAt", "createdAt", "ticketNumber", "requestedPriority", "itPriority", "status"] as const;
+const staffQueuePageSizes = [10, 25, 50] as const;
+const staffQueueQueryKeys = new Set([
+  "search",
+  "status",
+  "requestedPriority",
+  "itPriority",
+  "owner",
+  "categoryId",
+  "relatedSystemId",
+  "sortBy",
+  "sortOrder",
+  "page",
+  "pageSize",
+]);
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 const maxActiveAttachments = 5;
@@ -86,6 +101,14 @@ function errorResponse(code: string, message: string, fields?: Record<string, st
 
 function requireRequesterRole(req: Request, res: Response, next: () => void) {
   if (req.auth?.user.role !== "REQUESTER") {
+    res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+    return;
+  }
+  next();
+}
+
+function requireItStaffRole(req: Request, res: Response, next: () => void) {
+  if (req.auth?.user.role !== "IT_STAFF") {
     res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
     return;
   }
@@ -250,6 +273,18 @@ export function buildTicketNumber(date: Date, sequence: number) {
 function toPositiveInteger(value: unknown) {
   const numericValue = Number(value);
   return Number.isInteger(numericValue) && numericValue > 0 ? numericValue : null;
+}
+
+function singleQueryValue(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined;
+  return typeof value === "string" ? value : null;
+}
+
+function positiveQueryInteger(value: string | undefined): number | undefined | null {
+  if (value === undefined) return undefined;
+  if (!/^[1-9]\d*$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 export function validateCreateTicketInput(input: Record<string, unknown>):
@@ -568,6 +603,129 @@ app.get("/api/related-systems", requireNormalAccess, async (_req: Request, res: 
     res.status(200).json(relatedSystems);
   } catch {
     res.status(500).json(errorResponse("REFERENCE_DATA_ERROR", "Unable to load Related Systems."));
+  }
+});
+
+app.get("/api/staff/tickets", requireNormalAccess, requireItStaffRole, async (req: Request, res: Response) => {
+  if (Object.keys(req.query).some((key) => !staffQueueQueryKeys.has(key))) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more queue query parameters are invalid."));
+    return;
+  }
+
+  const searchValue = singleQueryValue(req.query.search);
+  const statusValue = singleQueryValue(req.query.status);
+  const requestedPriorityValue = singleQueryValue(req.query.requestedPriority);
+  const itPriorityValue = singleQueryValue(req.query.itPriority);
+  const ownerValue = singleQueryValue(req.query.owner);
+  const categoryValue = singleQueryValue(req.query.categoryId);
+  const relatedSystemValue = singleQueryValue(req.query.relatedSystemId);
+  const sortByValue = singleQueryValue(req.query.sortBy);
+  const sortOrderValue = singleQueryValue(req.query.sortOrder);
+  const pageValue = singleQueryValue(req.query.page);
+  const pageSizeValue = singleQueryValue(req.query.pageSize);
+
+  if ([searchValue, statusValue, requestedPriorityValue, itPriorityValue, ownerValue, categoryValue, relatedSystemValue, sortByValue, sortOrderValue, pageValue, pageSizeValue].includes(null)) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more queue query parameters are invalid."));
+    return;
+  }
+
+  const search = searchValue?.trim() || undefined;
+  const categoryId = positiveQueryInteger(categoryValue ?? undefined);
+  const relatedSystemId = positiveQueryInteger(relatedSystemValue ?? undefined);
+  const page = positiveQueryInteger(pageValue ?? undefined) ?? 1;
+  const parsedPageSize = positiveQueryInteger(pageSizeValue ?? undefined);
+  const pageSize = parsedPageSize ?? 10;
+  const sortBy = sortByValue ?? "updatedAt";
+  const sortOrder = sortOrderValue ?? "desc";
+
+  let ownerId: number | undefined;
+  let unassignedOnly = false;
+  if (typeof ownerValue === "string") {
+    if (ownerValue === "unassigned") {
+      unassignedOnly = true;
+    } else {
+      const parsedOwnerId = positiveQueryInteger(ownerValue);
+      if (!parsedOwnerId) {
+        res.status(400).json(errorResponse("INVALID_QUERY", "One or more queue query parameters are invalid."));
+        return;
+      }
+      ownerId = parsedOwnerId;
+    }
+  }
+
+  const invalidQuery =
+    (search !== undefined && search.length > 100) ||
+    (statusValue !== undefined && !allowedTicketStatuses.includes(statusValue as (typeof allowedTicketStatuses)[number])) ||
+    (requestedPriorityValue !== undefined && !allowedPriorities.includes(requestedPriorityValue as RequestedPriorityInput)) ||
+    (itPriorityValue !== undefined && !allowedPriorities.includes(itPriorityValue as RequestedPriorityInput)) ||
+    categoryId === null ||
+    relatedSystemId === null ||
+    pageValue !== undefined && positiveQueryInteger(pageValue ?? undefined) === null ||
+    pageSizeValue !== undefined && (parsedPageSize === null || !staffQueuePageSizes.includes(pageSize as (typeof staffQueuePageSizes)[number])) ||
+    !staffQueueSortFields.includes(sortBy as (typeof staffQueueSortFields)[number]) ||
+    !["asc", "desc"].includes(sortOrder);
+
+  if (invalidQuery) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more queue query parameters are invalid."));
+    return;
+  }
+
+  const where: Prisma.TicketWhereInput = {};
+  if (search) {
+    where.OR = [
+      { ticketNumber: { contains: search, mode: "insensitive" } },
+      { summary: { contains: search, mode: "insensitive" } },
+      { requester: { is: { name: { contains: search, mode: "insensitive" } } } },
+      { requester: { is: { email: { contains: search, mode: "insensitive" } } } },
+    ];
+  }
+  if (statusValue !== undefined) where.currentStatus = statusValue as TicketStatus;
+  if (requestedPriorityValue !== undefined) where.requestedPriority = requestedPriorityValue as RequestedPriority;
+  if (itPriorityValue !== undefined) where.itPriority = itPriorityValue as RequestedPriority;
+  if (unassignedOnly) where.ownerId = null;
+  else if (ownerId !== undefined) where.ownerId = ownerId;
+  if (categoryId !== undefined) where.categoryId = categoryId;
+  if (relatedSystemId !== undefined) where.relatedSystemId = relatedSystemId;
+
+  const orderField = sortBy === "status" ? "currentStatus" : sortBy;
+  const orderBy = [
+    { [orderField]: sortOrder },
+    { id: "desc" },
+  ] as Prisma.TicketOrderByWithRelationInput[];
+
+  try {
+    const prisma = getPrisma();
+    const [totalItems, items] = await Promise.all([
+      prisma.ticket.count({ where }),
+      prisma.ticket.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          ticketNumber: true,
+          summary: true,
+          requestedPriority: true,
+          itPriority: true,
+          currentStatus: true,
+          createdAt: true,
+          updatedAt: true,
+          requester: { select: { id: true, name: true, email: true } },
+          owner: { select: { id: true, name: true } },
+        },
+      }),
+    ]);
+
+    res.status(200).json({
+      items,
+      page,
+      pageSize,
+      totalItems,
+      totalPages: totalItems === 0 ? 0 : Math.ceil(totalItems / pageSize),
+    });
+  } catch {
+    res.status(500).json(errorResponse("QUEUE_ERROR", "Unable to load Ticket Queue."));
   }
 });
 
