@@ -16,6 +16,7 @@ import {
   getMyTickets,
   getPublicComments,
   getRelatedSystems,
+  getStaffTicketQueue,
   getTicketDetail,
   login as loginUser,
   logout as logoutUser,
@@ -28,8 +29,12 @@ import {
   removeAuthenticatedTicketAttachment,
   removeTicketAttachment,
   RelatedSystem,
+  StaffQueueApiError,
+  StaffQueueResponse,
+  StaffQueueTicket,
   TicketAttachment,
   TicketDetail,
+  TicketStatus,
   addTicketAttachment,
   uploadTicketAttachment,
 } from "./api.js";
@@ -202,6 +207,262 @@ function ChangePasswordScreen({
   );
 }
 
+function queueStatusLabel(status: TicketStatus) {
+  return {
+    NEW: "NEW",
+    OPEN: "OPEN",
+    IN_PROGRESS: "IN PROGRESS",
+    WAITING_FOR_REQUESTER: "WAITING FOR REQUESTER",
+    RESOLVED: "RESOLVED",
+    CLOSED: "CLOSED",
+    REOPENED: "REOPENED",
+    CANCELLED: "CANCELLED",
+  }[status];
+}
+
+function StaffTicketQueue() {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"" | TicketStatus>("");
+  const [requestedPriority, setRequestedPriority] = useState("");
+  const [itPriority, setItPriority] = useState("");
+  const [owner, setOwner] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [relatedSystemId, setRelatedSystemId] = useState("");
+  const [sortBy, setSortBy] = useState<"updatedAt" | "createdAt" | "ticketNumber" | "requestedPriority" | "itPriority" | "status">("updatedAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const [queue, setQueue] = useState<StaffQueueResponse | null>(null);
+  const [queueState, setQueueState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
+  const [retryToken, setRetryToken] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+
+  useEffect(() => {
+    let current = true;
+    void Promise.all([getCategories(), getRelatedSystems()])
+      .then(([nextCategories, nextSystems]) => {
+        if (!current) return;
+        setCategories(nextCategories);
+        setRelatedSystems(nextSystems);
+      })
+      .catch(() => {
+        if (!current) return;
+        setCategories([]);
+        setRelatedSystems([]);
+      });
+    return () => { current = false; };
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    setQueueState("loading");
+    void getStaffTicketQueue({
+      search: search.trim() || undefined,
+      status: status || undefined,
+      requestedPriority: requestedPriority ? requestedPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT" : undefined,
+      itPriority: itPriority ? itPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT" : undefined,
+      owner: owner === "unassigned" ? "unassigned" : owner ? Number(owner) : undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      relatedSystemId: relatedSystemId ? Number(relatedSystemId) : undefined,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize,
+    })
+      .then((response) => {
+        if (!current) return;
+        setQueue(response);
+        setQueueState("ready");
+      })
+      .catch((error) => {
+        if (!current) return;
+        setQueue(null);
+        if (error instanceof StaffQueueApiError && error.status === 403) setQueueState("forbidden");
+        else setQueueState("error");
+      });
+    return () => { current = false; };
+  }, [search, status, requestedPriority, itPriority, owner, categoryId, relatedSystemId, sortBy, sortOrder, page, pageSize, retryToken]);
+
+  function resetPageAnd(action: () => void) {
+    setPage(1);
+    action();
+  }
+
+  function clearFilters() {
+    setPage(1);
+    setSearch("");
+    setStatus("");
+    setRequestedPriority("");
+    setItPriority("");
+    setOwner("");
+    setCategoryId("");
+    setRelatedSystemId("");
+  }
+
+  const hasFilters = Boolean(search.trim() || status || requestedPriority || itPriority || owner || categoryId || relatedSystemId);
+  function openTicket(ticket: StaffQueueTicket) {
+    window.location.hash = `staff-ticket-${ticket.id}`;
+  }
+
+  function renderOpenAction(ticket: StaffQueueTicket) {
+    return (
+      <button className="btn btn-sm btn-outline-success" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => openTicket(ticket)}>
+        Open
+      </button>
+    );
+  }
+
+  return (
+    <main className="container py-4 staff-queue-page">
+      <section className="staff-queue-panel" aria-labelledby="staff-queue-heading">
+        <div className="staff-queue-heading">
+          <div>
+            <h2 id="staff-queue-heading">Ticket Queue</h2>
+            <p className="text-muted mb-0">Search and prioritize the shared IT Staff workload.</p>
+          </div>
+          {queue && <span className="queue-count" aria-label={`${queue.totalItems} total Tickets`}>{queue.totalItems} Tickets</span>}
+        </div>
+
+        <div className="staff-queue-controls" aria-label="Ticket Queue controls">
+          <div className="queue-search-control">
+            <label className="form-label" htmlFor="staff-queue-search">Search Tickets</label>
+            <input id="staff-queue-search" className="form-control" value={search} onChange={(event) => resetPageAnd(() => setSearch(event.target.value))} placeholder="Ticket Number, Summary, Requester name/email" />
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-status">Status</label>
+            <select id="staff-queue-status" className="form-select" value={status} onChange={(event) => resetPageAnd(() => setStatus(event.target.value as "" | TicketStatus))}>
+              <option value="">All</option>
+              <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option><option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option><option value="REOPENED">Reopened</option><option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-requested-priority">Requested Priority</label>
+            <select id="staff-queue-requested-priority" className="form-select" value={requestedPriority} onChange={(event) => resetPageAnd(() => setRequestedPriority(event.target.value))}>
+              <option value="">All</option><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-it-priority">IT Priority</label>
+            <select id="staff-queue-it-priority" className="form-select" value={itPriority} onChange={(event) => resetPageAnd(() => setItPriority(event.target.value))}>
+              <option value="">All</option><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-owner">Owner</label>
+            <select id="staff-queue-owner" className="form-select" value={owner} onChange={(event) => resetPageAnd(() => setOwner(event.target.value))}>
+              <option value="">All</option>
+              <option value="unassigned">Unassigned</option>
+              {(queue?.ownerOptions ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-category">Category</label>
+            <select id="staff-queue-category" className="form-select" value={categoryId} onChange={(event) => resetPageAnd(() => setCategoryId(event.target.value))}>
+              <option value="">All</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-related-system">Related System</label>
+            <select id="staff-queue-related-system" className="form-select" value={relatedSystemId} onChange={(event) => resetPageAnd(() => setRelatedSystemId(event.target.value))}>
+              <option value="">All</option>
+              {relatedSystems.map((system) => <option key={system.id} value={system.id}>{system.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-sort-by">Sort By</label>
+            <select id="staff-queue-sort-by" className="form-select" value={sortBy} onChange={(event) => resetPageAnd(() => setSortBy(event.target.value as typeof sortBy))}>
+              <option value="updatedAt">Last Updated</option><option value="createdAt">Created</option><option value="ticketNumber">Ticket Number</option><option value="requestedPriority">Requested Priority</option><option value="itPriority">IT Priority</option><option value="status">Status</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-sort-order">Sort Order</label>
+            <select id="staff-queue-sort-order" className="form-select" value={sortOrder} onChange={(event) => resetPageAnd(() => setSortOrder(event.target.value as "asc" | "desc"))}>
+              <option value="desc">Descending</option><option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-page-size">Page Size</label>
+            <select id="staff-queue-page-size" className="form-select" value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value) as 10 | 25 | 50); }}>
+              <option value="10">10</option><option value="25">25</option><option value="50">50</option>
+            </select>
+          </div>
+          <div className="queue-clear-control">
+            <button className="btn btn-outline-secondary" type="button" onClick={clearFilters}>Clear Filters</button>
+          </div>
+        </div>
+
+        {queueState === "loading" && <div className="queue-state" role="status">Loading Ticket Queue...</div>}
+        {queueState === "forbidden" && <div className="alert alert-danger" role="alert">Forbidden. Your role is not permitted to use the IT Staff Ticket Queue.</div>}
+        {queueState === "error" && (
+          <div className="alert alert-danger queue-failure" role="alert">
+            <span>Unable to load Ticket Queue. Please try again.</span>
+            <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
+          </div>
+        )}
+
+        {queueState === "ready" && queue && queue.items.length === 0 && (
+          <div className="queue-state">
+            {queue.totalItems === 0 && hasFilters ? (
+              <><strong>No Tickets match the current filters.</strong><button className="btn btn-sm btn-outline-secondary" type="button" onClick={clearFilters}>Clear Filters</button></>
+            ) : queue.totalItems === 0 ? (
+              <strong>The Ticket Queue is empty. No Tickets are waiting for IT Staff.</strong>
+            ) : (
+              <strong>No Tickets are available on this page.</strong>
+            )}
+          </div>
+        )}
+
+        {queueState === "ready" && queue && queue.items.length > 0 && (
+          <>
+            <div className="staff-queue-desktop" data-testid="staff-queue-desktop">
+              <div className="table-responsive">
+                <table className="table align-middle staff-queue-table" aria-label="Ticket Queue">
+                  <thead><tr><th>Ticket Number</th><th>Summary</th><th>Requested Priority</th><th>IT Priority</th><th>Status</th><th>Owner</th><th>Last Updated</th><th><span className="visually-hidden">Open</span></th></tr></thead>
+                  <tbody>
+                    {queue.items.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td><strong>{ticket.ticketNumber}</strong></td>
+                        <td><div>{ticket.summary}</div><small>{ticket.requester.name}</small></td>
+                        <td><span className="queue-badge">{ticket.requestedPriority}</span></td>
+                        <td><span className="queue-badge">{ticket.itPriority}</span></td>
+                        <td><span className="queue-badge">{queueStatusLabel(ticket.currentStatus)}</span></td>
+                        <td>{ticket.owner?.name ?? "Unassigned"}</td>
+                        <td>{new Date(ticket.updatedAt).toLocaleString()}</td>
+                        <td>{renderOpenAction(ticket)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="staff-queue-mobile" data-testid="staff-queue-mobile">
+              {queue.items.map((ticket) => (
+                <article className="staff-queue-card" key={ticket.id} aria-label={`Ticket ${ticket.ticketNumber}`}>
+                  <div className="staff-queue-card-heading"><strong>{ticket.ticketNumber}</strong><span className="queue-badge">{queueStatusLabel(ticket.currentStatus)}</span></div>
+                  <h3>{ticket.summary}</h3>
+                  <p className="mb-2">Requester: {ticket.requester.name}</p>
+                  <dl><dt>Requested Priority</dt><dd>{ticket.requestedPriority}</dd><dt>IT Priority</dt><dd>{ticket.itPriority}</dd><dt>Owner</dt><dd>{ticket.owner?.name ?? "Unassigned"}</dd><dt>Updated</dt><dd>{new Date(ticket.updatedAt).toLocaleString()}</dd></dl>
+                  {renderOpenAction(ticket)}
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+
+        {queueState === "ready" && queue && queue.totalItems > 0 && (
+          <div className="staff-queue-pagination" aria-label="Ticket Queue pagination">
+            <button className="btn btn-outline-secondary" type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+            <span>Page {queue.page} of {Math.max(queue.totalPages, 1)}</span>
+            <button className="btn btn-outline-secondary" type="button" disabled={queue.totalPages === 0 || page >= queue.totalPages} onClick={() => setPage((value) => value + 1)}>Next</button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
 function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
   const navigation = user.role === "REQUESTER"
     ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
@@ -237,6 +498,14 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
             csrfToken={csrfToken}
             embedded
           />
+        </>
+      ) : user.role === "IT_STAFF" ? (
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <StaffTicketQueue />
         </>
       ) : (
         <main className="container py-5">

@@ -379,12 +379,18 @@ Response `200`:
       "updatedAt": "2026-09-15T01:00:00.000Z"
     }
   ],
+  "ownerOptions": [
+    { "id": 10, "name": "Sam Staff", "role": "IT_STAFF" },
+    { "id": 20, "name": "Alex Admin", "role": "ADMINISTRATOR" }
+  ],
   "page": 1,
   "pageSize": 10,
   "totalItems": 1,
   "totalPages": 1
 }
 ```
+
+`ownerOptions` is stable Queue filter metadata, independent of the current search/filter/page result. It contains every active `IT_STAFF` and `ADMINISTRATOR` User permitted by BR-18 as a Ticket owner, ordered by name then id. Inactive Users and Requesters are excluded. `Unassigned` remains a separate client filter choice mapped to `owner=unassigned`.
 
 Default tie-break after the selected sort is `id desc` for deterministic paging.
 

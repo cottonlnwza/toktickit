@@ -210,6 +210,48 @@ export interface PublicComment {
   createdAt: string;
 }
 
+export interface StaffQueueTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  requester: Requester;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  itPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  currentStatus: TicketStatus;
+  owner: { id: number; name: string } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StaffQueueQuery {
+  search?: string;
+  status?: TicketStatus;
+  requestedPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  itPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  owner?: "unassigned" | number;
+  categoryId?: number;
+  relatedSystemId?: number;
+  sortBy?: "updatedAt" | "createdAt" | "ticketNumber" | "requestedPriority" | "itPriority" | "status";
+  sortOrder?: "asc" | "desc";
+  page?: number;
+  pageSize?: 10 | 25 | 50;
+}
+
+export interface StaffQueueResponse {
+  items: StaffQueueTicket[];
+  ownerOptions: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+}
+
+export class StaffQueueApiError extends Error {
+  constructor(public readonly status: number, public readonly code: string) {
+    super("Unable to load Ticket Queue.");
+  }
+}
+
 async function parseError(response: Response, fallback: string) {
   try {
     const body = (await response.json()) as { error?: string | { message?: string } };
@@ -416,6 +458,26 @@ export async function markProblemAppearsResolved(
   });
   if (!response.ok) throw new Error(await parseError(response, "Unable to record resolution indication."));
   return (await response.json()) as { problemAppearsResolvedAt: string; currentStatus: TicketStatus };
+}
+
+export async function getStaffTicketQueue(query: StaffQueueQuery = {}): Promise<StaffQueueResponse> {
+  const parameters = new URLSearchParams();
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== "") parameters.set(key, String(value));
+  });
+  const queryString = parameters.toString();
+  const response = await fetch(`${API_URL}/api/staff/tickets${queryString ? `?${queryString}` : ""}`, { credentials: "include" });
+  if (!response.ok) {
+    let code = "QUEUE_ERROR";
+    try {
+      const body = (await response.json()) as { error?: { code?: string } };
+      code = body.error?.code ?? code;
+    } catch {
+      // Keep a generic safe code; the UI intentionally does not surface raw server details.
+    }
+    throw new StaffQueueApiError(response.status, code);
+  }
+  return (await response.json()) as StaffQueueResponse;
 }
 
 export async function addTicketAttachment(
