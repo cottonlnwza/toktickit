@@ -12,6 +12,7 @@ import {
   createSession,
   requireAuthenticated,
   requireCsrf,
+  requireNormalAccess,
   rotateCsrfToken,
   setSessionCookie,
 } from "./auth/session.js";
@@ -416,7 +417,7 @@ app.post(
 //   -> return each { id, name } in a predictable (id) order
 //   -> on failure, respond 500 with a safe message (no internal details)
 // ---------------------------------------------------------------------------
-app.get("/api/categories", async (_req: Request, res: Response) => {
+app.get("/api/categories", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const categories = await getPrisma().category.findMany({
       where: { isActive: true, name: { in: supportedCategoryNames } },

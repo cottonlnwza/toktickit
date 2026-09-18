@@ -1,4 +1,3 @@
-import express from "express";
 import request from "supertest";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { UserRole } from "@prisma/client";
@@ -225,19 +224,25 @@ describe("Lab 3 authentication API", () => {
     expect(signedIn.status).toBe(200);
     expect(signedIn.body.user.mustChangePassword).toBe(true);
 
-    const { requireNormalAccess } = await import("../../src/auth/session.js");
-    const protectedApp = express();
-    protectedApp.get("/protected", requireNormalAccess, (_req, res) => res.status(200).json({ ok: true }));
+    const blocked = await agent.get("/api/categories").set("Origin", FRONTEND_ORIGIN);
+    expect(blocked.status).toBe(403);
+    expect(blocked.body.error?.code).toBe("PASSWORD_CHANGE_REQUIRED");
 
-    const sessionCookie = cookieFrom(signedIn);
-    expect(sessionCookie).toBeDefined();
-    const response = await request(protectedApp)
-      .get("/protected")
-      .set("Cookie", sessionCookie!.split(";")[0]);
+    const changed = await agent
+      .post("/api/auth/change-password")
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", signedIn.body.csrfToken)
+      .send({
+        currentPassword: INITIAL_PASSWORD,
+        newPassword: CHANGED_PASSWORD,
+        confirmPassword: CHANGED_PASSWORD,
+      });
+    expect(changed.status).toBe(200);
+    expect(changed.body.user.mustChangePassword).toBe(false);
 
-    expect(response.status).toBe(403);
-    expect(response.body.error?.code).toBe("PASSWORD_CHANGE_REQUIRED");
-    expect(response.body).not.toHaveProperty("ok");
+    const allowed = await agent.get("/api/categories").set("Origin", FRONTEND_ORIGIN);
+    expect(allowed.status).toBe(200);
+    expect(allowed.body).toHaveLength(4);
   });
 
   it("API-07 changes the password, clears the gate, rotates the current session/CSRF, and revokes other sessions", async () => {
