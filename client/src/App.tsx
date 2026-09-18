@@ -220,7 +220,7 @@ function queueStatusLabel(status: TicketStatus) {
   }[status];
 }
 
-function StaffTicketQueue({ user }: { user: AuthUser }) {
+function StaffTicketQueue() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | TicketStatus>("");
   const [requestedPriority, setRequestedPriority] = useState("");
@@ -301,11 +301,6 @@ function StaffTicketQueue({ user }: { user: AuthUser }) {
   }
 
   const hasFilters = Boolean(search.trim() || status || requestedPriority || itPriority || owner || categoryId || relatedSystemId);
-  const ownerOptions = new Map<number, string>([[user.id, user.name]]);
-  queue?.items.forEach((ticket) => {
-    if (ticket.owner) ownerOptions.set(ticket.owner.id, ticket.owner.name);
-  });
-
   function openTicket(ticket: StaffQueueTicket) {
     window.location.hash = `staff-ticket-${ticket.id}`;
   }
@@ -358,7 +353,7 @@ function StaffTicketQueue({ user }: { user: AuthUser }) {
             <select id="staff-queue-owner" className="form-select" value={owner} onChange={(event) => resetPageAnd(() => setOwner(event.target.value))}>
               <option value="">All</option>
               <option value="unassigned">Unassigned</option>
-              {[...ownerOptions.entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              {(queue?.ownerOptions ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
           </div>
           <div>
@@ -510,7 +505,7 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
             {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
             {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
           </div>
-          <StaffTicketQueue user={user} />
+          <StaffTicketQueue />
         </>
       ) : (
         <main className="container py-5">

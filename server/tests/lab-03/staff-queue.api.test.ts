@@ -100,6 +100,8 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue API", () => {
     await provisionIssue36User(fixtureUsers.requesterA);
     await provisionIssue36User(fixtureUsers.requesterB);
     await provisionIssue36User(fixtureUsers.staff);
+    const inactiveStaff = await provisionIssue36User(fixtureUsers.inactiveStaff);
+    await getPrisma().user.update({ where: { id: inactiveStaff.id }, data: { isActive: false } });
     await provisionIssue36User(fixtureUsers.admin);
   });
 
@@ -136,6 +138,13 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue API", () => {
       owner: { id: fixture.staff.id, name: fixture.staff.name },
     });
     expect(response.body.items[2]).toMatchObject({ id: fixture.older.id, owner: null });
+    expect(response.body.ownerOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: fixture.staff.id, name: fixture.staff.name, role: "IT_STAFF" }),
+      expect.objectContaining({ id: fixture.admin.id, name: fixture.admin.name, role: "ADMINISTRATOR" }),
+    ]));
+    expect(response.body.ownerOptions).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: fixtureUsers.inactiveStaff.name }),
+    ]));
     expect(JSON.stringify(response.body)).not.toMatch(/passwordHash|tokenHash|csrfTokenHash|storagePath/i);
   });
 
@@ -156,6 +165,9 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue API", () => {
     expect(response.status).toBe(200);
     expect(response.body.items.map((item: { id: number }) => item.id)).toContain(fixture.newest.id);
     expect(response.body.items.map((item: { id: number }) => item.id)).not.toContain(fixture.older.id);
+    expect(response.body.ownerOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: fixture.admin.id, name: fixture.admin.name, role: "ADMINISTRATOR" }),
+    ]));
   });
 
   it("API-15 applies status, Requested Priority, IT Priority, owner, Category, and Related System filters together", async () => {

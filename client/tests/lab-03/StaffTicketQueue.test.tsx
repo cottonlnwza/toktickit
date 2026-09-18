@@ -37,6 +37,12 @@ const unassignedItem = {
   updatedAt: "2026-09-18T23:30:00.000Z",
 };
 
+const adminOwner = {
+  id: 88,
+  name: "Owner Admin Not On Current Page",
+  role: "ADMINISTRATOR",
+} as const;
+
 function jsonResponse(status: number, body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }));
 }
@@ -48,6 +54,10 @@ function requestUrl(input: RequestInfo | URL) {
 function queueResponse(items = [queueItem, unassignedItem], overrides: Record<string, unknown> = {}) {
   return {
     items,
+    ownerOptions: [
+      { id: staff.id, name: staff.name, role: "IT_STAFF" },
+      adminOwner,
+    ],
     page: 1,
     pageSize: 10,
     totalItems: items.length,
@@ -107,6 +117,23 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue UI", () => {
     expect(within(table).getByText(staff.name)).toBeInTheDocument();
     expect(within(table).getByText("Unassigned")).toBeInTheDocument();
     expect(within(table).getByRole("button", { name: new RegExp(`Open Ticket ${queueItem.ticketNumber}`, "i") })).toBeInTheDocument();
+  });
+
+  it("UI-06 keeps active owner choices available even when that owner is absent from the current Ticket page", async () => {
+    const fetchSpy = mockStaffQueueFetch(() => jsonResponse(200, queueResponse([queueItem])));
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByRole("heading", { name: /Ticket Queue/i });
+    const ownerSelect = screen.getByLabelText(/^Owner$/i);
+    expect(within(ownerSelect).getByRole("option", { name: adminOwner.name })).toHaveValue(String(adminOwner.id));
+    expect(within(screen.getByTestId("staff-queue-desktop")).queryByText(adminOwner.name)).not.toBeInTheDocument();
+
+    await user.selectOptions(ownerSelect, String(adminOwner.id));
+    await waitFor(() => {
+      const queueCalls = fetchSpy.mock.calls.map(([input]) => requestUrl(input)).filter((url) => url.includes("/api/staff/tickets"));
+      expect(new URL(queueCalls.at(-1)!).searchParams.get("owner")).toBe(String(adminOwner.id));
+    });
   });
 
   it("UI-06 sends documented search/filter/sort/page-size/pagination parameters and can clear the query", async () => {

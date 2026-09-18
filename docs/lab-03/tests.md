@@ -41,7 +41,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | API-12 | API/Regression | FR-08; AC-19 | Authenticated Attachment lifecycle | Existing upload/download/soft-remove rules and DTO names remain under authenticated ownership | `server/tests/lab-03/attachments-regression.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | API-13 | API | FR-10, FR-16; AC-09 | Requester Public Comment | Stored with backend author/time; visible to permitted roles | `server/tests/lab-03/comments-notes.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | API-14 | API | FR-10, BR-05, BR-42; AC-10 | Problem Appears Resolved | Only `OPEN`/`IN_PROGRESS`/`WAITING_FOR_REQUESTER`/`REOPENED` accept the indication; `NEW`/`RESOLVED`/`CLOSED`/`CANCELLED` return 409 without mutation; status remains unchanged; eligible repeats are idempotent; concurrency regression explicitly starts the Requester HTTP request while Staff still holds the row lock, verifies that it remains pending, then commits `OPEN -> RESOLVED` and expects 409 with no indication write | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
-| API-15 | API | FR-11; AC-11 | Staff Queue default/query behavior | Correct search/filter/sort/page data + metadata | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — Issue #37 isolated PostgreSQL / Node 22 |
+| API-15 | API | FR-11, BR-18; AC-11 | Staff Queue default/query behavior | Correct search/filter/sort/page data plus stable active IT Staff/Administrator owner-filter metadata independent of current results | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — Issue #37 isolated PostgreSQL / Node 22 |
 | API-16 | API | FR-11; AC-11 | Queue invalid parameters | Unknown/invalid query returns 400 | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — Issue #37 isolated PostgreSQL / Node 22 |
 | API-17 | API/Security | FR-11, FR-06; AC-11, AC-24 | Queue role authorization | Requester/Admin normal Queue denied; IT Staff allowed | `server/tests/lab-03/staff-queue.api.test.ts` | Pass — Issue #37 isolated PostgreSQL / Node 22 |
 | API-18 | API | FR-13, BR-18; AC-13 | Claim owner | Unassigned Ticket claimed by current active IT Staff | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pending |
@@ -64,7 +64,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | UI-03 | UI Component | FR-05; AC-05, AC-24 | Role navigation | Correct identity/role/nav; unauthorized nav absent | `client/tests/lab-03/AppShell.test.tsx` | Pass — Issue #35 Vitest/jsdom / Node 22 |
 | UI-04 | UI Component/Regression | FR-08, FR-09; AC-08 | Requester regression shell/create/list | No selector/Change Requester; authenticated identity shown; retry reuses one `clientRequestId` | `client/tests/lab-03/RequesterRegression.test.tsx` | Pass — Issue #36 Vitest/jsdom / Node 22 |
 | UI-05 | UI Component | FR-10; AC-09, AC-10 | Requester comments/resolution indication | Public composer/results + indication without status change UI | `client/tests/lab-03/RequesterTicketDetail.test.tsx` | Pass — Issue #36 Vitest/jsdom / Node 22 |
-| UI-06 | UI Component | FR-11; AC-12, AC-26 | Staff Queue | Loading, query controls, desktop table, smaller-screen cards, results, empty/no-results/forbidden/safe failure + Retry | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass — Issue #37 Vitest/jsdom / Node 22 |
+| UI-06 | UI Component | FR-11, BR-18; AC-12, AC-26 | Staff Queue | Loading, query controls, stable owner choices even when an owner is absent from the current page, desktop table, smaller-screen cards, results, empty/no-results/forbidden/safe failure + Retry | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass — Issue #37 Vitest/jsdom / Node 22 |
 | UI-07 | UI Component | FR-12-FR-17; AC-13-AC-19 | Staff Ticket Detail | Owner/priority/status/comments/notes/Attachments and feedback | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pending |
 | UI-08 | UI Component | FR-18-FR-23; AC-20-AC-24 | User Management | List/search/filter/create/edit/password/safety/forbidden states | `client/tests/lab-03/UserManagement.test.tsx` | Pending |
 | STYLE-01 | UI Style | FR-26, FR-27; AC-26, AC-27 | Zen Green/auth/badge/read-only/editable styling | Required semantic classes/states remain consistent | `client/tests/lab-03/ui-style.test.tsx` | Pending |
@@ -238,15 +238,15 @@ Issue #36 verification covers authenticated Requester Ticket creation without a 
 Issue #37 IT Staff Ticket Queue followed TDD. `staff-queue.api.test.ts` and `StaffTicketQueue.test.tsx` were created first and produced a legitimate red state against the merged Issue #36 baseline: the production server returned `404` for `/api/staff/tickets`, and the IT Staff shell still rendered only the authenticated-session placeholder instead of the Queue screen. The implementation then added only the approved Queue API/UI scope; Staff Ticket Detail operations remain deferred to Issue #38.
 
 - Issue #37 focused server: `staff-queue.api.test.ts` = 1 file / 23 tests passed.
-- Issue #37 focused client: `StaffTicketQueue.test.tsx` = 1 file / 7 tests passed.
+- Issue #37 focused client: `StaffTicketQueue.test.tsx` = 1 file / 8 tests passed after the PR #48 owner-filter correction.
 - Full server regression suite: 20 files / 133 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
-- Full client regression suite: 15 files / 78 tests passed.
+- Full client regression suite: 15 files / 79 tests passed.
 - `npm run build --prefix server`: passed.
 - `npm run build --prefix client`: passed.
 - `prisma validate`: passed.
 - `git diff --check`: passed.
 
-Issue #37 verification covers IT-Staff-only Queue authorization, unauthenticated rejection, safe `400 INVALID_QUERY` handling for unknown/invalid query parameters, shared search across Ticket Number/Summary/Requester Name/Email, Status/Requested Priority/IT Priority/Owner/Category/Related System filters, explicit unassigned ownership, documented sort/order/page/page-size behavior with deterministic `id desc` tie-break, safe Queue DTOs, assigned/unassigned presentation, loading/empty/no-results/forbidden/safe-failure states, Retry, desktop table fields, smaller-screen card representation hooks, and the Open-detail navigation action without implementing Issue #38 Ticket Detail operations.
+Issue #37 verification covers IT-Staff-only Queue authorization, unauthenticated rejection, safe `400 INVALID_QUERY` handling for unknown/invalid query parameters, shared search across Ticket Number/Summary/Requester Name/Email, Status/Requested Priority/IT Priority/Owner/Category/Related System filters, stable active IT Staff/Administrator owner choices independent of the current filtered/paged Ticket result, explicit unassigned ownership, documented sort/order/page/page-size behavior with deterministic `id desc` tie-break, safe Queue DTOs, assigned/unassigned presentation, loading/empty/no-results/forbidden/safe-failure states, Retry, desktop table fields, smaller-screen card representation hooks, and the Open-detail navigation action without implementing Issue #38 Ticket Detail operations.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
 

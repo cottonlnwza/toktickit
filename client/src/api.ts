@@ -239,6 +239,7 @@ export interface StaffQueueQuery {
 
 export interface StaffQueueResponse {
   items: StaffQueueTicket[];
+  ownerOptions: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
   page: number;
   pageSize: number;
   totalItems: number;

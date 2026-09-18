@@ -117,7 +117,7 @@ Category and Related System remain filterable and are visible in Ticket Detail i
 ### Controls
 
 - Search input: Ticket Number, Summary, Requester Name/Email.
-- Filters: Status, Requested Priority, IT Priority, Owner, Category, Related System.
+- Filters: Status, Requested Priority, IT Priority, Owner, Category, Related System. Owner choices come from stable active IT Staff/Administrator Queue metadata rather than the current result page, plus a separate Unassigned choice.
 - Sort field/order control.
 - Clear Filters.
 - Page size 10/25/50 and pagination.

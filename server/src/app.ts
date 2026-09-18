@@ -695,7 +695,7 @@ app.get("/api/staff/tickets", requireNormalAccess, requireItStaffRole, async (re
 
   try {
     const prisma = getPrisma();
-    const [totalItems, items] = await Promise.all([
+    const [totalItems, items, ownerOptions] = await Promise.all([
       prisma.ticket.count({ where }),
       prisma.ticket.findMany({
         where,
@@ -715,10 +715,19 @@ app.get("/api/staff/tickets", requireNormalAccess, requireItStaffRole, async (re
           owner: { select: { id: true, name: true } },
         },
       }),
+      prisma.user.findMany({
+        where: {
+          isActive: true,
+          role: { in: ["IT_STAFF", "ADMINISTRATOR"] },
+        },
+        select: { id: true, name: true, role: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+      }),
     ]);
 
     res.status(200).json({
       items,
+      ownerOptions,
       page,
       pageSize,
       totalItems,
