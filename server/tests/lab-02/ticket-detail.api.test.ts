@@ -100,7 +100,7 @@ describe("GET /api/requesters/:requesterId/tickets/:ticketId", () => {
         downloadUrl: "/api/requesters/7/tickets/42/attachments/9/download",
       }],
     });
-    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|removedByRequesterId|editPermissions|comments|statusActions/i);
+    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|removedByUserId|editPermissions|comments|statusActions/i);
   });
 
   it("rejects invalid Requester or Ticket IDs without querying the database", async () => {

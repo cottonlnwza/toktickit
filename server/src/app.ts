@@ -239,8 +239,8 @@ app.get("/api/categories", async (_req: Request, res: Response) => {
 
 app.get("/api/requesters", async (_req: Request, res: Response) => {
   try {
-    const requesters = await getPrisma().requesterUser.findMany({
-      where: { isActive: true },
+    const requesters = await getPrisma().user.findMany({
+      where: { role: "REQUESTER", isActive: true },
       select: { id: true, name: true, email: true },
       orderBy: { id: "asc" },
     });
@@ -277,7 +277,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
 
   try {
     const [requester, category, relatedSystem] = await Promise.all([
-      prisma.requesterUser.findFirst({ where: { id: validation.data.requesterId, isActive: true } }),
+      prisma.user.findFirst({ where: { id: validation.data.requesterId, role: "REQUESTER", isActive: true } }),
       prisma.category.findFirst({ where: { id: validation.data.categoryId, isActive: true } }),
       prisma.relatedSystem.findFirst({ where: { id: validation.data.relatedSystemId, isActive: true } }),
     ]);
@@ -302,12 +302,16 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
     const ticket = await prisma.ticket.create({
       data: {
         ticketNumber,
+        // Issue #34 keeps the Lab 2 requester-selector API alive only for regression.
+        // The authenticated Lab 3 create flow will require the client UUID in Issue #36.
+        clientRequestId: randomUUID(),
         requesterId: validation.data.requesterId,
         categoryId: validation.data.categoryId,
         relatedSystemId: validation.data.relatedSystemId,
         summary: validation.data.summary,
         description: validation.data.description,
         requestedPriority: validation.data.requestedPriority,
+        itPriority: validation.data.requestedPriority,
         currentStatus: "NEW",
       },
     });
@@ -371,8 +375,8 @@ app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Respon
 
   try {
     const prisma = getPrisma();
-    const requester = await prisma.requesterUser.findFirst({
-      where: { id: requesterId, isActive: true },
+    const requester = await prisma.user.findFirst({
+      where: { id: requesterId, role: "REQUESTER", isActive: true },
       select: { id: true },
     });
     if (!requester) {
@@ -696,7 +700,7 @@ app.delete(
         where: { id: attachmentId },
         data: {
           removedAt: new Date(),
-          removedByRequesterId: requesterId,
+          removedByUserId: requesterId,
           removalReason: reason,
         },
       });

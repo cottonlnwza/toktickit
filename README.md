@@ -82,15 +82,27 @@ The Prisma schema is located at `server/prisma/schema.prisma`.
 The backend uses the `DATABASE_URL` shell environment variable to connect to
 PostgreSQL.
 
-For Lab 2, create an empty PostgreSQL development database such as
-`toktickit_lab2`, then export `DATABASE_URL` to that database without committing
-or sharing the value. Prepare it from `server/`:
+For Lab 3, create an empty PostgreSQL development database or point
+`DATABASE_URL` at the completed Lab 2 database. Do not commit or share the
+connection value. Prepare it from `server/` with the Lab 3 deployment command:
 
 ```bash
-npm exec -- prisma migrate deploy
+npm run prisma:deploy:lab3
 npm exec -- prisma generate --schema prisma/schema.prisma
 npm run prisma:seed
 ```
+
+`prisma:deploy:lab3` is required for the Lab 2 -> Lab 3 transition because
+legacy Requesters receive newly generated per-user scrypt password hashes while
+their existing ids, Ticket ownership, and Attachment actor references are
+preserved. The command applies the earlier Prisma migrations, performs the
+transactional Lab 3 data migration, and then records the committed Lab 3
+migration in Prisma migration history. After this succeeds, ordinary future
+`prisma migrate deploy` runs remain compatible with `_prisma_migrations`.
+
+Do not run `prisma migrate deploy` directly for the first Lab 3 transition. The
+committed Lab 3 migration contains a guard that fails closed and tells the
+operator to use `npm run prisma:deploy:lab3` instead.
 
 Do not use reset commands against an existing database. Start the backend and
 frontend as shown above before running Playwright.
