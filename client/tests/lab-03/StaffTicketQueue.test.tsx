@@ -126,7 +126,7 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue UI", () => {
 
     await screen.findByRole("heading", { name: /Ticket Queue/i });
     const ownerSelect = screen.getByLabelText(/^Owner$/i);
-    expect(within(ownerSelect).getByRole("option", { name: adminOwner.name })).toHaveValue(String(adminOwner.id));
+    expect(await within(ownerSelect).findByRole("option", { name: adminOwner.name })).toHaveValue(String(adminOwner.id));
     expect(within(screen.getByTestId("staff-queue-desktop")).queryByText(adminOwner.name)).not.toBeInTheDocument();
 
     await user.selectOptions(ownerSelect, String(adminOwner.id));
