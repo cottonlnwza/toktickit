@@ -32,7 +32,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | API-04 | API/Security | BR-10; AC-02 | Login attempt throttle | 429 after approved threshold/window | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | API-05 | API | FR-02; AC-01, AC-05 | Current User | Safe current User/role/CSRF only | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | API-06 | API/Security | FR-04; AC-03 | First-password gate | Exported production `GET /api/categories` returns `PASSWORD_CHANGE_REQUIRED` before the mandatory password change and succeeds after a valid change | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
-| API-07 | API/Security | BR-08, BR-13; AC-03 | Change password | Valid change clears flag, rotates current session, revokes others | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-07 | API/Security | BR-08, BR-13; AC-03 | Change password | Valid change clears flag, rotates current session, revokes others; concurrent changes produce one logical winner whose credential/session remains valid while the loser cannot overwrite it | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | API-08 | API/Security | FR-03, BR-12, BR-13; AC-04 | Logout/expired session | Protected request rejected after logout/expiry | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | SEC-03 | API/Security | BR-13, AD-13; AC-01, AC-04 | Credentialed CORS / CSRF origin behavior | Approved frontend origin works with credentials; unapproved origin/state-changing CSRF request is rejected | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | API-09 | API/Security | FR-06, FR-07; AC-06 | Client-supplied requester identity attack | Authenticated Requester identity wins; no cross-user data | `server/tests/lab-03/authorization.api.test.ts` | Pending |
@@ -204,9 +204,9 @@ Issue #35 Authentication Foundation followed TDD: `auth.api.test.ts`, `Login.tes
 
 The reusable authenticated/normal-access middleware is implemented and, after PR #46 review feedback, it is wired to the exported production `GET /api/categories` normal application route. API-06 now logs in through the production app with `mustChangePassword=true`, verifies that this real route returns `403 PASSWORD_CHANGE_REQUIRED`, performs the production password-change flow, and verifies that the same route succeeds afterward. Issue #36 still owns Requester identity/role/ownership conversion for Ticket/Attachment domain APIs and is intentionally not pulled into this correction.
 
-- Auth-focused server tests: `auth.unit.test.ts` + `auth.api.test.ts` = 2 files / 23 tests passed.
+- Auth-focused server tests: `auth.unit.test.ts` + `auth.api.test.ts` = 2 files / 24 tests passed.
 - Auth-focused client tests: `Login.test.tsx` + `ChangePassword.test.tsx` + `AppShell.test.tsx` = 3 files / 21 tests passed.
-- Full server regression suite: 14 files / 73 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
+- Full server regression suite: 14 files / 74 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
 - Full client regression suite: 11 files / 66 tests passed. Existing Lab 1/Lab 2 component regression tests run through the non-default `LegacyRequesterApp` harness while the normal application entry uses the Lab 3 authenticated shell.
 - `npm run build --prefix server`: passed.
 - `npm run build --prefix client`: passed.
@@ -214,7 +214,7 @@ The reusable authenticated/normal-access middleware is implemented and, after PR
 - `git diff --check`: passed.
 - Production client build scan contains the Lab 3 Sign In UI and does not contain the Lab 2 `Select Development Requester` text or `toktickit.devRequesterId` key; the legacy selector remains test-harness-only until Issue #36 replaces those Requester flows.
 
-Issue #35 authentication verification covers safe active/invalid/inactive login, normalized-email login, five-failure throttle behavior, opaque `HttpOnly` session cookie handling, server-side SHA-256 session/CSRF hashes, eight-hour absolute expiry, current-role/activation re-check, CSRF/origin rejection, mandatory first-password gating, password change/session rotation, other-session revocation, logout invalidation, safe Login/Change Password UI states, and role-specific authenticated shell navigation.
+Issue #35 authentication verification covers safe active/invalid/inactive login, normalized-email login, five-failure throttle behavior, opaque `HttpOnly` session cookie handling, server-side SHA-256 session/CSRF hashes, eight-hour absolute expiry, current-role/activation re-check, CSRF/origin rejection, mandatory first-password gating, password change/session rotation, optimistic concurrency protection for simultaneous password changes, other-session revocation, logout invalidation, safe Login/Change Password UI states, and role-specific authenticated shell navigation.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
 

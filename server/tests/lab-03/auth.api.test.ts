@@ -286,6 +286,76 @@ describe("Lab 3 authentication API", () => {
     expect(relogin.body.user.mustChangePassword).toBe(false);
   });
 
+  it("API-07 serializes concurrent password changes so only one request wins and its fresh session remains valid", async () => {
+    await provisionAuthUser(users.change);
+    const firstAgent = request.agent(app);
+    const secondAgent = request.agent(app);
+    const firstLogin = await login(firstAgent, users.change.email);
+    const secondLogin = await login(secondAgent, users.change.email);
+    expect(firstLogin.status).toBe(200);
+    expect(secondLogin.status).toBe(200);
+
+    const firstOldCookie = cookieFrom(firstLogin)!.split(";")[0];
+    const secondOldCookie = cookieFrom(secondLogin)!.split(";")[0];
+    const firstNewPassword = "Concurrent-Winner-A-2026";
+    const secondNewPassword = "Concurrent-Winner-B-2026";
+
+    const attempts = [
+      {
+        agent: firstAgent,
+        login: firstLogin,
+        newPassword: firstNewPassword,
+      },
+      {
+        agent: secondAgent,
+        login: secondLogin,
+        newPassword: secondNewPassword,
+      },
+    ];
+
+    const responses = await Promise.all(
+      attempts.map(({ agent, login: signedIn, newPassword }) =>
+        agent
+          .post("/api/auth/change-password")
+          .set("Origin", FRONTEND_ORIGIN)
+          .set("X-CSRF-Token", signedIn.body.csrfToken)
+          .send({
+            currentPassword: INITIAL_PASSWORD,
+            newPassword,
+            confirmPassword: newPassword,
+          }),
+      ),
+    );
+
+    const winners = responses
+      .map((response, index) => ({ response, attempt: attempts[index] }))
+      .filter(({ response }) => response.status === 200);
+    const losers = responses
+      .map((response, index) => ({ response, attempt: attempts[index] }))
+      .filter(({ response }) => response.status !== 200);
+
+    expect(winners).toHaveLength(1);
+    expect(losers).toHaveLength(1);
+    expect(losers[0].response.status).toBe(401);
+    expect(losers[0].response.body.error?.code).toBe("INVALID_CURRENT_PASSWORD");
+
+    const winner = winners[0];
+    const loser = losers[0];
+    const storedUser = await getPrisma().user.findUniqueOrThrow({ where: { email: users.change.email } });
+    await expect(verifyPassword(winner.attempt.newPassword, storedUser.passwordHash)).resolves.toBe(true);
+    await expect(verifyPassword(loser.attempt.newPassword, storedUser.passwordHash)).resolves.toBe(false);
+
+    const winnerSession = await winner.attempt.agent.get("/api/auth/me").set("Origin", FRONTEND_ORIGIN);
+    expect(winnerSession.status).toBe(200);
+    expect(winnerSession.body.user.email).toBe(users.change.email);
+
+    const loserSession = await loser.attempt.agent.get("/api/auth/me").set("Origin", FRONTEND_ORIGIN);
+    expect(loserSession.status).toBe(401);
+
+    expect((await request(app).get("/api/auth/me").set("Cookie", firstOldCookie).set("Origin", FRONTEND_ORIGIN)).status).toBe(401);
+    expect((await request(app).get("/api/auth/me").set("Cookie", secondOldCookie).set("Origin", FRONTEND_ORIGIN)).status).toBe(401);
+  });
+
   it("API-07 rejects an incorrect exact current password without changing credentials or the first-login gate", async () => {
     await provisionAuthUser(users.change);
     const agent = request.agent(app);

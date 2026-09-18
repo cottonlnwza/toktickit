@@ -121,7 +121,7 @@ Request:
 }
 ```
 
-Success `200`: `mustChangePassword=false`, rotated session and CSRF token. Errors: `400` password rule/confirmation; `401` current password invalid; `500` safe failure.
+Success `200`: `mustChangePassword=false`, rotated session and CSRF token. Credential rotation is conditional on the password hash that was verified for the request, so concurrent password-change attempts cannot both overwrite the credential or invalidate a session returned by another successful change. If the verified credential changed before the atomic update wins, that request fails safely as `401 INVALID_CURRENT_PASSWORD` and does not rotate credentials/sessions. Other errors: `400` password rule/confirmation; `500` safe failure.
 
 ### POST `/api/auth/logout`
 

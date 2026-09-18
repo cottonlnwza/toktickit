@@ -371,17 +371,30 @@ app.post(
 
       const newHash = await hashPassword(newPassword);
       const rotated = await prisma.$transaction(async (tx) => {
-        const updatedUser = await tx.user.update({
-          where: { id: user.id },
+        const credentialUpdate = await tx.user.updateMany({
+          where: {
+            id: user.id,
+            isActive: true,
+            passwordHash: user.passwordHash,
+          },
           data: { passwordHash: newHash, mustChangePassword: false },
         });
+        if (credentialUpdate.count !== 1) return null;
+
         await tx.authSession.updateMany({
           where: { userId: user.id, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        const updatedUser = await tx.user.findUniqueOrThrow({ where: { id: user.id } });
         const session = await createSession(tx, user.id);
         return { updatedUser, ...session };
       });
+
+      if (!rotated) {
+        clearSessionCookie(res);
+        res.status(401).json(errorResponse("INVALID_CURRENT_PASSWORD", "Current password is incorrect."));
+        return;
+      }
 
       setSessionCookie(res, rotated.sessionToken, rotated.expiresAt);
       res.status(200).json({ user: safeUser(rotated.updatedUser), csrfToken: rotated.csrfToken });

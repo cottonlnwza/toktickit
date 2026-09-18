@@ -20,6 +20,7 @@ Record or select only prompts that were actually used. Early real Sprint 3 examp
 7. Apply the real PR #45 Issue 2 review blockers: reconcile the custom data-preserving Lab 3 migration with Prisma migration history and clean deployment, make malformed scrypt hashes fail closed with negative tests, and strengthen migration/seed invariants to match MIG-01/MIG-02 before requesting re-review.
 8. Implement Issue #35 Authentication Foundation only after re-reading the Lab 3 contract: write the planned authentication/UI tests first, confirm a legitimate red state, then implement only login/current-user/logout/change-password, session/CSRF/throttle behavior, and the authenticated shell without pulling Issue #36 Requester authorization/regression work forward.
 9. Apply PR #46 review feedback by enforcing the mandatory first-login password-change gate at a real exported production application route and replacing the isolated throwaway-route test with production-app integration evidence, without pulling Issue #36 Requester ownership/authorization into Issue #35.
+10. Apply the next PR #46 review blocker by removing the concurrent Change Password race: make credential rotation atomic/conditional so only one request can win, then add a two-session concurrent integration test proving the winner's password and fresh session remain valid while the loser cannot overwrite or revoke the winner.
 
 The final file should retain only 6-10 representative prompts that best demonstrate specification-agent and coding-agent use.
 
