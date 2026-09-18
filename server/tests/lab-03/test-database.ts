@@ -58,8 +58,12 @@ export function executeSqlFile(databaseUrl: string, file: string): void {
   });
 }
 
-export function resetTestDatabaseToLab2Baseline(databaseUrl: string): void {
+export function resetTestDatabaseEmpty(databaseUrl: string): void {
   executeSql(databaseUrl, 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
+}
+
+export function resetTestDatabaseToLab2Baseline(databaseUrl: string): void {
+  resetTestDatabaseEmpty(databaseUrl);
   executeSqlFile(databaseUrl, resolve(serverRoot, "prisma/migrations/20260809225834_init/migration.sql"));
   executeSqlFile(databaseUrl, resolve(serverRoot, "prisma/migrations/20260903144335_lab2_database_seed/migration.sql"));
 

@@ -26,24 +26,34 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  const [algorithm, version, nValue, rValue, pValue, saltHex, keyHex] = storedHash.split("$");
-  if (algorithm !== "scrypt" || version !== "v1" || !saltHex || !keyHex) return false;
+  if (!isVersionedScryptHash(storedHash)) return false;
 
-  const n = Number(nValue);
-  const r = Number(rValue);
-  const p = Number(pValue);
-  if (n !== SCRYPT_N || r !== SCRYPT_R || p !== SCRYPT_P) return false;
+  try {
+    const parts = storedHash.split("$");
+    if (parts.length !== 7) return false;
 
-  const expected = Buffer.from(keyHex, "hex");
-  const actual = scryptSync(password, Buffer.from(saltHex, "hex"), expected.length, {
-    N: n,
-    r,
-    p,
-  });
+    const [, , nValue, rValue, pValue, saltHex, keyHex] = parts;
+    const n = Number(nValue);
+    const r = Number(rValue);
+    const p = Number(pValue);
+    if (n !== SCRYPT_N || r !== SCRYPT_R || p !== SCRYPT_P) return false;
 
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
+    const salt = Buffer.from(saltHex, "hex");
+    const expected = Buffer.from(keyHex, "hex");
+    if (salt.length !== SCRYPT_SALT_LENGTH || expected.length !== SCRYPT_KEY_LENGTH) return false;
+
+    const actual = scryptSync(password, salt, SCRYPT_KEY_LENGTH, {
+      N: n,
+      r,
+      p,
+    });
+
+    return timingSafeEqual(expected, actual);
+  } catch {
+    return false;
+  }
 }
 
 export function isVersionedScryptHash(value: string): boolean {
-  return /^scrypt\$v1\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/i.test(value);
+  return /^scrypt\$v1\$16384\$8\$1\$[0-9a-f]{32}\$[0-9a-f]{128}$/.test(value);
 }

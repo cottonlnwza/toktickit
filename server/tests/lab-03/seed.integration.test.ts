@@ -30,6 +30,17 @@ describe("Lab 3 seed data", () => {
     const firstStaff = before.find((user) => user.email === "it.staff.one@example.test");
     expect(firstStaff).toBeDefined();
 
+    const fixtureCountsBefore = await prisma.$queryRawUnsafe<Array<{
+      tickets: bigint;
+      comments: bigint;
+      notes: bigint;
+    }>>(`
+      SELECT
+        (SELECT COUNT(*) FROM "Ticket" WHERE "ticketNumber" LIKE 'LAB3-%') AS tickets,
+        (SELECT COUNT(*) FROM "PublicComment") AS comments,
+        (SELECT COUNT(*) FROM "InternalNote") AS notes
+    `);
+
     await prisma.$executeRawUnsafe(
       `UPDATE "User" SET "mustChangePassword"=false WHERE "email"='it.staff.one@example.test'`,
     );
@@ -60,6 +71,19 @@ describe("Lab 3 seed data", () => {
       `SELECT "email", COUNT(*) AS count FROM "User" GROUP BY "email" HAVING COUNT(*) > 1`,
     );
     expect(duplicateEmails).toHaveLength(0);
+
+    const fixtureCountsAfter = await prisma.$queryRawUnsafe<Array<{
+      tickets: bigint;
+      comments: bigint;
+      notes: bigint;
+    }>>(`
+      SELECT
+        (SELECT COUNT(*) FROM "Ticket" WHERE "ticketNumber" LIKE 'LAB3-%') AS tickets,
+        (SELECT COUNT(*) FROM "PublicComment") AS comments,
+        (SELECT COUNT(*) FROM "InternalNote") AS notes
+    `);
+    expect(fixtureCountsAfter[0]).toEqual(fixtureCountsBefore[0]);
+    expect(fixtureCountsAfter[0]).toEqual({ tickets: 8n, comments: 1n, notes: 1n });
   }, 30_000);
 
   it("seeds realistic assigned/unassigned Tickets plus Public Comments and Internal Notes", async () => {
