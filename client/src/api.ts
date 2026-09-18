@@ -1,5 +1,87 @@
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
+export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
+
+export interface AuthUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  mustChangePassword: boolean;
+}
+
+export interface AuthResponse {
+  user: AuthUser;
+  csrfToken: string;
+}
+
+export class AuthApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly fields: Record<string, string> = {},
+  ) {
+    super(message);
+  }
+}
+
+async function parseAuthError(response: Response, fallback: string): Promise<AuthApiError> {
+  try {
+    const body = (await response.json()) as {
+      error?: { code?: string; message?: string; fields?: Record<string, string> };
+    };
+    return new AuthApiError(
+      response.status,
+      body.error?.code ?? "AUTH_ERROR",
+      body.error?.message ?? fallback,
+      body.error?.fields ?? {},
+    );
+  } catch {
+    return new AuthApiError(response.status, "AUTH_ERROR", fallback);
+  }
+}
+
+export async function login(email: string, password: string): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to sign in. Please try again.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function getCurrentUser(): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
+  if (!response.ok) throw await parseAuthError(response, "Authentication required.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function changePassword(
+  csrfToken: string,
+  input: { currentPassword: string; newPassword: string; confirmPassword: string },
+): Promise<AuthResponse> {
+  const response = await fetch(`${API_URL}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to change password. Please try again.");
+  return (await response.json()) as AuthResponse;
+}
+
+export async function logout(csrfToken: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "X-CSRF-Token": csrfToken },
+  });
+  if (!response.ok) throw await parseAuthError(response, "Unable to sign out. Please try again.");
+}
+
 export interface Category {
   id: number;
   name: string;

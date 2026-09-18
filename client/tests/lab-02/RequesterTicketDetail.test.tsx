@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App from "../../src/App.js";
+import { LegacyRequesterApp as App } from "../../src/App.js";
 
 const ticket = {
   id: 42,

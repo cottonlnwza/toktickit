@@ -6,6 +6,8 @@ Status: Planned before implementation for Issue #33. Final paths/results must be
 
 Lab 3 uses Test DD and TDD across unit, API/integration, UI component, UI style, responsive/accessibility, security/authorization, migration/regression, and E2E levels. Main feature Issues should introduce or update the planned failing tests before/alongside implementation. Existing Lab 1/Lab 2 tests remain regression coverage unless an approved Lab 3 migration intentionally replaces a temporary Lab 2 behavior.
 
+During Issue #35, the normal/default client entry switches to the authenticated Lab 3 shell. The previous Development Requester UI remains exported only as `LegacyRequesterApp` so the existing Lab 1/Lab 2 component tests can continue to prove their historical regression behavior without exposing the selector in the normal Lab 3 application. Issue #36 is responsible for migrating those Requester workflows to authenticated identity and replacing that temporary regression harness.
+
 ### 1.1 Migration/seed database isolation
 
 `migration.integration.test.ts` and `seed.integration.test.ts` must never reset, migrate, truncate, or seed the normal development `DATABASE_URL`. They run only against a dedicated PostgreSQL test database supplied through `TEST_DATABASE_URL` (planned local name: `toktickit_lab3_test`). The test harness must fail before any destructive setup if `TEST_DATABASE_URL` is missing, if it resolves to the same database as `DATABASE_URL`, or if the target database name does not end in `_test`.
@@ -19,20 +21,20 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
 | UNIT-01 | Unit | BR-06, BR-31; AC-21, AC-22 | Email normalization/duplicate comparison | Trimmed lowercase uniqueness behavior | `server/tests/lab-03/auth.unit.test.ts` | Pending |
-| UNIT-02 | Unit | BR-08, BR-09; AC-03, AC-21, AC-23 | Password validation + scrypt hash/verify | Boundaries enforced; plaintext never stored; valid verify succeeds | `server/tests/lab-03/auth.unit.test.ts` | Pending |
+| UNIT-02 | Unit | BR-08, BR-09; AC-03, AC-21, AC-23 | Password validation + scrypt hash/verify | Boundaries enforced; plaintext never stored; valid verify succeeds | `server/tests/lab-03/auth.unit.test.ts` | Pass — Issue #35 local / Node 22 |
 | UNIT-03 | Unit | BR-24, BR-25; AC-15 | Ticket status transition helper | Only matrix transitions accepted | `server/tests/lab-03/ticket-status.unit.test.ts` | Pending |
 | UNIT-04 | Unit | BR-29; AC-16 | Comment/note validation | Blank/over-limit rejected; valid plain text accepted | `server/tests/lab-03/comments-notes.unit.test.ts` | Pending |
 | MIG-01 | Migration/Regression | FR-24, BR-36, BR-37, BR-38, BR-39; AC-07 | Lab 2 Requester -> User migration/provisioning | Exact legacy ids/FKs/data/counts/timestamps/Attachment metadata remain valid; normalized-email collision aborts before mutation; the absent Lab 2 `clientRequestId` column receives the deterministic UUID backfill before required/global-unique enforcement; FK/onDelete/index invariants match Section 7.1/7.2; first credential provisioning is hashed; rerun does not reset changed credentials; documented clean-database deployment reconciles Prisma migration history | `server/tests/lab-03/migration.integration.test.ts` | Pass — Issue #34 local isolated PostgreSQL / Node 22 |
 | MIG-02 | Migration/Regression | FR-25, BR-37; AC-25 | Idempotent Lab 3 seed | Required active/inactive roles/data exist without duplicate Users, seeded Tickets, Public Comments, or Internal Notes; credential changes survive rerun | `server/tests/lab-03/seed.integration.test.ts` | Pass — Issue #34 local isolated PostgreSQL / Node 22 |
-| API-01 | API | FR-01; AC-01 | Valid active login | 200; session established; safe User + CSRF returned | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-02 | API/Security | FR-01; AC-02 | Invalid credentials | 401 generic error; no secrets/profile leak | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-03 | API/Security | BR-01, BR-11; AC-02 | Inactive account login | 403 inactive safe error; no profile/secret data | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-04 | API/Security | BR-10; AC-02 | Login attempt throttle | 429 after approved threshold/window | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-05 | API | FR-02; AC-01, AC-05 | Current User | Safe current User/role/CSRF only | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-06 | API/Security | FR-04; AC-03 | First-password gate | Normal protected endpoint returns `PASSWORD_CHANGE_REQUIRED` | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-07 | API/Security | BR-08, BR-13; AC-03 | Change password | Valid change clears flag, rotates current session, revokes others | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| API-08 | API/Security | FR-03, BR-12, BR-13; AC-04 | Logout/expired session | Protected request rejected after logout/expiry | `server/tests/lab-03/auth.api.test.ts` | Pending |
-| SEC-03 | API/Security | BR-13, AD-13; AC-01, AC-04 | Credentialed CORS / CSRF origin behavior | Approved frontend origin works with credentials; unapproved origin/state-changing CSRF request is rejected | `server/tests/lab-03/auth.api.test.ts` | Pending |
+| API-01 | API | FR-01; AC-01 | Valid active login | 200; session established; safe User + CSRF returned | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-02 | API/Security | FR-01; AC-02 | Invalid credentials | 401 generic error; no secrets/profile leak | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-03 | API/Security | BR-01, BR-11; AC-02 | Inactive account login | 403 inactive safe error; no profile/secret data | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-04 | API/Security | BR-10; AC-02 | Login attempt throttle | 429 after approved threshold/window | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-05 | API | FR-02; AC-01, AC-05 | Current User | Safe current User/role/CSRF only | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-06 | API/Security | FR-04; AC-03 | First-password gate | Normal protected endpoint returns `PASSWORD_CHANGE_REQUIRED` | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-07 | API/Security | BR-08, BR-13; AC-03 | Change password | Valid change clears flag, rotates current session, revokes others | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| API-08 | API/Security | FR-03, BR-12, BR-13; AC-04 | Logout/expired session | Protected request rejected after logout/expiry | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
+| SEC-03 | API/Security | BR-13, AD-13; AC-01, AC-04 | Credentialed CORS / CSRF origin behavior | Approved frontend origin works with credentials; unapproved origin/state-changing CSRF request is rejected | `server/tests/lab-03/auth.api.test.ts` | Pass — Issue #35 isolated PostgreSQL / Node 22 |
 | API-09 | API/Security | FR-06, FR-07; AC-06 | Client-supplied requester identity attack | Authenticated Requester identity wins; no cross-user data | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | API-10 | API/Security | BR-16; AC-06 | Cross-requester Ticket/Attachment access | Safe 404-equivalent; existence not leaked | `server/tests/lab-03/authorization.api.test.ts` | Pending |
 | API-11 | API/Regression | FR-08; AC-08 | Authenticated Requester create/list/detail | Lab 2 core flows work without selector | `server/tests/lab-03/requester-regression.api.test.ts` | Pending |
@@ -57,9 +59,9 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | API-30 | API/Security | FR-21, FR-22; AC-23 | Edit User/new initial password | Only allowed fields change; deactivation/role/password reset revokes target sessions; change flag true | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-31 | API/Security | FR-23; AC-24 | Non-Admin User Management | 403; no user list/account data | `server/tests/lab-03/users-admin.api.test.ts` | Pending |
 | API-32 | API/Regression | FR-08, BR-38; AC-08 | Ticket create idempotency / Lab 3 replay key | `clientRequestId` is required and globally unique for new Lab 3 creates; first UUID create is 201; identical same-owner replay returns original Ticket with 200; conflicting or cross-Requester reuse returns 409 without disclosure; only one Ticket row exists | `server/tests/lab-03/requester-regression.api.test.ts` | Pending |
-| UI-01 | UI Component | FR-01; AC-01, AC-02, AC-26 | Login component | Validation, busy, valid/invalid/inactive/throttled/failure states | `client/tests/lab-03/Login.test.tsx` | Pending |
-| UI-02 | UI Component | FR-04; AC-03, AC-26 | Change Password | Rules, confirmation, saving, failure, success continuation | `client/tests/lab-03/ChangePassword.test.tsx` | Pending |
-| UI-03 | UI Component | FR-05; AC-05, AC-24 | Role navigation | Correct identity/role/nav; unauthorized nav absent | `client/tests/lab-03/AppShell.test.tsx` | Pending |
+| UI-01 | UI Component | FR-01; AC-01, AC-02, AC-26 | Login component | Validation, busy, valid/invalid/inactive/throttled/failure states | `client/tests/lab-03/Login.test.tsx` | Pass — Issue #35 Vitest/jsdom / Node 22 |
+| UI-02 | UI Component | FR-04; AC-03, AC-26 | Change Password | Rules, confirmation, saving, failure, success continuation | `client/tests/lab-03/ChangePassword.test.tsx` | Pass — Issue #35 Vitest/jsdom / Node 22 |
+| UI-03 | UI Component | FR-05; AC-05, AC-24 | Role navigation | Correct identity/role/nav; unauthorized nav absent | `client/tests/lab-03/AppShell.test.tsx` | Pass — Issue #35 Vitest/jsdom / Node 22 |
 | UI-04 | UI Component/Regression | FR-08, FR-09; AC-08 | Requester regression shell/create/list | No selector/Change Requester; authenticated identity shown; retry reuses one `clientRequestId` | `client/tests/lab-03/RequesterRegression.test.tsx` | Pending |
 | UI-05 | UI Component | FR-10; AC-09, AC-10 | Requester comments/resolution indication | Public composer/results + indication without status change UI | `client/tests/lab-03/RequesterTicketDetail.test.tsx` | Pending |
 | UI-06 | UI Component | FR-11; AC-12, AC-26 | Staff Queue | Query controls, results, empty/no-results/forbidden/failure | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pending |
@@ -188,13 +190,31 @@ npx playwright test e2e/lab-03/user-administration.spec.ts
 
 The Issue #34 migration/seed implementation was verified locally with Node `22.22.2` using isolated PostgreSQL databases only. `TEST_DATABASE_URL` targeted `toktickit_lab3_test`; the broader regression run used a separate `toktickit_lab3_suite_test`, so neither destructive migration setup nor seed tests targeted the normal development database.
 
-- `npm run test:lab3:migration --prefix server`: 2 files / 6 tests passed.
-- `npm test --prefix server`: 12 files / 48 tests passed with the isolated suite/test databases.
+- `npm run test:lab3:migration --prefix server`: 2 files / 8 tests passed after the PR #45 review corrections.
+- `npm test --prefix server`: 13 files / 57 tests passed with the isolated suite/test databases on the final Issue #34 implementation.
 - `npm test --prefix client`: 8 files / 45 tests passed.
 - `npm run build --prefix server`: passed.
 - `npm run build --prefix client`: passed.
 - `prisma validate`: passed for the Lab 3 schema.
 - Read-only check after testing confirmed the normal development database was still on the untouched Lab 2 schema with 5 Requesters, 99 Tickets, and 91 Attachments.
+
+### Issue #35 execution evidence
+
+Issue #35 Authentication Foundation followed TDD: `auth.api.test.ts`, `Login.test.tsx`, `ChangePassword.test.tsx`, and `AppShell.test.tsx` were added first and failed because the authentication routes/session middleware/UI did not yet exist. The implementation was then added without moving Requester ownership/domain authorization from Issue #36 into this Issue.
+
+The reusable authenticated/normal-access middleware is implemented and API-06 verifies the `PASSWORD_CHANGE_REQUIRED` gate. Existing Lab 2 domain routes are not partially wrapped here: Issue #36 applies that middleware together with the approved role/ownership rules so there is no intermediate state that appears authorized while still trusting the Lab 2 client-supplied Requester identity.
+
+- Auth-focused server tests: `auth.unit.test.ts` + `auth.api.test.ts` = 2 files / 23 tests passed.
+- Auth-focused client tests: `Login.test.tsx` + `ChangePassword.test.tsx` + `AppShell.test.tsx` = 3 files / 21 tests passed.
+- Full server regression suite: 14 files / 73 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
+- Full client regression suite: 11 files / 66 tests passed. Existing Lab 1/Lab 2 component regression tests run through the non-default `LegacyRequesterApp` harness while the normal application entry uses the Lab 3 authenticated shell.
+- `npm run build --prefix server`: passed.
+- `npm run build --prefix client`: passed.
+- `prisma validate`: passed.
+- `git diff --check`: passed.
+- Production client build scan contains the Lab 3 Sign In UI and does not contain the Lab 2 `Select Development Requester` text or `toktickit.devRequesterId` key; the legacy selector remains test-harness-only until Issue #36 replaces those Requester flows.
+
+Issue #35 authentication verification covers safe active/invalid/inactive login, normalized-email login, five-failure throttle behavior, opaque `HttpOnly` session cookie handling, server-side SHA-256 session/CSRF hashes, eight-hour absolute expiry, current-role/activation re-check, CSRF/origin rejection, mandatory first-password gating, password change/session rotation, other-session revocation, logout invalidation, safe Login/Change Password UI states, and role-specific authenticated shell navigation.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
 

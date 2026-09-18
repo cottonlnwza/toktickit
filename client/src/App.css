@@ -4,6 +4,99 @@
   color: #143326;
 }
 
+.auth-page {
+  align-items: center;
+  background: #f5f7f6;
+  color: #143326;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+}
+
+.auth-card,
+.auth-ready-panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  box-shadow: 0 0.4rem 1.5rem rgba(20, 51, 38, 0.1);
+  max-width: 520px;
+  padding: 2rem;
+  width: 100%;
+}
+
+.auth-brand h1,
+.auth-ready-panel h2 {
+  color: #143326;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.auth-brand p,
+.auth-rule,
+.auth-ready-panel p {
+  color: #52665d;
+}
+
+.auth-rule {
+  background: #eaf6ef;
+  border: 1px solid #c6dbcf;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.auth-actions,
+.auth-shell-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.auth-actions {
+  justify-content: flex-end;
+}
+
+.auth-loading {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+}
+
+.auth-shell .auth-nav-item {
+  color: #eaf6ef;
+  font-weight: 600;
+}
+
+.auth-identity {
+  align-items: flex-end;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  text-align: right;
+}
+
+.auth-identity > div:first-child {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.role-badge {
+  background: #eaf6ef;
+  border-radius: 999px;
+  color: #143326;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+}
+
+.auth-ready-panel {
+  margin: 0 auto;
+}
+
 .toktickit-app .btn-success {
   background-color: #006b3c;
   border-color: #006b3c;
@@ -366,6 +459,20 @@
   .app-shell {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .auth-identity {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .auth-identity > div:first-child {
+    justify-content: flex-start;
+  }
+
+  .auth-actions,
+  .auth-shell-actions {
+    justify-content: flex-start;
   }
 
   .app-shell nav {

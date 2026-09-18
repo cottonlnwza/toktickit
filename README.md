@@ -57,7 +57,12 @@ export the same value before running Prisma commands or starting the API:
 
 ```bash
 export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit_lab2"
+export FRONTEND_ORIGIN="http://localhost:5173"
 ```
+
+Lab 3 browser authentication uses credentialed requests and accepts the
+configured `FRONTEND_ORIGIN` rather than wildcard credentialed CORS. The local
+default remains `http://localhost:5173`.
 
 ## Running The App
 

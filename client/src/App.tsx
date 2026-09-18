@@ -1,13 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
+  AuthApiError,
+  AuthUser,
+  changePassword as changeOwnPassword,
   checkSystem,
   Category,
   createTicket,
   CreatedTicket,
+  getCurrentUser,
   getCategories,
   getMyTickets,
   getRelatedSystems,
   getTicketDetail,
+  login as loginUser,
+  logout as logoutUser,
   MyTicketsQuery,
   MyTicketsResponse,
   removeTicketAttachment,
@@ -29,7 +35,286 @@ type AppView = "createTicket" | "myTickets" | "ticketDetail";
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 
+type AuthState = "loading" | "unauthenticated" | "authenticated";
+
+function roleLabel(role: AuthUser["role"]) {
+  if (role === "IT_STAFF") return "IT Staff";
+  if (role === "ADMINISTRATOR") return "Administrator";
+  return "Requester";
+}
+
+function safeLoginMessage(error: unknown) {
+  if (error instanceof AuthApiError) {
+    if (error.code === "INVALID_CREDENTIALS") return "Invalid email or password.";
+    if (error.code === "ACCOUNT_INACTIVE") return "This account is inactive. Contact an Administrator for access.";
+    if (error.code === "LOGIN_THROTTLED") return "Too many login attempts. Please try again later.";
+    if (error.status === 400) return "Enter a valid email and password.";
+  }
+  return "Unable to sign in. Please try again.";
+}
+
+function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthUser, csrfToken: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!email.trim()) nextErrors.email = "Email is required.";
+    else if (!email.trim().includes("@")) nextErrors.email = "Enter a valid email address.";
+    if (!password) nextErrors.password = "Password is required.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const response = await loginUser(email, password);
+      onAuthenticated(response.user, response.csrfToken);
+    } catch (error) {
+      setMessage(safeLoginMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="login-heading">
+        <div className="auth-brand">
+          <h1 id="login-heading">TokTickIT</h1>
+          <p>IT Service Desk</p>
+        </div>
+        <form onSubmit={(event) => void submit(event)} noValidate>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="login-email">Email</label>
+            <input id="login-email" className={"form-control " + (errors.email ? "is-invalid" : "")} type="email" autoComplete="username" disabled={submitting} value={email} onChange={(event) => setEmail(event.target.value)} />
+            {errors.email && <div className="invalid-feedback">{errors.email}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="login-password">Password</label>
+            <input id="login-password" className={"form-control " + (errors.password ? "is-invalid" : "")} type="password" autoComplete="current-password" disabled={submitting} value={password} onChange={(event) => setPassword(event.target.value)} />
+            {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+          </div>
+          {message && <div className="alert alert-danger" role="alert">{message}</div>}
+          <button className="btn btn-success w-100" type="submit" disabled={submitting}>
+            {submitting ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function ChangePasswordScreen({
+  csrfToken,
+  forced,
+  onChanged,
+  onLogout,
+  onCancel,
+  logoutError,
+}: {
+  csrfToken: string;
+  forced: boolean;
+  onChanged: (user: AuthUser, csrfToken: string) => void;
+  onLogout: () => Promise<void>;
+  onCancel?: () => void;
+  logoutError?: string;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!currentPassword) nextErrors.currentPassword = "Current password is required.";
+    if (newPassword.length < 12 || newPassword.length > 128) nextErrors.newPassword = "New password must be 12-128 characters.";
+    else if (newPassword.trim().length === 0) nextErrors.newPassword = "New password cannot be all whitespace.";
+    else if (newPassword === currentPassword) nextErrors.newPassword = "New password must differ from the current password.";
+    if (confirmPassword !== newPassword) nextErrors.confirmPassword = "Password confirmation must match the new password.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await changeOwnPassword(csrfToken, { currentPassword, newPassword, confirmPassword });
+      onChanged(response.user, response.csrfToken);
+    } catch (error) {
+      if (error instanceof AuthApiError && Object.keys(error.fields).length > 0) setErrors(error.fields);
+      setMessage(error instanceof AuthApiError ? error.message : "Unable to change password. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="change-password-heading">
+        <div className="auth-brand">
+          <h1 id="change-password-heading">Change Password</h1>
+          <p>{forced ? "You must change your initial password before continuing." : "Update your TokTickIT password."}</p>
+        </div>
+        <p className="auth-rule">Use 12-128 characters. The new password must differ from the current password and confirmation must match.</p>
+        <form onSubmit={(event) => void submit(event)} noValidate>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="current-password">Current / Initial Password</label>
+            <input id="current-password" className={"form-control " + (errors.currentPassword ? "is-invalid" : "")} type="password" autoComplete="current-password" disabled={saving} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            {errors.currentPassword && <div className="invalid-feedback">{errors.currentPassword}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="new-password">New Password</label>
+            <input id="new-password" className={"form-control " + (errors.newPassword ? "is-invalid" : "")} type="password" autoComplete="new-password" disabled={saving} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            {errors.newPassword && <div className="invalid-feedback">{errors.newPassword}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="confirm-password">Confirm New Password</label>
+            <input id="confirm-password" className={"form-control " + (errors.confirmPassword ? "is-invalid" : "")} type="password" autoComplete="new-password" disabled={saving} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+            {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
+          </div>
+          {message && <div className="alert alert-danger" role="alert">{message}</div>}
+          {logoutError && <div className="alert alert-danger" role="alert">{logoutError}</div>}
+          <div className="auth-actions">
+            {!forced && onCancel && <button className="btn btn-outline-secondary" type="button" disabled={saving} onClick={onCancel}>Cancel</button>}
+            <button className="btn btn-success" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Password"}</button>
+            <button className="btn btn-outline-danger" type="button" disabled={saving} onClick={() => void onLogout()}>Logout</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function AuthenticatedShell({ user, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
+  const navigation = user.role === "REQUESTER"
+    ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
+    : user.role === "IT_STAFF"
+      ? [{ label: "Ticket Queue", href: "#ticket-queue" }]
+      : [{ label: "User Management", href: "#user-management" }];
+
+  return (
+    <div className="toktickit-app">
+      <header className="app-shell auth-shell">
+        <div>
+          <h1>TokTickIT IT Service Desk</h1>
+          <nav aria-label="Primary navigation">
+            {navigation.map((item) => <a className="auth-nav-item" href={item.href} key={item.href}>{item.label}</a>)}
+          </nav>
+        </div>
+        <div className="auth-identity">
+          <div><strong>{user.name}</strong><span className="role-badge">{roleLabel(user.role)}</span></div>
+          <div className="auth-shell-actions">
+            <button className="btn btn-sm btn-outline-light" type="button" onClick={onChangePassword}>Change Password</button>
+            <button className="btn btn-sm btn-light" type="button" onClick={() => void onLogout()}>Logout</button>
+          </div>
+        </div>
+      </header>
+      <main className="container py-5">
+        {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+        {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+        <section className="auth-ready-panel">
+          <h2>Authenticated session ready</h2>
+          <p>Signed in successfully. Use the available navigation for your role.</p>
+        </section>
+      </main>
+    </div>
+  );
+}
+
 export default function App() {
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [csrfToken, setCsrfToken] = useState("");
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [authActionError, setAuthActionError] = useState("");
+  const [authSuccessMessage, setAuthSuccessMessage] = useState("");
+
+  useEffect(() => {
+    if (!authSuccessMessage) return;
+    const timer = window.setTimeout(() => setAuthSuccessMessage(""), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [authSuccessMessage]);
+
+  useEffect(() => {
+    let current = true;
+    void getCurrentUser()
+      .then((response) => {
+        if (!current) return;
+        setUser(response.user);
+        setCsrfToken(response.csrfToken);
+        setAuthState("authenticated");
+      })
+      .catch(() => {
+        if (!current) return;
+        setUser(null);
+        setCsrfToken("");
+        setAuthState("unauthenticated");
+      });
+    return () => { current = false; };
+  }, []);
+
+  function acceptAuthentication(nextUser: AuthUser, nextCsrfToken: string) {
+    setUser(nextUser);
+    setCsrfToken(nextCsrfToken);
+    setShowChangePassword(false);
+    setAuthActionError("");
+    setAuthSuccessMessage("");
+    setAuthState("authenticated");
+  }
+
+  function acceptPasswordChange(nextUser: AuthUser, nextCsrfToken: string) {
+    setUser(nextUser);
+    setCsrfToken(nextCsrfToken);
+    setShowChangePassword(false);
+    setAuthActionError("");
+    setAuthSuccessMessage("Password changed successfully.");
+    setAuthState("authenticated");
+  }
+
+  async function handleLogout() {
+    setAuthActionError("");
+    try {
+      if (!csrfToken) throw new Error("Missing CSRF token");
+      await logoutUser(csrfToken);
+      setUser(null);
+      setCsrfToken("");
+      setShowChangePassword(false);
+      setAuthSuccessMessage("");
+      setAuthState("unauthenticated");
+    } catch {
+      setAuthActionError("Unable to sign out. Please try again.");
+    }
+  }
+
+  if (authState === "loading") {
+    return <main className="auth-page"><div className="auth-loading" role="status">Loading TokTickIT...</div></main>;
+  }
+  if (authState === "unauthenticated" || !user) {
+    return <LoginScreen onAuthenticated={acceptAuthentication} />;
+  }
+  if (user.mustChangePassword || showChangePassword) {
+    return (
+      <ChangePasswordScreen
+        csrfToken={csrfToken}
+        forced={user.mustChangePassword}
+        onChanged={acceptPasswordChange}
+        onLogout={handleLogout}
+        onCancel={user.mustChangePassword ? undefined : () => setShowChangePassword(false)}
+        logoutError={authActionError}
+      />
+    );
+  }
+  return <AuthenticatedShell user={user} onLogout={handleLogout} onChangePassword={() => { setAuthActionError(""); setAuthSuccessMessage(""); setShowChangePassword(true); }} errorMessage={authActionError} successMessage={authSuccessMessage} />;
+}
+
+export function LegacyRequesterApp() {
   const requesterContext = useRequesterContext();
   const [pendingRequesterId, setPendingRequesterId] = useState("");
   const [selectionError, setSelectionError] = useState("");

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App from "../../src/App.js";
+import { LegacyRequesterApp as App } from "../../src/App.js";
 
 function json(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), {
