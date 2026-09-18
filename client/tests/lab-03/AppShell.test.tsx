@@ -42,7 +42,7 @@ describe("Lab 3 authenticated application shell", () => {
     render(<App />);
 
     expect(await screen.findByText(currentUser.name)).toBeInTheDocument();
-    expect(screen.getByText(/Requester/i)).toBeInTheDocument();
+    expect(screen.getByText("Requester", { selector: ".role-badge" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Logout/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Change Password/i })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "My Tickets" })).toHaveAttribute("href", "#my-tickets");

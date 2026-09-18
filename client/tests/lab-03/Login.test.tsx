@@ -70,10 +70,7 @@ describe("Lab 3 Login", () => {
     expect(fetchSpy.mock.calls.some(([input]) => String(input).includes("/api/auth/login"))).toBe(false);
   });
 
-  it.each([
-    [true, /Change Password/i],
-    [false, /Authenticated User/i],
-  ])("UI-01 routes a valid login according to mustChangePassword=%s", async (mustChangePassword, expected) => {
+  it.each([true, false])("UI-01 routes a valid login according to mustChangePassword=%s", async (mustChangePassword) => {
     mockFetch((url) => {
       if (url.endsWith("/api/auth/me")) return jsonResponse(401, { error: { code: "AUTH_REQUIRED", message: "Authentication required." } });
       if (url.endsWith("/api/auth/login")) {
@@ -97,7 +94,11 @@ describe("Lab 3 Login", () => {
     await user.type(screen.getByLabelText(/Password/i), "Lab3-ChangeMe-2026");
     await user.click(screen.getByRole("button", { name: /Sign In/i }));
 
-    expect(await screen.findByText(expected)).toBeInTheDocument();
+    if (mustChangePassword) {
+      expect(await screen.findByRole("heading", { name: /Change Password/i })).toBeInTheDocument();
+    } else {
+      expect(await screen.findByText("Authenticated User", { selector: ".auth-identity strong" })).toBeInTheDocument();
+    }
   });
 
   it("UI-01 disables the form and shows signing-in feedback while login is pending", async () => {

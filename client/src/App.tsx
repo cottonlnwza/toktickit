@@ -16,6 +16,7 @@ import {
   logout as logoutUser,
   MyTicketsQuery,
   MyTicketsResponse,
+  Requester,
   removeTicketAttachment,
   RelatedSystem,
   TicketAttachment,
@@ -216,14 +217,27 @@ function AuthenticatedShell({ user, onLogout, onChangePassword, errorMessage, su
           </div>
         </div>
       </header>
-      <main className="container py-5">
-        {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
-        {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
-        <section className="auth-ready-panel">
-          <h2>Authenticated session ready</h2>
-          <p>Signed in successfully. Use the available navigation for your role.</p>
-        </section>
-      </main>
+      {user.role === "REQUESTER" ? (
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <RequesterWorkflow
+            authenticatedRequester={{ id: user.id, name: user.name, email: user.email }}
+            embedded
+          />
+        </>
+      ) : (
+        <main className="container py-5">
+          {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+          {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          <section className="auth-ready-panel">
+            <h2>Authenticated session ready</h2>
+            <p>Signed in successfully. Use the available navigation for your role.</p>
+          </section>
+        </main>
+      )}
     </div>
   );
 }
@@ -314,8 +328,8 @@ export default function App() {
   return <AuthenticatedShell user={user} onLogout={handleLogout} onChangePassword={() => { setAuthActionError(""); setAuthSuccessMessage(""); setShowChangePassword(true); }} errorMessage={authActionError} successMessage={authSuccessMessage} />;
 }
 
-export function LegacyRequesterApp() {
-  const requesterContext = useRequesterContext();
+function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authenticatedRequester?: Requester; embedded?: boolean } = {}) {
+  const requesterContext = useRequesterContext(authenticatedRequester);
   const [pendingRequesterId, setPendingRequesterId] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [state, setState] = useState<UiState>("idle");
@@ -366,6 +380,17 @@ export function LegacyRequesterApp() {
       void loadTicketReferences();
     }
   }, [requesterContext.selectedRequester, referenceState]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const syncViewFromHash = () => {
+      if (window.location.hash === "#my-tickets") setActiveView("myTickets");
+      if (window.location.hash === "#create-ticket") setActiveView("createTicket");
+    };
+    syncViewFromHash();
+    window.addEventListener("hashchange", syncViewFromHash);
+    return () => window.removeEventListener("hashchange", syncViewFromHash);
+  }, [embedded]);
 
   useEffect(() => {
     const requester = requesterContext.selectedRequester;
@@ -733,48 +758,50 @@ export function LegacyRequesterApp() {
   );
 
   return (
-    <div className="toktickit-app">
-      <header className="app-shell">
-        <div>
-          <h1>TokTickIT IT Service Desk</h1>
-          <nav aria-label="Primary navigation">
-            <a
-              href="#my-tickets"
-              aria-current={activeView === "myTickets" ? "page" : undefined}
-              onClick={(event) => {
-                event.preventDefault();
-                setActiveView("myTickets");
-              }}
-            >
-              My Tickets
-            </a>
-            <a
-              href="#create-ticket"
-              aria-current={activeView === "createTicket" ? "page" : undefined}
-              onClick={(event) => {
-                event.preventDefault();
-                setActiveView("createTicket");
-              }}
-            >
-              Create Ticket
-            </a>
-          </nav>
-        </div>
-        <div className="requester-display">
-          {selectedRequester ? (
-            <>
-              <span>Requester: {selectedRequester.name}</span>
-              <button className="btn btn-outline-light btn-sm" onClick={handleChangeRequester}>
-                Change Requester
-              </button>
-            </>
-          ) : (
-            <span>No requester set</span>
-          )}
-        </div>
-      </header>
+    <div className={embedded ? "requester-workflow-embedded" : "toktickit-app"}>
+      {!embedded && (
+        <header className="app-shell">
+          <div>
+            <h1>TokTickIT IT Service Desk</h1>
+            <nav aria-label="Primary navigation">
+              <a
+                href="#my-tickets"
+                aria-current={activeView === "myTickets" ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setActiveView("myTickets");
+                }}
+              >
+                My Tickets
+              </a>
+              <a
+                href="#create-ticket"
+                aria-current={activeView === "createTicket" ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setActiveView("createTicket");
+                }}
+              >
+                Create Ticket
+              </a>
+            </nav>
+          </div>
+          <div className="requester-display">
+            {selectedRequester ? (
+              <>
+                <span>Requester: {selectedRequester.name}</span>
+                <button className="btn btn-outline-light btn-sm" onClick={handleChangeRequester}>
+                  Change Requester
+                </button>
+              </>
+            ) : (
+              <span>No requester set</span>
+            )}
+          </div>
+        </header>
+      )}
 
-      <main className="container py-5">
+      <main className={embedded ? "container pb-5" : "container py-5"}>
         {showSelector ? (
           <section className="requester-panel" aria-labelledby="requester-heading">
             <h2 id="requester-heading">Select Development Requester</h2>
@@ -1275,4 +1302,8 @@ export function LegacyRequesterApp() {
       </main>
     </div>
   );
+}
+
+export function LegacyRequesterApp() {
+  return <RequesterWorkflow />;
 }

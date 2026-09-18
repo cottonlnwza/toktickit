@@ -6,7 +6,7 @@ Status: Planned before implementation for Issue #33. Final paths/results must be
 
 Lab 3 uses Test DD and TDD across unit, API/integration, UI component, UI style, responsive/accessibility, security/authorization, migration/regression, and E2E levels. Main feature Issues should introduce or update the planned failing tests before/alongside implementation. Existing Lab 1/Lab 2 tests remain regression coverage unless an approved Lab 3 migration intentionally replaces a temporary Lab 2 behavior.
 
-During Issue #35, the normal/default client entry switches to the authenticated Lab 3 shell. The previous Development Requester UI remains exported only as `LegacyRequesterApp` so the existing Lab 1/Lab 2 component tests can continue to prove their historical regression behavior without exposing the selector in the normal Lab 3 application. Issue #36 is responsible for migrating those Requester workflows to authenticated identity and replacing that temporary regression harness.
+During Issue #35, the normal/default client entry switches to the authenticated Lab 3 shell while preserving the Lab 2 Requester workflows on the production Requester path. The shared Requester workflow accepts the authenticated User as a fixed Requester identity in production, so Create Ticket, My Tickets, Ticket Detail, and Attachment UI remain reachable without rendering/calling the Development Requester selector. `LegacyRequesterApp` remains only as a wrapper for the historical Lab 1/Lab 2 component tests. Issue #36 still owns the backend Requester ownership/authorization rewrite and final removal of client-supplied Requester identity from domain APIs.
 
 ### 1.1 Migration/seed database isolation
 
@@ -205,14 +205,14 @@ Issue #35 Authentication Foundation followed TDD: `auth.api.test.ts`, `Login.tes
 The reusable authenticated/normal-access middleware is implemented and, after PR #46 review feedback, it is wired to the exported production `GET /api/categories` normal application route. API-06 now logs in through the production app with `mustChangePassword=true`, verifies that this real route returns `403 PASSWORD_CHANGE_REQUIRED`, performs the production password-change flow, and verifies that the same route succeeds afterward. Issue #36 still owns Requester identity/role/ownership conversion for Ticket/Attachment domain APIs and is intentionally not pulled into this correction.
 
 - Auth-focused server tests: `auth.unit.test.ts` + `auth.api.test.ts` = 2 files / 25 tests passed.
-- Auth-focused client tests: `Login.test.tsx` + `ChangePassword.test.tsx` + `AppShell.test.tsx` = 3 files / 21 tests passed.
+- Auth/production-continuity client tests: `Login.test.tsx` + `ChangePassword.test.tsx` + `AppShell.test.tsx` + `RequesterProductionContinuity.test.tsx` = 4 files / 22 tests passed.
 - Full server regression suite: 14 files / 75 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
-- Full client regression suite: 11 files / 66 tests passed. Existing Lab 1/Lab 2 component regression tests run through the non-default `LegacyRequesterApp` harness while the normal application entry uses the Lab 3 authenticated shell.
+- Full client regression suite: 12 files / 67 tests passed. Existing Lab 1/Lab 2 component regression tests still run through the `LegacyRequesterApp` wrapper while the normal production Requester path uses the same underlying workflow with the authenticated User fixed as the Requester.
 - `npm run build --prefix server`: passed.
 - `npm run build --prefix client`: passed.
 - `prisma validate`: passed.
 - `git diff --check`: passed.
-- Production client build scan contains the Lab 3 Sign In UI and does not contain the Lab 2 `Select Development Requester` text or `toktickit.devRequesterId` key; the legacy selector remains test-harness-only until Issue #36 replaces those Requester flows.
+- Production-path component coverage verifies that an authenticated Requester renders Create Ticket immediately, can navigate to My Tickets and Ticket Detail, can see/use Attachment controls, never calls `GET /api/requesters`, never renders `Select Development Requester`/`Change Requester`, and does not use the Lab 2 `toktickit.devRequesterId` localStorage key. `GET /api/categories` is called credentialed because it is already a production protected route in Issue #35.
 
 Issue #35 authentication verification covers safe active/invalid/inactive login, normalized-email login, five-failure window-based throttle behavior that is not reset by a successful login, opaque `HttpOnly` session cookie handling, server-side SHA-256 session/CSRF hashes, eight-hour absolute expiry, current-role/activation re-check, CSRF/origin rejection, mandatory first-password gating, password change/session rotation, optimistic concurrency protection for simultaneous password changes, other-session revocation, logout invalidation, safe Login/Change Password UI states, and role-specific authenticated shell navigation.
 

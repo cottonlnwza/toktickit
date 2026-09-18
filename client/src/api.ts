@@ -196,7 +196,7 @@ function toApiUrl(value: string | undefined) {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const response = await fetch(`${API_URL}/api/categories`);
+  const response = await fetch(`${API_URL}/api/categories`, { credentials: "include" });
   if (!response.ok) {
     throw new Error(await parseError(response, `Unable to load Categories. HTTP ${response.status}.`));
   }
