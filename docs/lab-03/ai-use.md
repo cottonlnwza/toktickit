@@ -21,6 +21,7 @@ Record or select only prompts that were actually used. Early real Sprint 3 examp
 8. Implement Issue #35 Authentication Foundation only after re-reading the Lab 3 contract: write the planned authentication/UI tests first, confirm a legitimate red state, then implement only login/current-user/logout/change-password, session/CSRF/throttle behavior, and the authenticated shell without pulling Issue #36 Requester authorization/regression work forward.
 9. Apply PR #46 review feedback by enforcing the mandatory first-login password-change gate at a real exported production application route and replacing the isolated throwaway-route test with production-app integration evidence, without pulling Issue #36 Requester ownership/authorization into Issue #35.
 10. Apply the next PR #46 review blocker by removing the concurrent Change Password race: make credential rotation atomic/conditional so only one request can win, then add a two-session concurrent integration test proving the winner's password and fresh session remain valid while the loser cannot overwrite or revoke the winner.
+11. Apply the next PR #46 review blocker by freezing BR-10 as a failed-attempt window rather than consecutive failures: a successful login must not erase failures still inside the 15-minute window, and API-04 must prove that behavior explicitly.
 
 The final file should retain only 6-10 representative prompts that best demonstrate specification-agent and coding-agent use.
 

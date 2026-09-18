@@ -15,6 +15,7 @@ const users = {
   inactive: { email: "auth.inactive@example.test", name: "Auth Inactive", isActive: false, mustChangePassword: false },
   change: { email: "auth.change@example.test", name: "Auth Change", isActive: true, mustChangePassword: true },
   throttle: { email: "auth.throttle@example.test", name: "Auth Throttle", isActive: true, mustChangePassword: false },
+  throttleWindow: { email: "auth.throttle.window@example.test", name: "Auth Throttle Window", isActive: true, mustChangePassword: false },
 } as const;
 
 function cookieFrom(response: request.Response) {
@@ -64,6 +65,7 @@ describe("Lab 3 authentication API", () => {
     await provisionAuthUser(users.inactive);
     await provisionAuthUser(users.change);
     await provisionAuthUser(users.throttle);
+    await provisionAuthUser(users.throttleWindow);
   });
 
   afterAll(async () => {
@@ -173,6 +175,35 @@ describe("Lab 3 authentication API", () => {
       .set("Origin", FRONTEND_ORIGIN)
       .set("X-Forwarded-For", "203.0.113.45")
       .send({ email: users.throttle.email, password: INITIAL_PASSWORD });
+    expect(throttled.status).toBe(429);
+    expect(throttled.body.error?.code).toBe("LOGIN_THROTTLED");
+  });
+
+  it("API-04 keeps failures inside the 15-minute window even when a successful login occurs between failures", async () => {
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      const response = await request(app)
+        .post("/api/auth/login")
+        .set("Origin", FRONTEND_ORIGIN)
+        .send({ email: users.throttleWindow.email, password: "Wrong-Lab3-Password" });
+      expect(response.status).toBe(401);
+    }
+
+    const successfulLogin = await request(app)
+      .post("/api/auth/login")
+      .set("Origin", FRONTEND_ORIGIN)
+      .send({ email: users.throttleWindow.email, password: INITIAL_PASSWORD });
+    expect(successfulLogin.status).toBe(200);
+
+    const fifthFailure = await request(app)
+      .post("/api/auth/login")
+      .set("Origin", FRONTEND_ORIGIN)
+      .send({ email: users.throttleWindow.email, password: "Wrong-Lab3-Password" });
+    expect(fifthFailure.status).toBe(401);
+
+    const throttled = await request(app)
+      .post("/api/auth/login")
+      .set("Origin", FRONTEND_ORIGIN)
+      .send({ email: users.throttleWindow.email, password: INITIAL_PASSWORD });
     expect(throttled.status).toBe(429);
     expect(throttled.body.error?.code).toBe("LOGIN_THROTTLED");
   });

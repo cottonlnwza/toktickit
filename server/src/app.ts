@@ -125,10 +125,6 @@ function recordLoginFailure(key: string, now = Date.now()) {
   });
 }
 
-function clearLoginFailures(key: string) {
-  loginAttempts.delete(key);
-}
-
 export function buildTicketNumber(date: Date, sequence: number) {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -318,7 +314,6 @@ app.post("/api/auth/login", requireApprovedOrigin, async (req: Request, res: Res
       return;
     }
 
-    clearLoginFailures(attemptKey);
     const created = await createSession(getPrisma(), user.id);
     setSessionCookie(res, created.sessionToken, created.expiresAt);
     res.status(200).json({ user: safeUser(user), csrfToken: created.csrfToken });

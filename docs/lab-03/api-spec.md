@@ -35,7 +35,7 @@ Status: Draft contract for Issue #33. Implementation must follow this file unles
 - Verify derived hashes using `timingSafeEqual`.
 - New password: 12-128 characters, not all whitespace, not equal to current/initial password, confirmation must match. Do not trim the password value.
 - Normalize email using `trim().toLowerCase()` before lookup/uniqueness checks.
-- Five failed login attempts for normalized email + client address in 15 minutes trigger a temporary 15-minute HTTP 429 throttle. For this local course lab the throttle may be held in process memory and may reset on server restart; no permanent account lock/unlock workflow is introduced.
+- Five failed login attempts for normalized email + client address in 15 minutes trigger a temporary 15-minute HTTP 429 throttle. Successful authentication does not clear failures that are still inside the 15-minute window; the counter is window-based, not consecutive-failure-based. For this local course lab the throttle may be held in process memory and may reset on server restart; no permanent account lock/unlock workflow is introduced.
 
 ## 3. Shared Response and Error Shapes
 
