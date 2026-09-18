@@ -131,6 +131,8 @@ Requires session + CSRF. Revokes current session, clears cookie. Success `204`.
 
 If `mustChangePassword=true`, every protected domain endpoint except `/api/auth/me`, `/api/auth/change-password`, and `/api/auth/logout` returns `403 PASSWORD_CHANGE_REQUIRED`.
 
+As an Issue #35 compatibility boundary, every currently exported Lab 2-compatible Requester/Ticket/Attachment route also requires a valid normal-access session before its existing domain handler runs: `GET /api/requesters`, `GET /api/related-systems`, `POST /api/tickets`, the legacy `/api/requesters/:requesterId/tickets...` list/detail routes, and their Attachment list/upload/download/remove routes. This correction establishes authentication/mandatory-password gating only. The client-supplied `requesterId` ownership rewrite, cross-owner protection, canonical `/api/tickets/mine` paths, and role authorization remain Issue #36 work governed by Sections 6 and 12 below.
+
 ## 5. Reference Data
 
 - `GET /api/categories`

@@ -439,7 +439,7 @@ app.get("/api/categories", requireNormalAccess, async (_req: Request, res: Respo
   }
 });
 
-app.get("/api/requesters", async (_req: Request, res: Response) => {
+app.get("/api/requesters", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const requesters = await getPrisma().user.findMany({
       where: { role: "REQUESTER", isActive: true },
@@ -453,7 +453,7 @@ app.get("/api/requesters", async (_req: Request, res: Response) => {
   }
 });
 
-app.get("/api/related-systems", async (_req: Request, res: Response) => {
+app.get("/api/related-systems", requireNormalAccess, async (_req: Request, res: Response) => {
   try {
     const relatedSystems = await getPrisma().relatedSystem.findMany({
       where: { isActive: true },
@@ -467,7 +467,7 @@ app.get("/api/related-systems", async (_req: Request, res: Response) => {
   }
 });
 
-app.post("/api/tickets", async (req: Request, res: Response) => {
+app.post("/api/tickets", requireNormalAccess, async (req: Request, res: Response) => {
   const validation = validateCreateTicketInput(req.body);
   if (!validation.valid) {
     const fields = Object.fromEntries(validation.errors.map((error) => [error.field, error.message]));
@@ -524,7 +524,7 @@ app.post("/api/tickets", async (req: Request, res: Response) => {
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   if (!requesterId) {
     res.status(400).json(errorResponse("VALIDATION_ERROR", "Requester ID must be a positive integer."));
@@ -648,7 +648,7 @@ app.get("/api/requesters/:requesterId/tickets", async (req: Request, res: Respon
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets/:ticketId", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
 
@@ -709,7 +709,7 @@ app.get("/api/requesters/:requesterId/tickets/:ticketId", async (req: Request, r
   }
 });
 
-app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
   if (!requesterId || !ticketId) {
@@ -750,7 +750,7 @@ app.get("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req
   }
 });
 
-app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (req: Request, res: Response) => {
+app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", requireNormalAccess, async (req: Request, res: Response) => {
   const requesterId = toPositiveInteger(req.params.requesterId);
   const ticketId = toPositiveInteger(req.params.ticketId);
   if (!requesterId) {
@@ -835,6 +835,7 @@ app.post("/api/requesters/:requesterId/tickets/:ticketId/attachments", async (re
 
 app.get(
   "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId/download",
+  requireNormalAccess,
   async (req: Request, res: Response) => {
     const requesterId = toPositiveInteger(req.params.requesterId);
     const ticketId = toPositiveInteger(req.params.ticketId);
@@ -865,6 +866,7 @@ app.get(
 
 app.delete(
   "/api/requesters/:requesterId/tickets/:ticketId/attachments/:attachmentId",
+  requireNormalAccess,
   async (req: Request, res: Response) => {
     const requesterId = toPositiveInteger(req.params.requesterId);
     const ticketId = toPositiveInteger(req.params.ticketId);

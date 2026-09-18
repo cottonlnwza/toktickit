@@ -6,6 +6,11 @@ vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
 }));
 
+vi.mock("../../src/auth/session.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
+  return { ...actual, requireNormalAccess: (_req: unknown, _res: unknown, next: () => void) => next() };
+});
+
 import { app } from "../../src/app.js";
 
 const mockGetPrisma = vi.mocked(getPrisma);

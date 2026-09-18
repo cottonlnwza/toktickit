@@ -431,10 +431,36 @@ describe("Lab 3 authentication API", () => {
     expect(stillWorks.status).toBe(200);
   });
 
+  it("API-08 rejects direct unauthenticated access to the current protected Requester/Ticket/Attachment routes", async () => {
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { email: users.active.email } });
+    const requesterBase = `/api/requesters/${user.id}/tickets`;
+    const responses = await Promise.all([
+      request(app).get("/api/requesters"),
+      request(app).get("/api/related-systems"),
+      request(app).post("/api/tickets").send({}),
+      request(app).get(requesterBase),
+      request(app).get(`${requesterBase}/999999`),
+      request(app).get(`${requesterBase}/999999/attachments`),
+      request(app).post(`${requesterBase}/999999/attachments`),
+      request(app).get(`${requesterBase}/999999/attachments/999999/download`),
+      request(app).delete(`${requesterBase}/999999/attachments/999999`).send({ reason: "direct access" }),
+    ]);
+
+    expect(responses).toHaveLength(9);
+    for (const response of responses) {
+      expect(response.status).toBe(401);
+      expect(response.body.error?.code).toBe("AUTH_REQUIRED");
+    }
+  });
+
   it("API-08 revokes logout access, clears the cookie, and rejects expired sessions", async () => {
     const agent = request.agent(app);
     const signedIn = await login(agent, users.active.email);
     expect(signedIn.status).toBe(200);
+    const user = await getPrisma().user.findUniqueOrThrow({ where: { email: users.active.email } });
+    const protectedRoute = `/api/requesters/${user.id}/tickets`;
+    expect((await agent.get(protectedRoute).set("Origin", FRONTEND_ORIGIN)).status).toBe(200);
+
     const logout = await agent
       .post("/api/auth/logout")
       .set("Origin", FRONTEND_ORIGIN)
@@ -442,16 +468,21 @@ describe("Lab 3 authentication API", () => {
     expect(logout.status).toBe(204);
     expect(cookieFrom(logout)).toMatch(/tt_session=;/);
     expect((await agent.get("/api/auth/me").set("Origin", FRONTEND_ORIGIN)).status).toBe(401);
+    const loggedOutDomainAccess = await agent.get(protectedRoute).set("Origin", FRONTEND_ORIGIN);
+    expect(loggedOutDomainAccess.status).toBe(401);
+    expect(loggedOutDomainAccess.body.error?.code).toBe("AUTH_REQUIRED");
 
     const expiringAgent = request.agent(app);
     const expiringLogin = await login(expiringAgent, users.active.email);
     expect(expiringLogin.status).toBe(200);
-    const user = await getPrisma().user.findUniqueOrThrow({ where: { email: users.active.email } });
     await getPrisma().authSession.updateMany({
       where: { userId: user.id, revokedAt: null },
       data: { expiresAt: new Date(Date.now() - 1_000) },
     });
     expect((await expiringAgent.get("/api/auth/me").set("Origin", FRONTEND_ORIGIN)).status).toBe(401);
+    const expiredDomainAccess = await expiringAgent.get(protectedRoute).set("Origin", FRONTEND_ORIGIN);
+    expect(expiredDomainAccess.status).toBe(401);
+    expect(expiredDomainAccess.body.error?.code).toBe("AUTH_REQUIRED");
   });
 
   it("SEC-03 rejects missing/invalid CSRF and unapproved origins on state-changing authenticated requests", async () => {
