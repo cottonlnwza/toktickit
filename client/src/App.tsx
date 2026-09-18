@@ -2,21 +2,30 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   AuthApiError,
   AuthUser,
+  addAuthenticatedTicketAttachment,
   changePassword as changeOwnPassword,
   checkSystem,
   Category,
+  createAuthenticatedTicket,
   createTicket,
   CreatedTicket,
+  getAuthenticatedMyTickets,
+  getAuthenticatedTicketDetail,
   getCurrentUser,
   getCategories,
   getMyTickets,
+  getPublicComments,
   getRelatedSystems,
   getTicketDetail,
   login as loginUser,
   logout as logoutUser,
+  markProblemAppearsResolved,
   MyTicketsQuery,
   MyTicketsResponse,
+  postPublicComment,
+  PublicComment,
   Requester,
+  removeAuthenticatedTicketAttachment,
   removeTicketAttachment,
   RelatedSystem,
   TicketAttachment,
@@ -193,7 +202,7 @@ function ChangePasswordScreen({
   );
 }
 
-function AuthenticatedShell({ user, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
+function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
   const navigation = user.role === "REQUESTER"
     ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
     : user.role === "IT_STAFF"
@@ -225,6 +234,7 @@ function AuthenticatedShell({ user, onLogout, onChangePassword, errorMessage, su
           </div>
           <RequesterWorkflow
             authenticatedRequester={{ id: user.id, name: user.name, email: user.email }}
+            csrfToken={csrfToken}
             embedded
           />
         </>
@@ -325,10 +335,10 @@ export default function App() {
       />
     );
   }
-  return <AuthenticatedShell user={user} onLogout={handleLogout} onChangePassword={() => { setAuthActionError(""); setAuthSuccessMessage(""); setShowChangePassword(true); }} errorMessage={authActionError} successMessage={authSuccessMessage} />;
+  return <AuthenticatedShell user={user} csrfToken={csrfToken} onLogout={handleLogout} onChangePassword={() => { setAuthActionError(""); setAuthSuccessMessage(""); setShowChangePassword(true); }} errorMessage={authActionError} successMessage={authSuccessMessage} />;
 }
 
-function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authenticatedRequester?: Requester; embedded?: boolean } = {}) {
+function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = false }: { authenticatedRequester?: Requester; csrfToken?: string; embedded?: boolean } = {}) {
   const requesterContext = useRequesterContext(authenticatedRequester);
   const [pendingRequesterId, setPendingRequesterId] = useState("");
   const [selectionError, setSelectionError] = useState("");
@@ -358,6 +368,12 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
   const [ticketDetailState, setTicketDetailState] = useState<"idle" | "loading" | "success" | "notFound" | "error">("idle");
   const [ticketDetailError, setTicketDetailError] = useState("");
   const [ticketDetailReload, setTicketDetailReload] = useState(0);
+  const [publicComments, setPublicComments] = useState<PublicComment[]>([]);
+  const [publicCommentText, setPublicCommentText] = useState("");
+  const [publicCommentsState, setPublicCommentsState] = useState<"idle" | "loading" | "success" | "posting" | "error">("idle");
+  const [publicCommentsError, setPublicCommentsError] = useState("");
+  const [resolutionState, setResolutionState] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [resolutionError, setResolutionError] = useState("");
   const [detailUploadState, setDetailUploadState] = useState<"idle" | "uploading" | "error">("idle");
   const [detailUploadError, setDetailUploadError] = useState("");
   const [removeTarget, setRemoveTarget] = useState<TicketAttachment | null>(null);
@@ -373,7 +389,9 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
   const [ticketPage, setTicketPage] = useState(1);
   const [ticketPageSize, setTicketPageSize] = useState<5 | 10 | 20>(10);
   const [myTicketsReload, setMyTicketsReload] = useState(0);
+  const [createClientRequestId, setCreateClientRequestId] = useState("");
   const formDisabled = referenceState === "loading";
+  const authenticatedMode = Boolean(authenticatedRequester);
 
   useEffect(() => {
     if (requesterContext.selectedRequester && referenceState === "idle") {
@@ -404,14 +422,15 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
       categoryId: ticketCategoryFilter ? Number(ticketCategoryFilter) : undefined,
       relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
       requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
-      currentStatus: ticketStatusFilter === "NEW" ? "NEW" : undefined,
+      currentStatus: ticketStatusFilter ? ticketStatusFilter as NonNullable<MyTicketsQuery["currentStatus"]> : undefined,
       sortBy: ticketSortBy,
       sortDirection: ticketSortDirection,
       page: ticketPage,
       pageSize: ticketPageSize,
     };
 
-    void getMyTickets(requester.id, query)
+    const ticketsRequest = authenticatedMode ? getAuthenticatedMyTickets(query) : getMyTickets(requester.id, query);
+    void ticketsRequest
       .then((result) => {
         if (!current) return;
         setMyTickets(result);
@@ -428,6 +447,7 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
       current = false;
     };
   }, [
+    authenticatedMode,
     activeView,
     requesterContext.selectedRequester,
     ticketSearch,
@@ -448,11 +468,28 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     let current = true;
     setTicketDetailState("loading");
     setTicketDetailError("");
-    void getTicketDetail(requester.id, selectedTicketId)
+    const detailRequest = authenticatedMode ? getAuthenticatedTicketDetail(selectedTicketId) : getTicketDetail(requester.id, selectedTicketId);
+    void detailRequest
       .then((detail) => {
         if (!current) return;
         setTicketDetail(detail);
         setTicketDetailState("success");
+        if (authenticatedMode) {
+          setPublicCommentsState("loading");
+          setPublicCommentsError("");
+          void getPublicComments(selectedTicketId)
+            .then((comments) => {
+              if (!current) return;
+              setPublicComments(comments);
+              setPublicCommentsState("success");
+            })
+            .catch(() => {
+              if (!current) return;
+              setPublicComments([]);
+              setPublicCommentsState("error");
+              setPublicCommentsError("Unable to load Public Comments. Please try again.");
+            });
+        }
       })
       .catch((error) => {
         if (!current) return;
@@ -466,7 +503,7 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
         }
       });
     return () => { current = false; };
-  }, [activeView, requesterContext.selectedRequester, selectedTicketId, ticketDetailReload]);
+  }, [activeView, authenticatedMode, requesterContext.selectedRequester, selectedTicketId, ticketDetailReload]);
 
   async function handleCheck() {
     setState("loading");
@@ -572,7 +609,11 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
       }
 
       try {
-        await uploadTicketAttachment(ticketId, requesterId, item.file);
+        if (authenticatedMode) {
+          await addAuthenticatedTicketAttachment(csrfToken, ticketId, item.file);
+        } else {
+          await uploadTicketAttachment(ticketId, requesterId, item.file);
+        }
         nextAttachments.push({ ...item, status: "uploaded", message: "Uploaded" });
       } catch (error) {
         failed = true;
@@ -595,18 +636,30 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     setTicketError("");
 
     try {
-      const ticket = await createTicket({
-        requesterId: requesterContext.selectedRequester.id,
-        categoryId: Number(categoryId),
-        relatedSystemId: Number(relatedSystemId),
-        summary: summary.trim(),
-        description: description.trim(),
-        requestedPriority,
-      });
+      const clientRequestId = createClientRequestId || crypto.randomUUID();
+      if (authenticatedMode && !createClientRequestId) setCreateClientRequestId(clientRequestId);
+      const ticket = authenticatedMode
+        ? await createAuthenticatedTicket(csrfToken, {
+            clientRequestId,
+            categoryId: Number(categoryId),
+            relatedSystemId: Number(relatedSystemId),
+            summary: summary.trim(),
+            description: description.trim(),
+            requestedPriority,
+          })
+        : await createTicket({
+            requesterId: requesterContext.selectedRequester.id,
+            categoryId: Number(categoryId),
+            relatedSystemId: Number(relatedSystemId),
+            summary: summary.trim(),
+            description: description.trim(),
+            requestedPriority,
+          });
       setCreatedTicket(ticket);
       const hadAttachmentFailure = await uploadPendingAttachments(ticket.id, requesterContext.selectedRequester.id);
       setTicketError(hadAttachmentFailure ? "Some attachments could not be uploaded. Use Retry or Remove for failed files." : "");
       setTicketState("success");
+      if (authenticatedMode) setCreateClientRequestId("");
     } catch (error) {
       setTicketError(error instanceof Error ? error.message : "Unable to create ticket. Please try again.");
       setTicketState("error");
@@ -619,7 +672,11 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     if (!item) return;
 
     try {
-      await uploadTicketAttachment(createdTicket.id, requesterContext.selectedRequester.id, item.file);
+      if (authenticatedMode) {
+        await addAuthenticatedTicketAttachment(csrfToken, createdTicket.id, item.file);
+      } else {
+        await uploadTicketAttachment(createdTicket.id, requesterContext.selectedRequester.id, item.file);
+      }
       setAttachments((current) =>
         current.map((attachment, currentIndex) =>
           currentIndex === index ? { ...attachment, status: "uploaded", message: "Uploaded" } : attachment,
@@ -651,6 +708,7 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     setTicketState("idle");
     setTicketError("");
     setCreatedTicket(null);
+    setCreateClientRequestId("");
   }
 
   function resetMyTickets() {
@@ -671,6 +729,12 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     setTicketDetail(null);
     setTicketDetailState("idle");
     setTicketDetailError("");
+    setPublicComments([]);
+    setPublicCommentText("");
+    setPublicCommentsState("idle");
+    setPublicCommentsError("");
+    setResolutionState("idle");
+    setResolutionError("");
     setDetailUploadState("idle");
     setDetailUploadError("");
     setRemoveTarget(null);
@@ -707,7 +771,9 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     setDetailUploadState("uploading");
     setDetailUploadError("");
     try {
-      const uploaded = await addTicketAttachment(selectedRequester.id, ticketDetail.id, file);
+      const uploaded = authenticatedMode
+        ? await addAuthenticatedTicketAttachment(csrfToken, ticketDetail.id, file)
+        : await addTicketAttachment(selectedRequester.id, ticketDetail.id, file);
       const attachment: TicketAttachment = {
         ...uploaded,
         state: "active",
@@ -732,7 +798,9 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
     }
     setRemovalError("");
     try {
-      const removed = await removeTicketAttachment(selectedRequester.id, ticketDetail.id, removeTarget.id, reason);
+      const removed = authenticatedMode
+        ? await removeAuthenticatedTicketAttachment(csrfToken, ticketDetail.id, removeTarget.id, reason)
+        : await removeTicketAttachment(selectedRequester.id, ticketDetail.id, removeTarget.id, reason);
       setTicketDetail((current) => current ? {
         ...current,
         attachments: current.attachments.map((item) => item.id === removed.id ? removed : item),
@@ -741,6 +809,44 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
       setRemovalReason("");
     } catch {
       setRemovalError("Unable to remove Attachment. Please try again.");
+    }
+  }
+
+  async function handlePostPublicComment() {
+    if (!authenticatedMode || !ticketDetail) return;
+    const content = publicCommentText.trim();
+    if (!content) {
+      setPublicCommentsError("Public Comment is required.");
+      return;
+    }
+    if (content.length > 2000) {
+      setPublicCommentsError("Public Comment must be 2000 characters or fewer.");
+      return;
+    }
+    setPublicCommentsState("posting");
+    setPublicCommentsError("");
+    try {
+      const comment = await postPublicComment(csrfToken, ticketDetail.id, content);
+      setPublicComments((current) => [...current, comment]);
+      setPublicCommentText("");
+      setPublicCommentsState("success");
+    } catch {
+      setPublicCommentsState("error");
+      setPublicCommentsError("Unable to post Public Comment. Please try again.");
+    }
+  }
+
+  async function handleProblemAppearsResolved() {
+    if (!authenticatedMode || !ticketDetail) return;
+    setResolutionState("saving");
+    setResolutionError("");
+    try {
+      const result = await markProblemAppearsResolved(csrfToken, ticketDetail.id);
+      setTicketDetail((current) => current ? { ...current, problemAppearsResolvedAt: result.problemAppearsResolvedAt } : current);
+      setResolutionState("success");
+    } catch {
+      setResolutionState("error");
+      setResolutionError("Unable to record the resolution indication. Please try again.");
     }
   }
 
@@ -932,6 +1038,59 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
                   )}
                 </section>
 
+                {authenticatedMode && (
+                  <section className="detail-comments" aria-labelledby="public-comments-heading">
+                    <div className="detail-comments-heading">
+                      <div>
+                        <h3 id="public-comments-heading">Public Comments</h3>
+                        <p>Visible to the Requester and permitted service-desk roles.</p>
+                      </div>
+                      <button
+                        className="btn btn-outline-success"
+                        type="button"
+                        disabled={resolutionState === "saving" || Boolean(ticketDetail.problemAppearsResolvedAt)}
+                        onClick={() => void handleProblemAppearsResolved()}
+                      >
+                        {resolutionState === "saving" ? "Saving..." : ticketDetail.problemAppearsResolvedAt ? "Problem Appears Resolved Recorded" : "Problem Appears Resolved"}
+                      </button>
+                    </div>
+                    {resolutionState === "success" && <div className="alert alert-success" role="status">Resolution indication recorded. Ticket status was not changed.</div>}
+                    {resolutionError && <div className="alert alert-danger" role="alert">{resolutionError}</div>}
+                    {publicCommentsState === "loading" && <div className="alert alert-info" role="status">Loading Public Comments...</div>}
+                    {publicCommentsError && <div className="alert alert-danger" role="alert">{publicCommentsError}</div>}
+                    {publicCommentsState !== "loading" && publicComments.length === 0 && (
+                      <div className="empty-state" role="status">No Public Comments yet.</div>
+                    )}
+                    {publicComments.length > 0 && (
+                      <ul className="public-comment-list">
+                        {publicComments.map((comment) => (
+                          <li key={comment.id} className="public-comment-item">
+                            <div><strong>{comment.author.name}</strong> <span className="role-badge">{roleLabel(comment.author.role)}</span></div>
+                            <p>{comment.content}</p>
+                            <small>{comment.createdAt.slice(0, 16).replace("T", " ")} UTC</small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <label className="form-label" htmlFor="public-comment">Public Comment</label>
+                    <textarea
+                      id="public-comment"
+                      className="form-control"
+                      rows={3}
+                      maxLength={2000}
+                      value={publicCommentText}
+                      disabled={publicCommentsState === "posting"}
+                      onChange={(event) => { setPublicCommentText(event.target.value); setPublicCommentsError(""); }}
+                    />
+                    <div className="ticket-actions">
+                      <span>{publicCommentText.length}/2000</span>
+                      <button className="btn btn-success" type="button" disabled={publicCommentsState === "posting" || !publicCommentText.trim()} onClick={() => void handlePostPublicComment()}>
+                        {publicCommentsState === "posting" ? "Posting..." : "Post Comment"}
+                      </button>
+                    </div>
+                  </section>
+                )}
+
                 {removeTarget && (
                   <div className="removal-confirmation" role="dialog" aria-labelledby="removal-heading" aria-modal="true">
                     <h3 id="removal-heading">Confirm Attachment removal</h3>
@@ -999,7 +1158,10 @@ function RequesterWorkflow({ authenticatedRequester, embedded = false }: { authe
               <div>
                 <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
                 <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
-                  <option value="">All statuses</option><option value="NEW">New</option>
+                  <option value="">All statuses</option>
+                  <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option>
+                  <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option>
+                  <option value="CLOSED">Closed</option><option value="REOPENED">Reopened</option><option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
               <div>
