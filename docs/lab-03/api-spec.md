@@ -418,6 +418,10 @@ Success `200`:
   "currentStatus": "IN_PROGRESS",
   "currentStatusLabel": "In Progress",
   "owner": { "id": 10, "name": "Sam Staff", "role": "IT_STAFF" },
+  "ownerOptions": [
+    { "id": 10, "name": "Sam Staff", "role": "IT_STAFF" },
+    { "id": 20, "name": "Alex Admin", "role": "ADMINISTRATOR" }
+  ],
   "problemAppearsResolvedAt": null,
   "createdAt": "2026-09-15T07:00:00.000Z",
   "updatedAt": "2026-09-15T08:00:00.000Z",
@@ -426,6 +430,8 @@ Success `200`:
   "internalNotes": []
 }
 ```
+
+`ownerOptions` contains the same stable active IT Staff/Administrator owner set used by the Queue contract so the Detail owner control never depends on the current Queue result page. Attachment items expose only safe metadata and, while active, a Staff Detail download URL; `storagePath` is never returned.
 
 For Administrator read access, fields/actions not permitted by the authorization matrix are omitted or marked non-editable by the frontend; the backend still rejects forbidden mutations.
 
@@ -511,6 +517,10 @@ IT Staff only.
 Success `201`. Empty/whitespace/over-limit is `400`. Administrator read-only for notes in this contract.
 
 Success response is the newly created note using the same item shape as the GET response.
+
+### GET `/api/staff/tickets/:ticketId/attachments/:attachmentId/download`
+
+IT Staff or Administrator direct-detail access only. The Attachment must belong to the addressed Ticket and must still be active. Removed/missing Attachments return safe `404`; storage paths are never exposed. Success `200` streams the existing Lab 2 file bytes with the stored safe MIME type and sanitized download filename.
 
 ## 9. Administrator User Management
 

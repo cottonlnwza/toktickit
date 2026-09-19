@@ -272,6 +272,120 @@
   margin-top: 1.25rem;
 }
 
+.staff-detail-page {
+  max-width: 1280px;
+}
+
+.staff-detail-topbar,
+.staff-detail-heading {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.staff-detail-panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
+  padding: 1.5rem;
+}
+
+.staff-detail-grid,
+.staff-operation-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.staff-operation-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.staff-detail-section {
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.staff-detail-section h3 {
+  font-size: 1.05rem;
+}
+
+.staff-detail-section dl {
+  display: grid;
+  gap: 0.35rem 0.75rem;
+  grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1.6fr);
+  margin-bottom: 0;
+}
+
+.staff-detail-section dt {
+  color: #52665d;
+}
+
+.readonly-control {
+  background: #f3f2ea;
+}
+
+.public-communication {
+  background: #f5fbf7;
+}
+
+.internal-communication {
+  background: #fff8e8;
+  border-color: #ead7a4;
+}
+
+.communication-label {
+  border: 1px solid #9fc5ad;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.5rem;
+}
+
+.internal-label {
+  border-color: #caa85b;
+}
+
+.communication-list article {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+.communication-list article:last-child {
+  border-bottom: 0;
+}
+
+.communication-list small {
+  display: block;
+  color: #66756e;
+}
+
+.communication-list p {
+  margin: 0.35rem 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.staff-attachment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.staff-attachment-list li {
+  align-items: center;
+  border-bottom: 1px solid #e5ece8;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.6rem 0;
+}
+
 .ticket-detail-heading,
 .detail-attachments-heading,
 .detail-comments-heading {
@@ -601,6 +715,10 @@
     display: grid;
     gap: 0.75rem;
   }
+
+  .staff-operation-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 767px) {
@@ -744,5 +862,18 @@
   .staff-queue-mobile {
     display: grid;
     gap: 0.75rem;
+  }
+
+  .staff-detail-topbar,
+  .staff-detail-heading,
+  .staff-attachment-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .staff-detail-grid,
+  .staff-operation-grid,
+  .staff-detail-section dl {
+    grid-template-columns: 1fr;
   }
 }

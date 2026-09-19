@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { Prisma, type RequestedPriority, type TicketStatus } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
+import { canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
 import {
   clearSessionCookie,
   createSession,
@@ -109,6 +110,14 @@ function requireRequesterRole(req: Request, res: Response, next: () => void) {
 
 function requireItStaffRole(req: Request, res: Response, next: () => void) {
   if (req.auth?.user.role !== "IT_STAFF") {
+    res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+    return;
+  }
+  next();
+}
+
+function requireStaffDetailRole(req: Request, res: Response, next: () => void) {
+  if (!req.auth || !["IT_STAFF", "ADMINISTRATOR"].includes(req.auth.user.role)) {
     res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
     return;
   }
@@ -738,6 +747,306 @@ app.get("/api/staff/tickets", requireNormalAccess, requireItStaffRole, async (re
   }
 });
 
+app.get("/api/staff/tickets/:ticketId", requireNormalAccess, requireStaffDetailRole, async (req: Request, res: Response) => {
+  const ticketId = toPositiveInteger(req.params.ticketId);
+  if (!ticketId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+    return;
+  }
+  try {
+    const prisma = getPrisma();
+    const [ticket, ownerOptions] = await Promise.all([
+      prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: {
+          id: true,
+          ticketNumber: true,
+          summary: true,
+          description: true,
+          requestedPriority: true,
+          itPriority: true,
+          currentStatus: true,
+          problemAppearsResolvedAt: true,
+          createdAt: true,
+          updatedAt: true,
+          requester: { select: { id: true, name: true, email: true } },
+          category: { select: { id: true, name: true } },
+          relatedSystem: { select: { id: true, name: true } },
+          owner: { select: { id: true, name: true, role: true } },
+          attachments: {
+            select: { id: true, originalFilename: true, mimeType: true, sizeBytes: true, uploadedAt: true, removedAt: true, removalReason: true },
+            orderBy: [{ uploadedAt: "asc" }, { id: "asc" }],
+          },
+          publicComments: {
+            select: { id: true, content: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+          internalNotes: {
+            select: { id: true, content: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          },
+        },
+      }),
+      prisma.user.findMany({
+        where: { isActive: true, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } },
+        select: { id: true, name: true, role: true },
+        orderBy: [{ name: "asc" }, { id: "asc" }],
+      }),
+    ]);
+    if (!ticket) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+    res.status(200).json({
+      ...ticket,
+      currentStatusLabel: ticketStatusLabel(ticket.currentStatus),
+      ownerOptions,
+      attachments: ticket.attachments.map((attachment) => attachmentMetadata(
+        attachment,
+        `/api/staff/tickets/${ticketId}/attachments/${attachment.id}/download`,
+      )),
+    });
+  } catch {
+    res.status(500).json(errorResponse("STAFF_TICKET_DETAIL_ERROR", "Unable to load Ticket Detail."));
+  }
+});
+
+app.get(
+  "/api/staff/tickets/:ticketId/attachments/:attachmentId/download",
+  requireNormalAccess,
+  requireStaffDetailRole,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const attachmentId = toPositiveInteger(req.params.attachmentId);
+    if (!ticketId || !attachmentId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket and Attachment IDs must be positive integers."));
+      return;
+    }
+    try {
+      const attachment = await getPrisma().attachment.findFirst({ where: { id: attachmentId, ticketId, removedAt: null } });
+      if (!attachment) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Attachment was not found."));
+        return;
+      }
+      const content = await readFile(attachment.storagePath);
+      res.setHeader("Content-Type", attachment.mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFilename(attachment.originalFilename)}"`);
+      res.status(200).send(content);
+    } catch {
+      res.status(500).json(errorResponse("DOWNLOAD_ATTACHMENT_ERROR", "Unable to download Attachment."));
+    }
+  },
+);
+
+app.post(
+  "/api/staff/tickets/:ticketId/claim",
+  requireNormalAccess,
+  requireItStaffRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    if (!ticketId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    try {
+      const prisma = getPrisma();
+      const result = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: null }, data: { ownerId: req.auth!.user.id } });
+      if (result.count === 0) {
+        const exists = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+        if (!exists) res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        else res.status(409).json(errorResponse("OWNER_CONFLICT", "Ticket is already assigned."));
+        return;
+      }
+      const owner = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.user.id }, select: { id: true, name: true, role: true } });
+      res.status(200).json({ owner });
+    } catch {
+      res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to claim Ticket."));
+    }
+  },
+);
+
+app.patch(
+  "/api/staff/tickets/:ticketId/owner",
+  requireNormalAccess,
+  requireItStaffRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    if (!ticketId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    const ownerId = req.body.ownerId === null ? null : toPositiveInteger(req.body.ownerId);
+    if (req.body.ownerId !== null && !ownerId) {
+      res.status(400).json(errorResponse("INVALID_OWNER", "Owner must be an active IT Staff or Administrator."));
+      return;
+    }
+    try {
+      const prisma = getPrisma();
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      let owner = null;
+      if (ownerId !== null) {
+        owner = await prisma.user.findFirst({
+          where: { id: ownerId, isActive: true, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } },
+          select: { id: true, name: true, role: true },
+        });
+        if (!owner) {
+          res.status(400).json(errorResponse("INVALID_OWNER", "Owner must be an active IT Staff or Administrator."));
+          return;
+        }
+      }
+      await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId } });
+      res.status(200).json({ owner });
+    } catch {
+      res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to update Ticket owner."));
+    }
+  },
+);
+
+app.patch(
+  "/api/staff/tickets/:ticketId/it-priority",
+  requireNormalAccess,
+  requireStaffDetailRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const itPriority = typeof req.body.itPriority === "string" ? req.body.itPriority : "";
+    if (!ticketId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    if (!allowedPriorities.includes(itPriority as RequestedPriorityInput)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "IT Priority is invalid."));
+      return;
+    }
+    try {
+      const prisma = getPrisma();
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, requestedPriority: true } });
+      if (!ticket) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { itPriority: itPriority as RequestedPriority }, select: { itPriority: true, requestedPriority: true } });
+      res.status(200).json(updated);
+    } catch {
+      res.status(500).json(errorResponse("IT_PRIORITY_ERROR", "Unable to update IT Priority."));
+    }
+  },
+);
+
+app.patch(
+  "/api/staff/tickets/:ticketId/status",
+  requireNormalAccess,
+  requireItStaffRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const status = typeof req.body.status === "string" ? req.body.status : "";
+    if (!ticketId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    if (!allowedTicketStatuses.includes(status as (typeof allowedTicketStatuses)[number])) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket status is invalid."));
+      return;
+    }
+    try {
+      const prisma = getPrisma();
+      const outcome = await prisma.$transaction(async (tx) => {
+        const rows = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus }>>(Prisma.sql`
+          SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE
+        `);
+        const ticket = rows[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (!canTransitionTicketStatus(ticket.currentStatus, status as TicketStatus)) {
+          return { kind: "invalid" as const };
+        }
+        const updated = await tx.ticket.update({ where: { id: ticketId }, data: { currentStatus: status as TicketStatus }, select: { currentStatus: true } });
+        return { kind: "success" as const, currentStatus: updated.currentStatus };
+      });
+      if (outcome.kind === "notFound") {
+        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      if (outcome.kind === "invalid") {
+        res.status(400).json(errorResponse("INVALID_TRANSITION", "Ticket status transition is not allowed."));
+        return;
+      }
+      res.status(200).json({ currentStatus: outcome.currentStatus, currentStatusLabel: ticketStatusLabel(outcome.currentStatus) });
+    } catch {
+      res.status(500).json(errorResponse("STATUS_UPDATE_ERROR", "Unable to update Ticket status."));
+    }
+  },
+);
+
+app.get("/api/staff/tickets/:ticketId/internal-notes", requireNormalAccess, requireStaffDetailRole, async (req: Request, res: Response) => {
+  const ticketId = toPositiveInteger(req.params.ticketId);
+  if (!ticketId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+    return;
+  }
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+    if (!ticket) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+    const notes = await prisma.internalNote.findMany({
+      where: { ticketId },
+      select: { id: true, content: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    res.status(200).json(notes);
+  } catch {
+    res.status(500).json(errorResponse("INTERNAL_NOTES_ERROR", "Unable to load Internal Notes."));
+  }
+});
+
+app.post(
+  "/api/staff/tickets/:ticketId/internal-notes",
+  requireNormalAccess,
+  requireItStaffRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    if (!ticketId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    const validation = validateCommunicationContent(req.body.content);
+    if (!validation.valid) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", { content: validation.message }));
+      return;
+    }
+    try {
+      const prisma = getPrisma();
+      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
+      if (!ticket) {
+        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      const note = await prisma.internalNote.create({
+        data: { ticketId, authorId: req.auth!.user.id, content: validation.content },
+        select: { id: true, content: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
+      });
+      res.status(201).json(note);
+    } catch {
+      res.status(500).json(errorResponse("INTERNAL_NOTES_ERROR", "Unable to add Internal Note."));
+    }
+  },
+);
+
 app.post("/api/tickets", requireNormalAccess, requireRequesterRole, requireApprovedOrigin, requireCsrf, async (req: Request, res: Response) => {
   const validation = validateAuthenticatedCreateTicketInput(req.body);
   if (!validation.valid) {
@@ -1186,10 +1495,10 @@ app.post(
       res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
       return;
     }
-    const content = typeof req.body.content === "string" ? req.body.content.trim() : "";
-    if (!content || content.length > 2000) {
+    const contentValidation = validateCommunicationContent(req.body.content);
+    if (!contentValidation.valid) {
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", {
-        content: !content ? "Comment is required." : "Comment must be 2000 characters or fewer.",
+        content: contentValidation.message.replace("Content", "Comment"),
       }));
       return;
     }
@@ -1204,7 +1513,7 @@ app.post(
         return;
       }
       const comment = await prisma.publicComment.create({
-        data: { ticketId, authorId: user.id, content },
+        data: { ticketId, authorId: user.id, content: contentValidation.content },
         select: { id: true, content: true, createdAt: true, author: { select: { id: true, name: true, role: true } } },
       });
       res.status(201).json(comment);

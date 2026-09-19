@@ -13,6 +13,7 @@ export const fixtureUsers = {
   requesterA: { email: "issue36.requester.a@example.test", name: "Issue 36 Requester A", role: UserRole.REQUESTER },
   requesterB: { email: "issue36.requester.b@example.test", name: "Issue 36 Requester B", role: UserRole.REQUESTER },
   staff: { email: "issue36.staff@example.test", name: "Issue 36 IT Staff", role: UserRole.IT_STAFF },
+  staffB: { email: "issue38.staff.b@example.test", name: "Issue 38 IT Staff B", role: UserRole.IT_STAFF },
   inactiveStaff: { email: "issue37.inactive.staff@example.test", name: "Issue 37 Inactive Staff", role: UserRole.IT_STAFF },
   admin: { email: "issue36.admin@example.test", name: "Issue 36 Administrator", role: UserRole.ADMINISTRATOR },
 } as const;
