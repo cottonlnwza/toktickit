@@ -67,7 +67,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | UI-06 | UI Component | FR-11, BR-18; AC-12, AC-26 | Staff Queue | Loading, query controls, stable owner choices even when an owner is absent from the current page, desktop table, smaller-screen cards, results, empty/no-results/forbidden/safe failure + Retry | `client/tests/lab-03/StaffTicketQueue.test.tsx` | Pass — Issue #37 Vitest/jsdom / Node 22 |
 | UI-07 | UI Component | FR-12-FR-17; AC-13-AC-19 | Staff Ticket Detail | Grouped detail, owner/claim, read-only Requested Priority, IT Priority, valid status actions/confirmation, Public/Internal separation, resolution indication, Attachments, Administrator oversight, and distinct safe validation/domain/conflict/not-found feedback | `client/tests/lab-03/StaffTicketDetail.test.tsx` | Pass — Issue #38 local Vitest/jsdom / Node 22 |
 | UI-08 | UI Component | FR-18-FR-23; AC-20-AC-24 | User Management | List/search/filter/create/edit/password separation, CSRF mutations, deactivate confirmation, last-Admin conflict, forbidden and retryable safe-failure states | `client/tests/lab-03/UserManagement.test.tsx` | Pass — Issue #39 local Vitest/jsdom / Node 22 |
-| STYLE-01 | UI Style | FR-26, FR-27; AC-26, AC-27 | Zen Green/auth/badge/read-only/editable styling | Required semantic classes/states remain consistent | `client/tests/lab-03/ui-style.test.tsx` | Pending |
+| STYLE-01 | UI Style | FR-26, FR-27; AC-26, AC-27 | Zen Green/auth/badge/read-only/editable styling | Login keyboard/labels/Zen Green/no selector; authenticated read-only vs editable treatment; textual Administrator role/status; excluded delete action absent | `client/tests/lab-03/ui-style.test.tsx` | Pass — Issue #41 local Vitest/jsdom / Node 22, 3/3 |
 | SEC-01 | Security/API | FR-06; AC-06, AC-17, AC-24 | Direct API authorization matrix | Wrong role/owner cannot bypass UI | `server/tests/lab-03/authorization.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | SEC-02 | Security/API | BR-41; AC-02, AC-06, AC-17, AC-22 | Safe errors | No hash/token/path/protected existence leakage | `server/tests/lab-03/authorization.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | RESP-01 | Responsive/E2E | FR-27; AC-27 | Desktop `>=992px` | Login/shell, mandatory-password path, Requester Create/My Tickets/Detail with Attachment/Public Comment, Staff Queue/Detail, and User Management actions are reachable with no page-level horizontal overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright desktop 1440x900 |
@@ -303,6 +303,21 @@ Issue #40 adds only automated E2E/regression coverage plus the minimum test-harn
 - Results above are local verification only; no hosted CI result is claimed.
 
 The required authorization evidence is split between E2E direct requests and the existing explicit API security matrix: E2E-01 confirms protected Requester access is rejected after logout, E2E-02 confirms Requester cannot call the Staff Queue API, E2E-03 confirms IT Staff cannot access Admin User Management UI/API or discover the created User, while `authorization.api.test.ts` continues to cover cross-Requester Ticket/Attachment and Internal Note non-leakage. PR #53 review `5255861321` additionally hardened the destructive E2E reset guard: connection URLs are parsed into protocol/host/port/database/username fields, while destructive-target equality deliberately compares the database endpoint and database name independently of credentials so a different PostgreSQL role cannot bypass protection for the same physical database.
+
+### Issue #41 execution evidence
+
+Issue #41 is a responsive/accessibility/visual audit only. No new workflow or backend behavior was added. The audit aligned the existing UI to the approved Zen Green tokens, changed Requester read-only surfaces to the specified `#F3F2EA`, added a consistent visible green focus treatment, and aligned the Internal Note warning action to the approved warning token. `client/tests/lab-03/ui-style.test.tsx` supplies the previously missing `STYLE-01` path, and `e2e/lab-03/visual-evidence.spec.ts` drives the integrated UI while producing the fixed screenshot evidence set.
+
+- `STYLE-01`: 1 file / 3 tests PASS.
+- Issue #41 visual-evidence Playwright: 3/3 PASS — one integrated audit per desktop/tablet/mobile project.
+- Combined Lab 3 Playwright verification after the visual corrections: 21/21 PASS (the prior 18 E2E/accessible/responsive tests plus 3 Issue #41 visual-evidence runs).
+- Required screenshot base evidence: 21/21 files present under `artifacts/lab-03/screenshots/` — seven major areas x desktop/tablet/mobile.
+- Each screenshot capture is preceded by a page-level horizontal-overflow assertion; required role-specific controls/content are asserted visible before capture.
+- Full client regression after Issue #41 changes: 19 files / 97 tests PASS.
+- Full server regression remains 25 files / 186 tests PASS using isolated Lab 3 suite/migration databases.
+- Server build PASS; client build PASS; Prisma schema validation PASS; `git diff --check` PASS.
+- Normal development DB remained untouched after the visual/E2E reruns: no Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91`.
+- Results above are local verification only; no hosted CI result is claimed.
 
 ## 7. Manual / Visual Verification
 
