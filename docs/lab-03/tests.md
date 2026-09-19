@@ -293,7 +293,8 @@ Issue #40 adds only automated E2E/regression coverage plus the minimum test-harn
 - `server/tests/lab-03/regression.api.test.ts`: 1 file / 2 tests PASS.
 - `client/tests/lab-03/regression-ui.test.tsx`: 1 file / 1 test PASS.
 - `server/tests/lab-03/auth.unit.test.ts`: UNIT-01 now exercises the same production `normalizeEmail()` function used by login/Admin operations.
-- Final full server regression after Issue #40 additions: 24 files / 181 tests PASS using isolated Lab 3 suite/migration databases.
+- E2E destructive-target guard regression after PR #53 review `5255861321`: `e2e-database-guard.unit.test.ts` = 1 file / 5 tests PASS. It rejects the exact development URL, rejects the same host/port/database even with different credentials or loopback spelling, rejects a non-`_test` database, accepts a distinct `_test` database, and verifies explicit parsed connection fields including username.
+- Final full server regression after the PR #53 guard correction: 25 files / 186 tests PASS using isolated Lab 3 suite/migration databases.
 - Final full client regression after Issue #40 additions: 18 files / 94 tests PASS.
 - Required Lab 3 Playwright files: 3 files / 6 logical tests x 3 viewports = 18/18 PASS in one serial isolated-database run.
 - A separate desktop-only sanity run of the same three files also passed 6/6 before the final all-viewport run.
@@ -301,7 +302,7 @@ Issue #40 adds only automated E2E/regression coverage plus the minimum test-harn
 - Normal development DB safety check remained unchanged after E2E: no Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91`.
 - Results above are local verification only; no hosted CI result is claimed.
 
-The required authorization evidence is split between E2E direct requests and the existing explicit API security matrix: E2E-01 confirms protected Requester access is rejected after logout, E2E-02 confirms Requester cannot call the Staff Queue API, E2E-03 confirms IT Staff cannot access Admin User Management UI/API or discover the created User, while `authorization.api.test.ts` continues to cover cross-Requester Ticket/Attachment and Internal Note non-leakage.
+The required authorization evidence is split between E2E direct requests and the existing explicit API security matrix: E2E-01 confirms protected Requester access is rejected after logout, E2E-02 confirms Requester cannot call the Staff Queue API, E2E-03 confirms IT Staff cannot access Admin User Management UI/API or discover the created User, while `authorization.api.test.ts` continues to cover cross-Requester Ticket/Attachment and Internal Note non-leakage. PR #53 review `5255861321` additionally hardened the destructive E2E reset guard: connection URLs are parsed into protocol/host/port/database/username fields, while destructive-target equality deliberately compares the database endpoint and database name independently of credentials so a different PostgreSQL role cannot bypass protection for the same physical database.
 
 ## 7. Manual / Visual Verification
 
