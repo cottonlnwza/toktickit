@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Prisma, type RequestedPriority, type TicketStatus } from "@prisma/client";
+import { Prisma, type RequestedPriority, type TicketStatus, type UserRole } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import { canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
@@ -122,6 +122,63 @@ function requireStaffDetailRole(req: Request, res: Response, next: () => void) {
     return;
   }
   next();
+}
+
+function requireAdministratorRole(req: Request, res: Response, next: () => void) {
+  if (req.auth?.user.role !== "ADMINISTRATOR") {
+    res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+    return;
+  }
+  next();
+}
+
+const allowedUserRoles = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const;
+const adminListQueryKeys = new Set(["search", "role"]);
+
+function normalizeEmail(value: unknown) {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function initialPasswordError(value: unknown) {
+  if (typeof value !== "string" || value.length < 12 || value.length > 128) return "Initial password must be 12-128 characters.";
+  if (value.trim().length === 0) return "Initial password cannot be all whitespace.";
+  return null;
+}
+
+function adminUserResponse(user: {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+  mustChangePassword?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    isActive: user.isActive,
+    ...(user.mustChangePassword === undefined ? {} : { mustChangePassword: user.mustChangePassword }),
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+  };
+}
+
+async function lockActiveAdministrators(tx: Prisma.TransactionClient) {
+  return tx.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+    SELECT "id"
+    FROM "User"
+    WHERE "role" = 'ADMINISTRATOR'::"UserRole" AND "isActive" = true
+    ORDER BY "id" ASC
+    FOR UPDATE
+  `);
 }
 
 function ticketStatusLabel(status: string) {
@@ -572,6 +629,343 @@ app.post(
       res.status(204).send();
     } catch {
       res.status(500).json(errorResponse("AUTH_ERROR", "Unable to sign out."));
+    }
+  },
+);
+
+app.get("/api/admin/users", requireNormalAccess, requireAdministratorRole, async (req: Request, res: Response) => {
+  if (Object.keys(req.query).some((key) => !adminListQueryKeys.has(key))) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more User Management query parameters are invalid."));
+    return;
+  }
+
+  const searchValue = singleQueryValue(req.query.search);
+  const roleValue = singleQueryValue(req.query.role);
+  if (searchValue === null || roleValue === null) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more User Management query parameters are invalid."));
+    return;
+  }
+
+  const search = searchValue?.trim() || undefined;
+  if ((search && search.length > 100) || (roleValue !== undefined && !allowedUserRoles.includes(roleValue as UserRole))) {
+    res.status(400).json(errorResponse("INVALID_QUERY", "One or more User Management query parameters are invalid."));
+    return;
+  }
+
+  const where: Prisma.UserWhereInput = {};
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: "insensitive" } },
+      { email: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (roleValue !== undefined) where.role = roleValue as UserRole;
+
+  try {
+    const users = await getPrisma().user.findMany({
+      where,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+    res.status(200).json(users.map(adminUserResponse));
+  } catch {
+    res.status(500).json(errorResponse("USER_MANAGEMENT_ERROR", "Unable to load Users."));
+  }
+});
+
+app.post(
+  "/api/admin/users",
+  requireNormalAccess,
+  requireAdministratorRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const allowedFields = new Set(["name", "email", "role", "isActive", "initialPassword"]);
+    const unknownField = Object.keys(req.body ?? {}).find((key) => !allowedFields.has(key));
+    const name = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+    const email = normalizeEmail(req.body?.email);
+    const role = typeof req.body?.role === "string" ? req.body.role : "";
+    const isActive = req.body?.isActive;
+    const initialPassword = req.body?.initialPassword;
+    const fields: Record<string, string> = {};
+
+    if (unknownField) fields[unknownField] = `${unknownField} is not accepted.`;
+    if (!name) fields.name = "Name is required.";
+    if (!email || !isValidEmail(email)) fields.email = "Enter a valid email address.";
+    if (!allowedUserRoles.includes(role as UserRole)) fields.role = "Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR.";
+    if (typeof isActive !== "boolean") fields.isActive = "Active state is required.";
+    const passwordError = initialPasswordError(initialPassword);
+    if (passwordError) fields.initialPassword = passwordError;
+
+    if (Object.keys(fields).length > 0) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
+      return;
+    }
+
+    try {
+      const passwordHash = await hashPassword(initialPassword as string);
+      const outcome = await getPrisma().$transaction(async (tx) => {
+        const activeAdmins = await lockActiveAdministrators(tx);
+        if (!activeAdmins.some((admin) => admin.id === req.auth!.user.id)) return { kind: "forbidden" as const };
+
+        const existing = await tx.user.findUnique({ where: { email }, select: { id: true } });
+        if (existing) return { kind: "duplicate" as const };
+
+        const user = await tx.user.create({
+          data: {
+            name,
+            email,
+            role: role as UserRole,
+            isActive: isActive as boolean,
+            passwordHash,
+            mustChangePassword: true,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            mustChangePassword: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        return { kind: "success" as const, user };
+      });
+
+      if (outcome.kind === "forbidden") {
+        res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+        return;
+      }
+      if (outcome.kind === "duplicate") {
+        res.status(409).json(errorResponse("DUPLICATE_EMAIL", "A User with this email already exists.", { email: "Email is already in use." }));
+        return;
+      }
+      res.status(201).json(adminUserResponse(outcome.user));
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : "";
+      if (code === "P2002") {
+        res.status(409).json(errorResponse("DUPLICATE_EMAIL", "A User with this email already exists.", { email: "Email is already in use." }));
+        return;
+      }
+      res.status(500).json(errorResponse("USER_MANAGEMENT_ERROR", "Unable to create User."));
+    }
+  },
+);
+
+app.patch(
+  "/api/admin/users/:userId",
+  requireNormalAccess,
+  requireAdministratorRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const userId = toPositiveInteger(req.params.userId);
+    if (!userId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "User ID must be a positive integer."));
+      return;
+    }
+
+    const allowedFields = new Set(["name", "email", "role", "isActive"]);
+    const bodyKeys = Object.keys(req.body ?? {});
+    const fields: Record<string, string> = {};
+    for (const key of bodyKeys) {
+      if (!allowedFields.has(key)) fields[key] = `${key} cannot be changed through profile edit.`;
+    }
+    if (bodyKeys.length === 0) fields.user = "At least one editable field is required.";
+
+    const data: { name?: string; email?: string; role?: UserRole; isActive?: boolean } = {};
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "name")) {
+      const name = typeof req.body.name === "string" ? req.body.name.trim() : "";
+      if (!name) fields.name = "Name is required.";
+      else data.name = name;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "email")) {
+      const email = normalizeEmail(req.body.email);
+      if (!email || !isValidEmail(email)) fields.email = "Enter a valid email address.";
+      else data.email = email;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "role")) {
+      const role = typeof req.body.role === "string" ? req.body.role : "";
+      if (!allowedUserRoles.includes(role as UserRole)) fields.role = "Role must be REQUESTER, IT_STAFF, or ADMINISTRATOR.";
+      else data.role = role as UserRole;
+    }
+    if (Object.prototype.hasOwnProperty.call(req.body ?? {}, "isActive")) {
+      if (typeof req.body.isActive !== "boolean") fields.isActive = "Active state must be true or false.";
+      else data.isActive = req.body.isActive;
+    }
+
+    if (Object.keys(fields).length > 0) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
+      return;
+    }
+
+    try {
+      const outcome = await getPrisma().$transaction(async (tx) => {
+        const activeAdmins = await lockActiveAdministrators(tx);
+        if (!activeAdmins.some((admin) => admin.id === req.auth!.user.id)) return { kind: "forbidden" as const };
+
+        const rows = await tx.$queryRaw<Array<{
+          id: number;
+          name: string;
+          email: string;
+          role: UserRole;
+          isActive: boolean;
+          mustChangePassword: boolean;
+          createdAt: Date;
+          updatedAt: Date;
+        }>>(Prisma.sql`
+          SELECT "id", "name", "email", "role", "isActive", "mustChangePassword", "createdAt", "updatedAt"
+          FROM "User"
+          WHERE "id" = ${userId}
+          FOR UPDATE
+        `);
+        const target = rows[0];
+        if (!target) return { kind: "notFound" as const };
+
+        const finalRole = data.role ?? target.role;
+        const finalIsActive = data.isActive ?? target.isActive;
+        if (target.id === req.auth!.user.id && target.isActive && finalIsActive === false) {
+          return { kind: "selfDeactivate" as const };
+        }
+        if (target.role === "ADMINISTRATOR" && target.isActive && (finalRole !== "ADMINISTRATOR" || !finalIsActive) && activeAdmins.length <= 1) {
+          return { kind: "lastAdmin" as const };
+        }
+
+        if (data.email && data.email !== target.email) {
+          const duplicate = await tx.user.findUnique({ where: { email: data.email }, select: { id: true } });
+          if (duplicate) return { kind: "duplicate" as const };
+        }
+
+        const roleChanged = finalRole !== target.role;
+        const deactivated = target.isActive && !finalIsActive;
+        const remainsEligibleOwner = finalIsActive && ["IT_STAFF", "ADMINISTRATOR"].includes(finalRole);
+        if (!remainsEligibleOwner) {
+          await tx.ticket.updateMany({ where: { ownerId: target.id }, data: { ownerId: null } });
+        }
+        if (roleChanged || deactivated) {
+          await tx.authSession.updateMany({ where: { userId: target.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        }
+
+        const updated = await tx.user.update({
+          where: { id: target.id },
+          data,
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isActive: true,
+            mustChangePassword: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        });
+        return { kind: "success" as const, user: updated };
+      });
+
+      if (outcome.kind === "forbidden") {
+        res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+        return;
+      }
+      if (outcome.kind === "notFound") {
+        res.status(404).json(errorResponse("NOT_FOUND", "User was not found."));
+        return;
+      }
+      if (outcome.kind === "selfDeactivate") {
+        res.status(409).json(errorResponse("SELF_DEACTIVATION_FORBIDDEN", "You cannot deactivate your own Administrator account."));
+        return;
+      }
+      if (outcome.kind === "lastAdmin") {
+        res.status(409).json(errorResponse("LAST_ACTIVE_ADMIN_REQUIRED", "At least one active Administrator is required."));
+        return;
+      }
+      if (outcome.kind === "duplicate") {
+        res.status(409).json(errorResponse("DUPLICATE_EMAIL", "A User with this email already exists.", { email: "Email is already in use." }));
+        return;
+      }
+      res.status(200).json(adminUserResponse(outcome.user));
+    } catch (error) {
+      const code = typeof error === "object" && error !== null && "code" in error ? String((error as { code?: unknown }).code) : "";
+      if (code === "P2002") {
+        res.status(409).json(errorResponse("DUPLICATE_EMAIL", "A User with this email already exists.", { email: "Email is already in use." }));
+        return;
+      }
+      res.status(500).json(errorResponse("USER_MANAGEMENT_ERROR", "Unable to update User."));
+    }
+  },
+);
+
+app.post(
+  "/api/admin/users/:userId/initial-password",
+  requireNormalAccess,
+  requireAdministratorRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const userId = toPositiveInteger(req.params.userId);
+    if (!userId) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "User ID must be a positive integer."));
+      return;
+    }
+    const bodyKeys = Object.keys(req.body ?? {});
+    const initialPassword = req.body?.initialPassword;
+    const fields: Record<string, string> = {};
+    if (bodyKeys.some((key) => key !== "initialPassword")) fields.initialPassword = "Only initialPassword is accepted.";
+    const passwordError = initialPasswordError(initialPassword);
+    if (passwordError) fields.initialPassword = passwordError;
+    if (Object.keys(fields).length > 0) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
+      return;
+    }
+
+    try {
+      const prisma = getPrisma();
+      const outcome = await prisma.$transaction(async (tx) => {
+        const activeAdmins = await lockActiveAdministrators(tx);
+        if (!activeAdmins.some((admin) => admin.id === req.auth!.user.id)) return { kind: "forbidden" as const };
+        if (userId === req.auth!.user.id) return { kind: "self" as const };
+
+        const rows = await tx.$queryRaw<Array<{ id: number; passwordHash: string }>>(Prisma.sql`
+          SELECT "id", "passwordHash"
+          FROM "User"
+          WHERE "id" = ${userId}
+          FOR UPDATE
+        `);
+        const target = rows[0];
+        if (!target) return { kind: "notFound" as const };
+        if (await verifyPassword(initialPassword as string, target.passwordHash)) return { kind: "samePassword" as const };
+
+        const passwordHash = await hashPassword(initialPassword as string);
+        await tx.user.update({ where: { id: target.id }, data: { passwordHash, mustChangePassword: true } });
+        await tx.authSession.updateMany({ where: { userId: target.id, revokedAt: null }, data: { revokedAt: new Date() } });
+        return { kind: "success" as const };
+      });
+
+      if (outcome.kind === "forbidden" || outcome.kind === "self") {
+        res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+        return;
+      }
+      if (outcome.kind === "notFound") {
+        res.status(404).json(errorResponse("NOT_FOUND", "User was not found."));
+        return;
+      }
+      if (outcome.kind === "samePassword") {
+        res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", { initialPassword: "New initial password must differ from the current password." }));
+        return;
+      }
+      res.status(200).json({ userId, mustChangePassword: true });
+    } catch {
+      res.status(500).json(errorResponse("USER_MANAGEMENT_ERROR", "Unable to set the new initial password."));
     }
   },
 );

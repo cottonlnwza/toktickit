@@ -15,6 +15,44 @@ export interface AuthResponse {
   csrfToken: string;
 }
 
+export interface AdminUser {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  isActive: boolean;
+  mustChangePassword?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export class UserManagementApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly code: string,
+    message: string,
+    public readonly fields: Record<string, string> = {},
+  ) {
+    super(message);
+  }
+}
+
+async function parseUserManagementError(response: Response, fallback: string) {
+  try {
+    const body = (await response.json()) as {
+      error?: { code?: string; message?: string; fields?: Record<string, string> };
+    };
+    return new UserManagementApiError(
+      response.status,
+      body.error?.code ?? "USER_MANAGEMENT_ERROR",
+      body.error?.message ?? fallback,
+      body.error?.fields ?? {},
+    );
+  } catch {
+    return new UserManagementApiError(response.status, "USER_MANAGEMENT_ERROR", fallback);
+  }
+}
+
 export class AuthApiError extends Error {
   constructor(
     public readonly status: number,
@@ -80,6 +118,56 @@ export async function logout(csrfToken: string): Promise<void> {
     headers: { "X-CSRF-Token": csrfToken },
   });
   if (!response.ok) throw await parseAuthError(response, "Unable to sign out. Please try again.");
+}
+
+export async function getAdminUsers(query: { search?: string; role?: UserRole | "" } = {}): Promise<AdminUser[]> {
+  const parameters = new URLSearchParams();
+  if (query.search?.trim()) parameters.set("search", query.search.trim());
+  if (query.role) parameters.set("role", query.role);
+  const queryString = parameters.toString();
+  const response = await fetch(`${API_URL}/api/admin/users${queryString ? `?${queryString}` : ""}`, { credentials: "include" });
+  if (!response.ok) throw await parseUserManagementError(response, "Unable to load Users.");
+  return (await response.json()) as AdminUser[];
+}
+
+export async function createAdminUser(
+  csrfToken: string,
+  input: { name: string; email: string; role: UserRole; isActive: boolean; initialPassword: string },
+): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseUserManagementError(response, "Unable to create User.");
+  return (await response.json()) as AdminUser;
+}
+
+export async function updateAdminUser(
+  csrfToken: string,
+  userId: number,
+  input: Partial<Pick<AdminUser, "name" | "email" | "role" | "isActive">>,
+): Promise<AdminUser> {
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}`, {
+    method: "PATCH",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await parseUserManagementError(response, "Unable to update User.");
+  return (await response.json()) as AdminUser;
+}
+
+export async function setAdminInitialPassword(csrfToken: string, userId: number, initialPassword: string) {
+  const response = await fetch(`${API_URL}/api/admin/users/${userId}/initial-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    body: JSON.stringify({ initialPassword }),
+  });
+  if (!response.ok) throw await parseUserManagementError(response, "Unable to set the new initial password.");
+  return (await response.json()) as { userId: number; mustChangePassword: true };
 }
 
 export interface Category {

@@ -61,7 +61,7 @@ describe("Lab 3 authenticated application shell", () => {
     mockAuthenticatedFetch({ ...currentUser, role });
     render(<App />);
 
-    expect(await screen.findByText(roleLabel)).toBeInTheDocument();
+    expect(await screen.findByText(roleLabel, { selector: ".role-badge" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: allowed })).toBeInTheDocument();
     expect(screen.queryByText(forbiddenOne)).not.toBeInTheDocument();
     expect(screen.queryByText(forbiddenTwo)).not.toBeInTheDocument();
