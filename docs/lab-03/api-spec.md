@@ -591,6 +591,8 @@ Safety:
 - Administrator cannot deactivate self (`409 SELF_DEACTIVATION_FORBIDDEN`).
 - Any deactivation or role change that leaves zero active Administrators is `409 LAST_ACTIVE_ADMIN_REQUIRED`.
 - Deactivating a User or changing the User's role revokes that target User's active sessions so stale authorization cannot continue.
+- Administrator mutation authorization and the active-Administrator safety floor are re-checked under database row locks so concurrent Administrator role/deactivation requests cannot both remove the final active Administrator.
+- If deactivation or role change makes a current Ticket owner ineligible under BR-18, owned Tickets are unassigned in the same transaction so no Ticket persists an inactive/Requester owner. This uses the same User-before-Ticket lock order as Staff ownership operations.
 - No delete endpoint exists.
 
 Success `200` returns the updated safe User object using the POST response shape (without any password/hash value).
@@ -602,6 +604,8 @@ Success `200` returns the updated safe User object using the POST response shape
 ```
 
 Administrator only. Hashes the password, sets `mustChangePassword=true`, revokes target User sessions. Success `200`.
+
+The target must be another User; Administrators use the normal Change Password workflow for their own credential. The new initial password follows BR-08 length/whitespace rules, must differ from the target's current password, and is never trimmed before hashing.
 
 Success response:
 

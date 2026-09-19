@@ -386,6 +386,109 @@
   padding: 0.6rem 0;
 }
 
+.admin-users-page {
+  max-width: 1280px;
+}
+
+.admin-users-panel {
+  background: #ffffff;
+  border: 1px solid #d8e6de;
+  border-radius: 10px;
+  box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
+  padding: 1.5rem;
+}
+
+.admin-users-heading,
+.admin-user-form-heading,
+.admin-user-failure {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.admin-users-heading {
+  margin-bottom: 1rem;
+}
+
+.admin-user-controls {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  margin-bottom: 1rem;
+}
+
+.admin-role-badge,
+.admin-status-badge {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.admin-status-badge {
+  border: 1px solid #afbeb6;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+}
+
+.admin-status-badge.active {
+  background: #eef8f1;
+}
+
+.admin-status-badge.inactive {
+  background: #f3f2ea;
+}
+
+.admin-user-email {
+  overflow-wrap: anywhere;
+}
+
+.admin-user-mobile {
+  display: none;
+}
+
+.admin-user-form-panel {
+  background: #f7fbf8;
+  border: 1px solid #cbded2;
+  border-radius: 8px;
+  margin-top: 1.25rem;
+  padding: 1rem;
+}
+
+.admin-user-form-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.admin-active-control {
+  align-self: end;
+  padding-bottom: 0.5rem;
+}
+
+.admin-password-control {
+  grid-column: span 2;
+}
+
+.admin-password-reset {
+  border-top: 1px solid #cbded2;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+}
+
+.admin-password-reset h4 {
+  font-size: 1rem;
+}
+
+.admin-user-card {
+  border: 1px solid #d8e6de;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.55rem;
+  padding: 1rem;
+}
+
 .ticket-detail-heading,
 .detail-attachments-heading,
 .detail-comments-heading {
@@ -719,6 +822,15 @@
   .staff-operation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .admin-user-desktop {
+    display: none;
+  }
+
+  .admin-user-mobile {
+    display: grid;
+    gap: 0.75rem;
+  }
 }
 
 @media (max-width: 767px) {
@@ -875,5 +987,34 @@
   .staff-operation-grid,
   .staff-detail-section dl {
     grid-template-columns: 1fr;
+  }
+
+  .admin-users-panel {
+    padding: 1rem;
+  }
+
+  .admin-users-heading,
+  .admin-user-form-heading,
+  .admin-user-failure {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-user-controls,
+  .admin-user-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-password-control {
+    grid-column: auto;
+  }
+
+  .admin-user-desktop {
+    display: none;
+  }
+
+  .admin-user-mobile {
+    display: grid;
+    gap: 0.75rem;
   }
 }

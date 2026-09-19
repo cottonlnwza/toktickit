@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  AdminUser,
   AuthApiError,
   AuthUser,
   addAuthenticatedTicketAttachment,
@@ -8,10 +9,12 @@ import {
   checkSystem,
   Category,
   createAuthenticatedTicket,
+  createAdminUser,
   createTicket,
   CreatedTicket,
   getAuthenticatedMyTickets,
   getAuthenticatedTicketDetail,
+  getAdminUsers,
   getCurrentUser,
   getCategories,
   getMyTickets,
@@ -37,12 +40,15 @@ import {
   StaffQueueTicket,
   StaffTicketApiError,
   StaffTicketDetail,
+  setAdminInitialPassword,
   TicketAttachment,
   TicketDetail,
   TicketStatus,
   updateStaffTicketItPriority,
   updateStaffTicketOwner,
   updateStaffTicketStatus,
+  updateAdminUser,
+  UserManagementApiError,
   addTicketAttachment,
   uploadTicketAttachment,
 } from "./api.js";
@@ -590,6 +596,223 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
   );
 }
 
+type AdminFormState = {
+  name: string;
+  email: string;
+  role: AuthUser["role"];
+  isActive: boolean;
+  initialPassword: string;
+};
+
+const emptyAdminForm: AdminFormState = {
+  name: "",
+  email: "",
+  role: "REQUESTER",
+  isActive: true,
+  initialPassword: "",
+};
+
+function UserManagement({ currentUser, csrfToken }: { currentUser: AuthUser; csrfToken: string }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<AuthUser["role"] | "">("");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [loadError, setLoadError] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [panelMode, setPanelMode] = useState<"create" | "edit" | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [form, setForm] = useState<AdminFormState>(emptyAdminForm);
+  const [resetPassword, setResetPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    setLoadState("loading");
+    setLoadError("");
+    void getAdminUsers({ search, role: roleFilter })
+      .then((response) => {
+        if (!current) return;
+        setUsers(response);
+        setLoadState("ready");
+      })
+      .catch((caught) => {
+        if (!current) return;
+        setUsers([]);
+        setLoadState("error");
+        if (caught instanceof UserManagementApiError && caught.status === 403) {
+          setLoadError("Forbidden. Your role is not permitted to access User Management.");
+        } else {
+          setLoadError("Unable to load Users. Please try again.");
+        }
+      });
+    return () => { current = false; };
+  }, [search, roleFilter, refreshToken]);
+
+  function openCreate() {
+    setPanelMode("create");
+    setSelectedUser(null);
+    setForm(emptyAdminForm);
+    setResetPassword("");
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+  }
+
+  function openEdit(user: AdminUser) {
+    setPanelMode("edit");
+    setSelectedUser(user);
+    setForm({ name: user.name, email: user.email, role: user.role, isActive: user.isActive, initialPassword: "" });
+    setResetPassword("");
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+  }
+
+  function explainAdminError(caught: unknown) {
+    if (!(caught instanceof UserManagementApiError)) return "Unable to save the User change. Please try again.";
+    if (caught.code === "DUPLICATE_EMAIL") return "That email is already in use.";
+    if (caught.code === "SELF_DEACTIVATION_FORBIDDEN") return "You cannot deactivate your own Administrator account.";
+    if (caught.code === "LAST_ACTIVE_ADMIN_REQUIRED") return "At least one active Administrator is required.";
+    if (caught.status === 403) return "Forbidden. Your role is not permitted to perform this User Management action.";
+    if (caught.status === 404) return "User was not found. Refresh User Management and try again.";
+    if (caught.status === 400) return caught.message || "Please correct the highlighted fields.";
+    return "Unable to save the User change. Please try again.";
+  }
+
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+    const localFields: Record<string, string> = {};
+    if (!form.name.trim()) localFields.name = "Name is required.";
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) localFields.email = "Enter a valid email address.";
+    if (panelMode === "create" && (form.initialPassword.length < 12 || form.initialPassword.length > 128 || !form.initialPassword.trim())) {
+      localFields.initialPassword = "Initial password must be 12-128 characters and not all whitespace.";
+    }
+    if (Object.keys(localFields).length > 0) {
+      setFieldErrors(localFields);
+      setActionError("Please correct the highlighted fields.");
+      return;
+    }
+
+    setSaving(true);
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+    try {
+      if (panelMode === "create") {
+        await createAdminUser(csrfToken, {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          isActive: form.isActive,
+          initialPassword: form.initialPassword,
+        });
+        setSuccessMessage("User created successfully. The initial password must be changed at next login.");
+        setPanelMode(null);
+        setForm(emptyAdminForm);
+      } else if (selectedUser) {
+        const updated = await updateAdminUser(csrfToken, selectedUser.id, {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          isActive: form.isActive,
+        });
+        setSelectedUser(updated);
+        setForm((current) => ({ ...current, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive }));
+        setSuccessMessage("User updated successfully.");
+      }
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      if (caught instanceof UserManagementApiError) setFieldErrors(caught.fields);
+      setActionError(explainAdminError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleInitialPassword() {
+    if (!selectedUser || saving) return;
+    if (resetPassword.length < 12 || resetPassword.length > 128 || !resetPassword.trim()) {
+      setFieldErrors({ initialPassword: "Initial password must be 12-128 characters and not all whitespace." });
+      setActionError("Please correct the highlighted fields.");
+      return;
+    }
+    setSaving(true);
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+    try {
+      await setAdminInitialPassword(csrfToken, selectedUser.id, resetPassword);
+      setResetPassword("");
+      setSuccessMessage("New initial password saved. The User must change it at next login.");
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      if (caught instanceof UserManagementApiError) setFieldErrors(caught.fields);
+      setActionError(explainAdminError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const renderRole = (role: AuthUser["role"]) => roleLabel(role);
+
+  return (
+    <main className="container py-4 admin-users-page">
+      <section className="admin-users-panel" aria-labelledby="admin-users-heading">
+        <div className="admin-users-heading">
+          <div><h2 id="admin-users-heading">User Management</h2><p className="text-muted mb-0">Manage authentication roles and account activation without deleting Users.</p></div>
+          <button className="btn btn-success" type="button" onClick={openCreate}>Create User</button>
+        </div>
+
+        {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+        <div className="admin-user-controls" aria-label="User Management filters">
+          <div><label className="form-label" htmlFor="admin-user-search">Search Users</label><input id="admin-user-search" className="form-control" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or email" /></div>
+          <div><label className="form-label" htmlFor="admin-user-role-filter">Role Filter</label><select id="admin-user-role-filter" className="form-select" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as AuthUser["role"] | "")}><option value="">All roles</option><option value="REQUESTER">Requester</option><option value="IT_STAFF">IT Staff</option><option value="ADMINISTRATOR">Administrator</option></select></div>
+        </div>
+
+        {loadState === "loading" && <div className="queue-state" role="status">Loading Users...</div>}
+        {loadState === "error" && <div className="alert alert-danger admin-user-failure" role="alert"><span>{loadError}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRefreshToken((value) => value + 1)}>Retry</button></div>}
+        {loadState === "ready" && users.length === 0 && <div className="queue-state">No Users match the current search/filter.</div>}
+
+        {loadState === "ready" && users.length > 0 && <>
+          <div className="table-responsive admin-user-desktop" data-testid="admin-user-desktop">
+            <table className="table align-middle"><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Edit</th></tr></thead><tbody>{users.map((managedUser) => <tr key={managedUser.id}><td>{managedUser.name}</td><td className="admin-user-email">{managedUser.email}</td><td><span className="role-badge admin-role-badge">{renderRole(managedUser.role)}</span></td><td><span className={`admin-status-badge ${managedUser.isActive ? "active" : "inactive"}`}>{managedUser.isActive ? "Active" : "Inactive"}</span></td><td><button className="btn btn-sm btn-outline-success" type="button" onClick={() => openEdit(managedUser)}>Edit</button></td></tr>)}</tbody></table>
+          </div>
+          <div className="admin-user-mobile" data-testid="admin-user-mobile">{users.map((managedUser) => <article className="admin-user-card" key={managedUser.id}><strong>{managedUser.name}</strong><span className="admin-user-email">{managedUser.email}</span><div><span className="role-badge admin-role-badge">{renderRole(managedUser.role)}</span> <span className={`admin-status-badge ${managedUser.isActive ? "active" : "inactive"}`}>{managedUser.isActive ? "Active" : "Inactive"}</span></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => openEdit(managedUser)}>Edit</button></article>)}</div>
+        </>}
+
+        {panelMode && <section className="admin-user-form-panel" aria-labelledby="admin-user-form-heading">
+          <div className="admin-user-form-heading"><h3 id="admin-user-form-heading">{panelMode === "create" ? "Create User" : "Edit User"}</h3><button className="btn btn-sm btn-outline-secondary" type="button" disabled={saving} onClick={() => { setPanelMode(null); setSelectedUser(null); setFieldErrors({}); setActionError(""); }}>Close</button></div>
+          {actionError && <div className="alert alert-danger" role="alert">{actionError}</div>}
+          <form onSubmit={(event) => void handleProfileSubmit(event)} noValidate>
+            <div className="admin-user-form-grid">
+              <div><label className="form-label" htmlFor="admin-user-name">Name</label><input id="admin-user-name" className={`form-control ${fieldErrors.name ? "is-invalid" : ""}`} value={form.name} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />{fieldErrors.name && <div className="invalid-feedback">{fieldErrors.name}</div>}</div>
+              <div><label className="form-label" htmlFor="admin-user-email">Email</label><input id="admin-user-email" type="email" className={`form-control ${fieldErrors.email ? "is-invalid" : ""}`} value={form.email} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />{fieldErrors.email && <div className="invalid-feedback">{fieldErrors.email}</div>}</div>
+              <div><label className="form-label" htmlFor="admin-user-role">Role</label><select id="admin-user-role" className={`form-select ${fieldErrors.role ? "is-invalid" : ""}`} value={form.role} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as AuthUser["role"] }))}><option value="REQUESTER">Requester</option><option value="IT_STAFF">IT Staff</option><option value="ADMINISTRATOR">Administrator</option></select>{fieldErrors.role && <div className="invalid-feedback">{fieldErrors.role}</div>}</div>
+              <div className="admin-active-control"><div className="form-check"><input id="admin-user-active" type="checkbox" className="form-check-input" checked={form.isActive} disabled={saving} onChange={(event) => { const next = event.target.checked; if (!next && form.isActive && !window.confirm("Deactivate this User? Existing sessions will be revoked.")) return; setForm((current) => ({ ...current, isActive: next })); }} /><label className="form-check-label" htmlFor="admin-user-active">Active</label></div>{fieldErrors.isActive && <div className="text-danger small">{fieldErrors.isActive}</div>}</div>
+              {panelMode === "create" && <div className="admin-password-control"><label className="form-label" htmlFor="admin-user-initial-password">Initial Password</label><input id="admin-user-initial-password" type="password" className={`form-control ${fieldErrors.initialPassword ? "is-invalid" : ""}`} value={form.initialPassword} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, initialPassword: event.target.value }))} /><div className="form-text">12-128 characters. The User must change it at next login.</div>{fieldErrors.initialPassword && <div className="invalid-feedback">{fieldErrors.initialPassword}</div>}</div>}
+            </div>
+            <button className="btn btn-success mt-3" type="submit" disabled={saving}>{saving ? "Saving..." : panelMode === "create" ? "Create User" : "Save User"}</button>
+          </form>
+
+          {panelMode === "edit" && selectedUser && selectedUser.id !== currentUser.id && <div className="admin-password-reset">
+            <h4>Set New Initial Password</h4><p className="text-muted">This is separate from profile editing and revokes the User's active sessions.</p>
+            <label className="form-label" htmlFor="admin-reset-password">Set New Initial Password</label><input id="admin-reset-password" type="password" className={`form-control ${fieldErrors.initialPassword ? "is-invalid" : ""}`} value={resetPassword} disabled={saving} onChange={(event) => setResetPassword(event.target.value)} />{fieldErrors.initialPassword && <div className="invalid-feedback">{fieldErrors.initialPassword}</div>}
+            <button className="btn btn-outline-success mt-2" type="button" disabled={saving || !resetPassword} onClick={() => void handleInitialPassword()}>Apply New Initial Password</button>
+          </div>}
+        </section>}
+      </section>
+    </main>
+  );
+}
+
+function ForbiddenUserManagement() {
+  return <main className="container py-5"><div className="alert alert-danger" role="alert"><strong>Forbidden.</strong> Your role is not permitted to access User Management.</div></main>;
+}
+
 function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
   const [routeHash, setRouteHash] = useState(() => window.location.hash);
   useEffect(() => {
@@ -599,6 +822,7 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
   }, []);
   const staffTicketMatch = routeHash.match(/^#staff-ticket-(\d+)$/);
   const staffTicketId = staffTicketMatch ? Number(staffTicketMatch[1]) : null;
+  const userManagementRequested = routeHash === "#user-management";
   const navigation = user.role === "REQUESTER"
     ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
     : user.role === "IT_STAFF"
@@ -622,7 +846,9 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
           </div>
         </div>
       </header>
-      {staffTicketId && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
+      {userManagementRequested && user.role !== "ADMINISTRATOR" ? (
+        <ForbiddenUserManagement />
+      ) : staffTicketId && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
         <StaffTicketDetailView ticketId={staffTicketId} user={user} csrfToken={csrfToken} />
       ) : user.role === "REQUESTER" ? (
         <>
@@ -645,14 +871,13 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
           <StaffTicketQueue />
         </>
       ) : (
-        <main className="container py-5">
-          {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
-          {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
-          <section className="auth-ready-panel">
-            <h2>Authenticated session ready</h2>
-            <p>Signed in successfully. Use the available navigation for your role.</p>
-          </section>
-        </main>
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <UserManagement currentUser={user} csrfToken={csrfToken} />
+        </>
       )}
     </div>
   );
