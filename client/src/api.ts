@@ -246,9 +246,44 @@ export interface StaffQueueResponse {
   totalPages: number;
 }
 
+export interface InternalNote {
+  id: number;
+  content: string;
+  author: { id: number; name: string; role: UserRole };
+  createdAt: string;
+}
+
+export interface StaffTicketDetail {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  description: string;
+  requester: Requester;
+  category: Category;
+  relatedSystem: RelatedSystem;
+  requestedPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  itPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  currentStatus: TicketStatus;
+  currentStatusLabel: string;
+  owner: { id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" } | null;
+  ownerOptions: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
+  problemAppearsResolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  attachments: TicketAttachment[];
+  publicComments: PublicComment[];
+  internalNotes: InternalNote[];
+}
+
 export class StaffQueueApiError extends Error {
   constructor(public readonly status: number, public readonly code: string) {
     super("Unable to load Ticket Queue.");
+  }
+}
+
+export class StaffTicketApiError extends Error {
+  constructor(public readonly status: number, public readonly code: string, message: string) {
+    super(message);
   }
 }
 
@@ -478,6 +513,69 @@ export async function getStaffTicketQueue(query: StaffQueueQuery = {}): Promise<
     throw new StaffQueueApiError(response.status, code);
   }
   return (await response.json()) as StaffQueueResponse;
+}
+
+export async function getStaffTicketDetail(ticketId: number): Promise<StaffTicketDetail> {
+  const response = await fetch(`${API_URL}/api/staff/tickets/${ticketId}`, { credentials: "include" });
+  if (!response.ok) {
+    let code = "STAFF_TICKET_DETAIL_ERROR";
+    let message = "Unable to load Ticket Detail.";
+    try {
+      const body = (await response.json()) as { error?: { code?: string; message?: string } };
+      code = body.error?.code ?? code;
+      message = body.error?.message ?? message;
+    } catch {
+      // Keep safe fallback values.
+    }
+    throw new StaffTicketApiError(response.status, code, message);
+  }
+  const detail = (await response.json()) as StaffTicketDetail;
+  return {
+    ...detail,
+    attachments: detail.attachments.map((attachment) => ({ ...attachment, downloadUrl: toApiUrl(attachment.downloadUrl) })),
+  };
+}
+
+async function staffMutation<T>(csrfToken: string, path: string, method: "POST" | "PATCH", body?: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!response.ok) {
+    let code = "STAFF_TICKET_UPDATE_ERROR";
+    let message = "Unable to update Ticket.";
+    try {
+      const payload = (await response.json()) as { error?: { code?: string; message?: string } };
+      code = payload.error?.code ?? code;
+      message = payload.error?.message ?? message;
+    } catch {
+      // Keep safe fallback values.
+    }
+    throw new StaffTicketApiError(response.status, code, message);
+  }
+  return (await response.json()) as T;
+}
+
+export function claimStaffTicket(csrfToken: string, ticketId: number) {
+  return staffMutation<{ owner: StaffTicketDetail["owner"] }>(csrfToken, `/api/staff/tickets/${ticketId}/claim`, "POST", {});
+}
+
+export function updateStaffTicketOwner(csrfToken: string, ticketId: number, ownerId: number | null) {
+  return staffMutation<{ owner: StaffTicketDetail["owner"] }>(csrfToken, `/api/staff/tickets/${ticketId}/owner`, "PATCH", { ownerId });
+}
+
+export function updateStaffTicketItPriority(csrfToken: string, ticketId: number, itPriority: StaffTicketDetail["itPriority"]) {
+  return staffMutation<{ itPriority: StaffTicketDetail["itPriority"]; requestedPriority: StaffTicketDetail["requestedPriority"] }>(csrfToken, `/api/staff/tickets/${ticketId}/it-priority`, "PATCH", { itPriority });
+}
+
+export function updateStaffTicketStatus(csrfToken: string, ticketId: number, status: TicketStatus) {
+  return staffMutation<{ currentStatus: TicketStatus; currentStatusLabel: string }>(csrfToken, `/api/staff/tickets/${ticketId}/status`, "PATCH", { status });
+}
+
+export function postInternalNote(csrfToken: string, ticketId: number, content: string) {
+  return staffMutation<InternalNote>(csrfToken, `/api/staff/tickets/${ticketId}/internal-notes`, "POST", { content });
 }
 
 export async function addTicketAttachment(
