@@ -51,7 +51,10 @@ function urlOf(input: RequestInfo | URL) {
   return typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
 }
 
-function mockDetailFetch(role: "IT_STAFF" | "ADMINISTRATOR" = "IT_STAFF") {
+function mockDetailFetch(
+  role: "IT_STAFF" | "ADMINISTRATOR" = "IT_STAFF",
+  statusMutation?: () => Promise<Response>,
+) {
   const activeUser = role === "IT_STAFF" ? staff : admin;
   return vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
     const url = urlOf(input);
@@ -61,7 +64,9 @@ function mockDetailFetch(role: "IT_STAFF" | "ADMINISTRATOR" = "IT_STAFF") {
     if (url.endsWith(`/api/staff/tickets/${detail.id}/claim`) && method === "POST") return jsonResponse(200, { owner: { id: staff.id, name: staff.name, role: "IT_STAFF" } });
     if (url.endsWith(`/api/staff/tickets/${detail.id}/owner`) && method === "PATCH") return jsonResponse(200, { owner: ownerB });
     if (url.endsWith(`/api/staff/tickets/${detail.id}/it-priority`) && method === "PATCH") return jsonResponse(200, { itPriority: "LOW", requestedPriority: "HIGH" });
-    if (url.endsWith(`/api/staff/tickets/${detail.id}/status`) && method === "PATCH") return jsonResponse(200, { currentStatus: "RESOLVED", currentStatusLabel: "Resolved" });
+    if (url.endsWith(`/api/staff/tickets/${detail.id}/status`) && method === "PATCH") {
+      return statusMutation ? statusMutation() : jsonResponse(200, { currentStatus: "RESOLVED", currentStatusLabel: "Resolved" });
+    }
     if (url.endsWith(`/api/tickets/${detail.id}/comments`) && method === "POST") return jsonResponse(201, { id: 9, content: "Public update", author: staff, createdAt: "2026-09-19T02:00:00.000Z" });
     if (url.endsWith(`/api/staff/tickets/${detail.id}/internal-notes`) && method === "POST") return jsonResponse(201, { id: 10, content: "Private update", author: staff, createdAt: "2026-09-19T02:05:00.000Z" });
     if (url.includes("/api/staff/tickets")) return jsonResponse(200, { items: [], ownerOptions: detail.ownerOptions, page: 1, pageSize: 10, totalItems: 0, totalPages: 0 });
@@ -130,6 +135,24 @@ describe("Lab 3 Issue 6 Staff Ticket Detail UI", () => {
     await user.selectOptions(screen.getByLabelText(/Status Transition/i), "RESOLVED");
     await user.click(screen.getByRole("button", { name: /Apply Status/i }));
     expect(fetchSpy.mock.calls.some(([input, init]) => urlOf(input).endsWith(`/status`) && init?.method === "PATCH")).toBe(false);
+  });
+
+  it("UI-07 shows domain feedback when the backend rejects a stale status transition with 400 INVALID_TRANSITION", async () => {
+    mockDetailFetch("IT_STAFF", () => jsonResponse(400, {
+      error: { code: "INVALID_TRANSITION", message: "Ticket status transition is not allowed." },
+    }));
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    window.location.hash = `#staff-ticket-${detail.id}`;
+    render(<App />);
+    await screen.findByRole("heading", { name: /Ticket Detail/i });
+
+    await user.selectOptions(screen.getByLabelText(/Status Transition/i), "RESOLVED");
+    await user.click(screen.getByRole("button", { name: /Apply Status/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/status transition.*no longer allowed|refresh.*try again/i);
+    expect(alert).not.toHaveTextContent(/Unable to save the Ticket change/i);
   });
 
   it("UI-07 renders Administrator direct-detail oversight read-only except IT Priority", async () => {

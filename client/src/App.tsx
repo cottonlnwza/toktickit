@@ -524,10 +524,26 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
       await action();
       setMessage(success);
     } catch (caught) {
-      if (caught instanceof StaffTicketApiError && caught.status === 409) {
-        setError("The Ticket changed before this action completed. Refresh the Ticket Detail and try again.");
+      if (caught instanceof StaffTicketApiError && caught.status === 400) {
+        if (caught.code === "INVALID_OWNER") {
+          setError("The selected owner is no longer available. Choose an active IT Staff or Administrator.");
+        } else if (caught.code === "INVALID_TRANSITION") {
+          setError("This status transition is no longer allowed. Refresh the Ticket Detail and try again.");
+        } else if (caught.code === "VALIDATION_ERROR") {
+          setError(caught.message || "The submitted Ticket values are invalid. Review the fields and try again.");
+        } else {
+          setError("The Ticket change is invalid. Review the current values and try again.");
+        }
       } else if (caught instanceof StaffTicketApiError && caught.status === 403) {
         setError("Forbidden. Your role is not permitted to perform this Ticket action.");
+      } else if (caught instanceof StaffTicketApiError && caught.status === 404) {
+        setError("Ticket Detail was not found. Return to the previous screen and refresh before trying again.");
+      } else if (caught instanceof StaffTicketApiError && caught.status === 409) {
+        if (caught.code === "OWNER_CONFLICT") {
+          setError("This Ticket is already assigned. Refresh the Ticket Detail before changing the owner.");
+        } else {
+          setError("The Ticket changed before this action completed. Refresh the Ticket Detail and try again.");
+        }
       } else {
         setError("Unable to save the Ticket change. Please try again.");
       }
