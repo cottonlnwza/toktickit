@@ -7,6 +7,7 @@ import { fileURLToPath } from "url";
 import { Prisma, type RequestedPriority, type TicketStatus, type UserRole } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
+import { normalizeEmail } from "./auth/identity.js";
 import { canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
 import {
   clearSessionCookie,
@@ -134,10 +135,6 @@ function requireAdministratorRole(req: Request, res: Response, next: () => void)
 
 const allowedUserRoles = ["REQUESTER", "IT_STAFF", "ADMINISTRATOR"] as const;
 const adminListQueryKeys = new Set(["search", "role"]);
-
-function normalizeEmail(value: unknown) {
-  return typeof value === "string" ? value.trim().toLowerCase() : "";
-}
 
 function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
@@ -503,7 +500,7 @@ app.get("/api/health", (_req: Request, res: Response) => {
 });
 
 app.post("/api/auth/login", requireApprovedOrigin, async (req: Request, res: Response) => {
-  const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+  const email = normalizeEmail(req.body?.email);
   const password = typeof req.body?.password === "string" ? req.body.password : "";
   if (!email || !email.includes("@") || !password) {
     res.status(400).json(errorResponse("VALIDATION_ERROR", "Email and password are required."));
