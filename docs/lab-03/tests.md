@@ -237,8 +237,10 @@ Issue #36 verification covers authenticated Requester Ticket creation without a 
 
 Issue #37 IT Staff Ticket Queue followed TDD. `staff-queue.api.test.ts` and `StaffTicketQueue.test.tsx` were created first and produced a legitimate red state against the merged Issue #36 baseline: the production server returned `404` for `/api/staff/tickets`, and the IT Staff shell still rendered only the authenticated-session placeholder instead of the Queue screen. The implementation then added only the approved Queue API/UI scope; Staff Ticket Detail operations remain deferred to Issue #38.
 
+All Issue #37 verification counts below are **local verification only**. No hosted GitHub workflow/status result is claimed for PR #48 or the PR #49 follow-up. The PR #49 evidence clarification was added after review `5252287258` requested that local runs not be presented as hosted CI evidence.
+
 - Issue #37 focused server: `staff-queue.api.test.ts` = 1 file / 23 tests passed.
-- Issue #37 focused client: `StaffTicketQueue.test.tsx` = 1 file / 8 tests passed after the PR #48 owner-filter correction.
+- Issue #37 focused client: `StaffTicketQueue.test.tsx` = 1 file / 8 tests passed after the PR #48 owner-filter correction. Post-merge verification exposed a test-only async synchronization race in the off-page-owner assertion; the correction now awaits the owner option with Testing Library's async query. That exact test passed 5 consecutive isolated runs, the full `StaffTicketQueue.test.tsx` file passed, and the full client suite passed 3 consecutive runs (15 files / 79 tests each).
 - Full server regression suite: 20 files / 133 tests passed using `toktickit_lab3_suite_test` plus the separate migration/seed `TEST_DATABASE_URL`.
 - Full client regression suite: 15 files / 79 tests passed.
 - `npm run build --prefix server`: passed.
