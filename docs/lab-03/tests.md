@@ -20,7 +20,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | BR-06, BR-31; AC-21, AC-22 | Email normalization/duplicate comparison | Trimmed lowercase uniqueness behavior | `server/tests/lab-03/auth.unit.test.ts` | Pending |
+| UNIT-01 | Unit | BR-06, BR-31; AC-21, AC-22 | Email normalization/duplicate comparison | Production `normalizeEmail()` trims/lowercases identity email consistently for login/Admin uniqueness behavior | `server/tests/lab-03/auth.unit.test.ts` | Pass — Issue #40 local / Node 22 |
 | UNIT-02 | Unit | BR-08, BR-09; AC-03, AC-21, AC-23 | Password validation + scrypt hash/verify | Boundaries enforced; plaintext never stored; valid verify succeeds | `server/tests/lab-03/auth.unit.test.ts` | Pass — Issue #35 local / Node 22 |
 | UNIT-03 | Unit | BR-24, BR-25; AC-15 | Ticket status transition helper | Only matrix transitions accepted | `server/tests/lab-03/ticket-status.unit.test.ts` | Pass — Issue #38 local / Node 22 |
 | UNIT-04 | Unit | BR-29; AC-16 | Comment/note validation | Blank/over-limit rejected; valid plain text accepted | `server/tests/lab-03/comments-notes.unit.test.ts` | Pass — Issue #38 local / Node 22 |
@@ -70,15 +70,15 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 | STYLE-01 | UI Style | FR-26, FR-27; AC-26, AC-27 | Zen Green/auth/badge/read-only/editable styling | Required semantic classes/states remain consistent | `client/tests/lab-03/ui-style.test.tsx` | Pending |
 | SEC-01 | Security/API | FR-06; AC-06, AC-17, AC-24 | Direct API authorization matrix | Wrong role/owner cannot bypass UI | `server/tests/lab-03/authorization.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
 | SEC-02 | Security/API | BR-41; AC-02, AC-06, AC-17, AC-22 | Safe errors | No hash/token/path/protected existence leakage | `server/tests/lab-03/authorization.api.test.ts` | Pass — Issue #36 isolated PostgreSQL / Node 22 |
-| RESP-01 | Responsive/E2E | FR-27; AC-27 | Desktop `>=992px` | Login/Change Password/shell, Requester Create Ticket, My Tickets, Requester Ticket Detail with Attachments/Public Comments, Staff Queue, Staff Detail, and User Management have no clipping/overlap/overflow and all required actions are reachable | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| RESP-02 | Responsive/E2E | FR-27; AC-27 | Tablet `768-991px` | The same major-screen set, including all three Requester screens and Attachment/Public Comment states, remains usable without hidden controls or page-level overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| RESP-03 | Responsive/E2E | FR-27; AC-27 | Mobile `<768px` | The same major-screen set uses stacked/card layouts where specified; Requester Create/My Tickets/Detail, Attachments/Public Comments, Staff and Admin actions remain reachable with no page overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| A11Y-01 | Accessibility | FR-27; AC-27 | Keyboard/focus/names/non-color status | Major workflows keyboard-operable with visible focus | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pending |
-| E2E-01 | E2E | AC-01-AC-05 | Authentication flow | Login invalid/valid/inactive; mandatory change; role shell; logout; blocked direct access | `e2e/lab-03/authentication.spec.ts` | Pending |
-| E2E-02 | E2E | AC-08-AC-19 | Staff/Requester Ticket flow | Requester regression + Queue -> Detail -> claim/priority/status/comment/note/Attachment | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pending |
-| E2E-03 | E2E | AC-20-AC-24 | Administrator flow | list/search/filter/create/edit/activation/new initial password/safety/forbidden | `e2e/lab-03/user-administration.spec.ts` | Pending |
-| REG-01 | Regression/API | FR-24; AC-28 | Lab 1/Lab 2 server regression under Lab 3 schema/auth changes | Required legacy reference/Ticket/Attachment behavior that remains in scope still passes | `server/tests/lab-03/regression.api.test.ts` | Pending |
-| REG-02 | Regression/UI | FR-08; AC-28 | Lab 2 Requester UI regression under authenticated identity | Create/List/Detail/Attachment behavior remains usable after selector removal | `client/tests/lab-03/regression-ui.test.tsx` | Pending |
+| RESP-01 | Responsive/E2E | FR-27; AC-27 | Desktop `>=992px` | Login/shell, mandatory-password path, Requester Create/My Tickets/Detail with Attachment/Public Comment, Staff Queue/Detail, and User Management actions are reachable with no page-level horizontal overflow | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright desktop 1440x900 |
+| RESP-02 | Responsive/E2E | FR-27; AC-27 | Tablet `768-991px` | Same integrated workflows remain reachable with no page-level horizontal overflow at 820x1180 | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright tablet 820x1180 |
+| RESP-03 | Responsive/E2E | FR-27; AC-27 | Mobile `<768px` | Same integrated workflows remain reachable with no page-level horizontal overflow at 390x844, including card/stacked Staff/Admin controls | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/staff-ticket-flow.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright mobile 390x844 |
+| A11Y-01 | Accessibility | FR-27; AC-27 | Keyboard/focus/names/non-color status | Login fields/buttons and Administrator search/filter/create controls are reachable by accessible name and keyboard focus; workflows expose textual status/role labels rather than color-only meaning | `e2e/lab-03/authentication.spec.ts`; `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright desktop/tablet/mobile |
+| E2E-01 | E2E | AC-01-AC-05 | Authentication flow | Invalid and inactive login feedback; seeded first-password normalization/change path; authenticated Requester shell; protected API access; logout; blocked post-logout direct access | `e2e/lab-03/authentication.spec.ts` | Pass — Issue #40 Playwright desktop/tablet/mobile |
+| E2E-02 | E2E | AC-08-AC-19 | Staff/Requester Ticket flow | Authenticated Requester creates Ticket + Attachment + Public Comment; Staff Queue -> Detail -> claim -> IT Priority -> status -> Public Comment -> Internal Note; Requester sees public data/Attachment but never Internal Note; direct Staff API denied to Requester | `e2e/lab-03/staff-ticket-flow.spec.ts` | Pass — Issue #40 Playwright desktop/tablet/mobile |
+| E2E-03 | E2E | AC-20-AC-24 | Administrator flow | Admin list/search/filter/create/edit/deactivate/reactivate/new initial password/self-deactivation safety; IT Staff direct UI/API User Management forbidden without protected User leakage | `e2e/lab-03/user-administration.spec.ts` | Pass — Issue #40 Playwright desktop/tablet/mobile |
+| REG-01 | Regression/API | FR-24; AC-28 | Lab 1/Lab 2 server regression under Lab 3 schema/auth changes | Reference data plus authenticated Requester create/list/detail/Attachment download remain valid; cross-Requester Ticket access remains safe | `server/tests/lab-03/regression.api.test.ts` | Pass — Issue #40 local isolated PostgreSQL / Node 22 |
+| REG-02 | Regression/UI | FR-08; AC-28 | Lab 2 Requester UI regression under authenticated identity | Create/List/Detail/Attachment/Public Comment UI remains usable without Development Requester selector or legacy requester-specific API calls | `client/tests/lab-03/regression-ui.test.tsx` | Pass — Issue #40 local Vitest/jsdom / Node 22 |
 
 ## 3. AC-to-Test Traceability
 
@@ -285,6 +285,23 @@ Issue #39 Administrator User Management followed TDD. `users-admin.api.test.ts` 
 Issue #39 verification covers safe User list fields; name/email search and one role filter; query validation; create with normalized email, exactly one role, activation state, salted password hash and `mustChangePassword=true`; duplicate/invalid-input rejection; profile-edit field allowlist; no delete endpoint; self-deactivation conflict; last-active-Administrator protection under a concurrent-demotion regression; session revocation for role/deactivation/password-reset mutations; BR-18 preservation by unassigning Tickets when an owner becomes ineligible; separate new-initial-password action with current-password reuse/self-reset rejection; backend Administrator re-checks under row locks; non-Administrator API/UI denial without protected data; responsive desktop table plus tablet/mobile card presentation; field/conflict/safe-failure feedback; and CSRF on all state-changing client calls.
 
 Final release verification may run `npx playwright test` when the complete integrated suite is ready.
+
+### Issue #40 execution evidence
+
+Issue #40 adds only automated E2E/regression coverage plus the minimum test-harness isolation/refactor needed to exercise the already-approved product behavior. It does not change feature scope. Playwright now derives a dedicated `_test` database URL, refuses the normal development database, resets only that isolated schema in global setup, deploys the documented Lab 3 schema, seeds controlled role fixtures, and starts fresh server/client processes against that isolated database so E2E cannot silently attach to a developer server/database.
+
+- `server/tests/lab-03/regression.api.test.ts`: 1 file / 2 tests PASS.
+- `client/tests/lab-03/regression-ui.test.tsx`: 1 file / 1 test PASS.
+- `server/tests/lab-03/auth.unit.test.ts`: UNIT-01 now exercises the same production `normalizeEmail()` function used by login/Admin operations.
+- Final full server regression after Issue #40 additions: 24 files / 181 tests PASS using isolated Lab 3 suite/migration databases.
+- Final full client regression after Issue #40 additions: 18 files / 94 tests PASS.
+- Required Lab 3 Playwright files: 3 files / 6 logical tests x 3 viewports = 18/18 PASS in one serial isolated-database run.
+- A separate desktop-only sanity run of the same three files also passed 6/6 before the final all-viewport run.
+- Server build PASS; client build PASS; Prisma schema validation PASS; `git diff --check` PASS.
+- Normal development DB safety check remained unchanged after E2E: no Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91`.
+- Results above are local verification only; no hosted CI result is claimed.
+
+The required authorization evidence is split between E2E direct requests and the existing explicit API security matrix: E2E-01 confirms protected Requester access is rejected after logout, E2E-02 confirms Requester cannot call the Staff Queue API, E2E-03 confirms IT Staff cannot access Admin User Management UI/API or discover the created User, while `authorization.api.test.ts` continues to cover cross-Requester Ticket/Attachment and Internal Note non-leakage.
 
 ## 7. Manual / Visual Verification
 

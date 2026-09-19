@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { hashPassword, isVersionedScryptHash, validateNewPassword, verifyPassword } from "../../src/auth/password.js";
+import { normalizeEmail } from "../../src/auth/identity.js";
+
+describe("Lab 3 identity normalization", () => {
+  it("UNIT-01 trims and lowercases email values for duplicate comparison", () => {
+    expect(normalizeEmail("  Student.User@Example.TEST  ")).toBe("student.user@example.test");
+    expect(normalizeEmail("student.user@example.test")).toBe("student.user@example.test");
+    expect(normalizeEmail(undefined)).toBe("");
+  });
+});
 
 describe("Lab 3 password hashing", () => {
   it("hashes with the approved versioned scrypt format and verifies only the correct password", async () => {
