@@ -852,15 +852,48 @@ app.post(
     }
     try {
       const prisma = getPrisma();
-      const result = await prisma.ticket.updateMany({ where: { id: ticketId, ownerId: null }, data: { ownerId: req.auth!.user.id } });
-      if (result.count === 0) {
-        const exists = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-        if (!exists) res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
-        else res.status(409).json(errorResponse("OWNER_CONFLICT", "Ticket is already assigned."));
+      const outcome = await prisma.$transaction(async (tx) => {
+        const claimants = await tx.$queryRaw<Array<{ id: number; name: string; role: string; isActive: boolean }>>(Prisma.sql`
+          SELECT "id", "name", "role", "isActive"
+          FROM "User"
+          WHERE "id" = ${req.auth!.user.id}
+          FOR UPDATE
+        `);
+        const claimant = claimants[0];
+        if (!claimant || !claimant.isActive || claimant.role !== "IT_STAFF") {
+          return { kind: "forbidden" as const };
+        }
+
+        const tickets = await tx.$queryRaw<Array<{ id: number; ownerId: number | null }>>(Prisma.sql`
+          SELECT "id", "ownerId"
+          FROM "Ticket"
+          WHERE "id" = ${ticketId}
+          FOR UPDATE
+        `);
+        const ticket = tickets[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (ticket.ownerId !== null) return { kind: "conflict" as const };
+
+        await tx.ticket.update({ where: { id: ticketId }, data: { ownerId: claimant.id } });
+        return {
+          kind: "success" as const,
+          owner: { id: claimant.id, name: claimant.name, role: claimant.role },
+        };
+      });
+
+      if (outcome.kind === "forbidden") {
+        res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
         return;
       }
-      const owner = await prisma.user.findUniqueOrThrow({ where: { id: req.auth!.user.id }, select: { id: true, name: true, role: true } });
-      res.status(200).json({ owner });
+      if (outcome.kind === "notFound") {
+        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+        return;
+      }
+      if (outcome.kind === "conflict") {
+        res.status(409).json(errorResponse("OWNER_CONFLICT", "Ticket is already assigned."));
+        return;
+      }
+      res.status(200).json({ owner: outcome.owner });
     } catch {
       res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to claim Ticket."));
     }
@@ -886,24 +919,43 @@ app.patch(
     }
     try {
       const prisma = getPrisma();
-      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true } });
-      if (!ticket) {
+      const outcome = await prisma.$transaction(async (tx) => {
+        let owner: { id: number; name: string; role: string } | null = null;
+        if (ownerId !== null) {
+          const owners = await tx.$queryRaw<Array<{ id: number; name: string; role: string; isActive: boolean }>>(Prisma.sql`
+            SELECT "id", "name", "role", "isActive"
+            FROM "User"
+            WHERE "id" = ${ownerId}
+            FOR UPDATE
+          `);
+          const candidate = owners[0];
+          if (!candidate || !candidate.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(candidate.role)) {
+            return { kind: "invalidOwner" as const };
+          }
+          owner = { id: candidate.id, name: candidate.name, role: candidate.role };
+        }
+
+        const tickets = await tx.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+          SELECT "id"
+          FROM "Ticket"
+          WHERE "id" = ${ticketId}
+          FOR UPDATE
+        `);
+        if (!tickets[0]) return { kind: "notFound" as const };
+
+        await tx.ticket.update({ where: { id: ticketId }, data: { ownerId } });
+        return { kind: "success" as const, owner };
+      });
+
+      if (outcome.kind === "notFound") {
         res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
         return;
       }
-      let owner = null;
-      if (ownerId !== null) {
-        owner = await prisma.user.findFirst({
-          where: { id: ownerId, isActive: true, role: { in: ["IT_STAFF", "ADMINISTRATOR"] } },
-          select: { id: true, name: true, role: true },
-        });
-        if (!owner) {
-          res.status(400).json(errorResponse("INVALID_OWNER", "Owner must be an active IT Staff or Administrator."));
-          return;
-        }
+      if (outcome.kind === "invalidOwner") {
+        res.status(400).json(errorResponse("INVALID_OWNER", "Owner must be an active IT Staff or Administrator."));
+        return;
       }
-      await prisma.ticket.update({ where: { id: ticketId }, data: { ownerId } });
-      res.status(200).json({ owner });
+      res.status(200).json({ owner: outcome.owner });
     } catch {
       res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to update Ticket owner."));
     }

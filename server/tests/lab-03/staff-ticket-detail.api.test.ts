@@ -260,6 +260,52 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     expect(conflict.body.error?.code).toBe("OWNER_CONFLICT");
   });
 
+  it.each([
+    ["deactivation", { isActive: false }],
+    ["demotion", { role: "REQUESTER" as const }],
+  ])("API-18 serializes claim against concurrent claimant %s and never persists an ineligible owner", async (_label, mutation) => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const staff = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.staff.email } });
+    const ticket = await createIssue36Ticket(requester.id);
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+
+    let signalUserLocked!: () => void;
+    let releaseUserCommit!: () => void;
+    const userLocked = new Promise<void>((resolve) => { signalUserLocked = resolve; });
+    const allowUserCommit = new Promise<void>((resolve) => { releaseUserCommit = resolve; });
+
+    const concurrentUserChange = prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: staff.id }, data: mutation });
+      signalUserLocked();
+      await allowUserCommit;
+    });
+
+    await userLocked;
+    let claimSettled = false;
+    const claimPromise = agent
+      .post(`/api/staff/tickets/${ticket.id}/claim`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({})
+      .then((response) => {
+        claimSettled = true;
+        return response;
+      });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(claimSettled).toBe(false);
+
+    releaseUserCommit();
+    await concurrentUserChange;
+    const claim = await claimPromise;
+
+    expect(claim.status).toBe(403);
+    expect(claim.body.error?.code).toBe("FORBIDDEN");
+    const storedTicket = await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } });
+    expect(storedTicket.ownerId).toBeNull();
+  });
+
   it("API-19 assigns/reassigns/unassigns only active IT Staff or Administrator owners", async () => {
     const prisma = getPrisma();
     const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
@@ -279,6 +325,51 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
       expect(response.status).toBe(400);
       expect(response.body.error?.code).toBe("INVALID_OWNER");
     }
+  });
+
+  it.each([
+    ["deactivation", { isActive: false }],
+    ["demotion", { role: "REQUESTER" as const }],
+  ])("API-19 serializes owner assignment against concurrent target %s and never persists an ineligible owner", async (_label, mutation) => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const target = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.staffB.email } });
+    const ticket = await createIssue36Ticket(requester.id);
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+
+    let signalTargetLocked!: () => void;
+    let releaseTargetCommit!: () => void;
+    const targetLocked = new Promise<void>((resolve) => { signalTargetLocked = resolve; });
+    const allowTargetCommit = new Promise<void>((resolve) => { releaseTargetCommit = resolve; });
+
+    const concurrentTargetChange = prisma.$transaction(async (tx) => {
+      await tx.user.update({ where: { id: target.id }, data: mutation });
+      signalTargetLocked();
+      await allowTargetCommit;
+    });
+
+    await targetLocked;
+    let assignmentSettled = false;
+    const assignmentPromise = agent
+      .patch(`/api/staff/tickets/${ticket.id}/owner`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", login.body.csrfToken)
+      .send({ ownerId: target.id })
+      .then((response) => {
+        assignmentSettled = true;
+        return response;
+      });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(assignmentSettled).toBe(false);
+
+    releaseTargetCommit();
+    await concurrentTargetChange;
+    const assignment = await assignmentPromise;
+
+    expect(assignment.status).toBe(400);
+    expect(assignment.body.error?.code).toBe("INVALID_OWNER");
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).ownerId).toBeNull();
   });
 
   it("API-20 lets IT Staff and Administrator change IT Priority while Requested Priority stays immutable", async () => {

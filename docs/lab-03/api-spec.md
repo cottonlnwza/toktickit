@@ -439,6 +439,8 @@ For Administrator read access, fields/actions not permitted by the authorization
 
 IT Staff only. Sets owner to current IT Staff only when currently unassigned. Conflict if already owned.
 
+Claimant eligibility and the Ticket's current owner are re-checked under database row locks in the same transaction as assignment. If a concurrent activation/role change commits before the claim obtains the User lock and the claimant is no longer an active `IT_STAFF`, the claim is forbidden and no owner is persisted.
+
 Success `200` returns:
 
 ```json
@@ -454,6 +456,8 @@ IT Staff only.
 ```
 
 `ownerId` may be `null` to unassign. Non-null target must be active IT Staff/Administrator. Reassignment from another owner requires client confirmation but backend authorization/validation is independent.
+
+For non-null assignment, target eligibility is re-checked under a User row lock before the Ticket row is updated so a concurrent deactivation/demotion cannot slip between validation and persistence.
 
 Success `200` returns `{ "owner": null }` or the safe owner object.
 
