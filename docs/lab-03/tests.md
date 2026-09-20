@@ -331,18 +331,18 @@ Part 9 screenshot traceability uses the following fixed folders from `ui-spec.md
 
 ## 8. Final Results Log
 
-The rows below record the Issue #42 pre-release verification run from `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. These are real local results, not hosted CI. Because Issue #42 and the final `lab3-staging -> main` release review have not yet completed, the same required verification must be rerun from final `main` before submission and this table must then be updated to the final main commit.
+The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. These are real local results, not hosted CI. Because Issue #42 and the final `lab3-staging -> main` release review have not yet completed, the same required verification must be rerun from final `main` before submission and this table must then be updated to the final main commit.
 
 | Command / Evidence | Branch / Commit | Final result | Notes |
 |---|---|---|---|
-| Server tests | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 25 files / 186 tests | Isolated Lab 3 suite/migration PostgreSQL databases; final `main` rerun pending. |
-| Client tests | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 19 files / 97 tests | Full Vitest client regression; final `main` rerun pending. |
-| Server build | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS | `npm run build --prefix server`. |
-| Client build | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS | `npm run build --prefix client`. |
-| Authentication E2E | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 6/6 | Two authentication tests x desktop/tablet/mobile. |
-| Staff Ticket E2E | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 6/6 | Two Staff/Requester workflow tests x desktop/tablet/mobile. |
-| User Administration E2E | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 6/6 | Two Administrator tests x desktop/tablet/mobile. |
-| Desktop/tablet/mobile visual checklist | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS — 3/3 visual runs | Combined required Lab 3 Playwright run = 21/21 PASS. Screenshot evidence = 21/21 required base files plus 3 supporting Change Password captures. |
-| Prisma schema validation | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS | `npx prisma validate`. |
-| Diff whitespace check | `feature/lab3-10-release-integration` / pre-release audit | Pre-release PASS | `git diff --check`. |
-| Normal development DB safety | `feature/lab3-10-release-integration` / pre-release audit | PASS / unchanged | No Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91` after E2E/tests. |
+| Server tests | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 25 files / 186 tests | Isolated Lab 3 suite/migration PostgreSQL databases; final `main` rerun pending. |
+| Client tests | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 19 files / 97 tests | Full Vitest client regression; final `main` rerun pending. |
+| Server build | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npm run build --prefix server`. |
+| Client build | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npm run build --prefix client`. |
+| Authentication E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two authentication tests x desktop/tablet/mobile. |
+| Staff Ticket E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two Staff/Requester workflow tests x desktop/tablet/mobile. |
+| User Administration E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two Administrator tests x desktop/tablet/mobile. |
+| Desktop/tablet/mobile visual checklist | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 3/3 visual runs | Combined required Lab 3 Playwright run = 21/21 PASS. Screenshot evidence = 21/21 required base files plus 3 supporting Change Password captures. |
+| Prisma schema validation | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npx prisma validate`. |
+| Diff whitespace check | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `git diff --check`. |
+| Normal development DB safety | `feature/lab3-10-release-integration` / `fcca030` | PASS / unchanged | No Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91` after E2E/tests. |

@@ -2,7 +2,7 @@
 
 This file is a release-preparation map for the single Lab 3 PDF. The final PDF must use the headings `Answer Part 1` through `Answer Part 9` in this exact order. Only evidence that exists in the repository or GitHub history is listed here.
 
-Current release gate: Issues #33-#41 are closed and `Done`; their reviewed changes are integrated into `lab3-staging` through merge commit `2a43450`. Issue #42, its feature/documentation review, the final `lab3-staging -> main` release PR, final `main` verification, and the final all-`Done` Project screenshot remain pending until those events actually occur.
+Current release gate: Issues #33-#41 are closed and `Done`; their reviewed changes are integrated into `lab3-staging` through merge commit `2a43450`. Issue #42 pre-release evidence was assembled and verified in release-evidence commit `fcca030`. Issue #42 peer review/integration, the final `lab3-staging -> main` release PR, final `main` verification, and the final all-`Done` Project screenshot remain pending until those events actually occur.
 
 ## Answer Part 1
 
