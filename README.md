@@ -1,8 +1,11 @@
 # TokTickIT
 
-TokTickIT is a requester-facing IT ticketing application for the CPE334
-Software Engineering course. Lab 2 adds requester context, ticket creation and
-discovery, requester-owned detail views, and Attachment lifecycle management.
+TokTickIT is an IT ticketing application for the CPE334 Software Engineering
+course. The current Lab 3 increment adds real authentication, role-based
+authorization, an operational IT Staff Ticket Queue/Ticket Detail workflow,
+Public Comments and Internal Notes, and minimalist Administrator User
+Management while preserving the completed Lab 2 Requester and Attachment
+workflows.
 
 ## Technology Stack
 
@@ -18,8 +21,14 @@ discovery, requester-owned detail views, and Attachment lifecycle management.
 - `server/` contains the Express backend API and Prisma setup.
 - `docs/lab-01/` contains Lab 1 documentation and evidence notes.
 - `docs/lab-02/` contains the Lab 2 engineering contract and evidence records.
-- `e2e/lab-02/` contains the required requester-flow Playwright tests.
-- `artifacts/lab-02/screenshots/` contains generated responsive visual evidence.
+- `docs/lab-03/` contains the Sprint 3 engineering contract, API/UI contracts,
+  test traceability, peer-review record, AI-use record, and submission-evidence map.
+- `e2e/lab-02/` contains the Lab 2 requester-flow Playwright regression.
+- `e2e/lab-03/` contains Lab 3 authentication, Staff workflow, Administrator,
+  responsive/accessibility, and visual-evidence Playwright coverage.
+- `artifacts/lab-02/screenshots/` contains Lab 2 responsive visual evidence.
+- `artifacts/lab-03/screenshots/` contains the required Lab 3 desktop/tablet/mobile
+  visual evidence.
 
 ## Local Setup
 
@@ -56,7 +65,7 @@ The current server runtime reads `DATABASE_URL` from the shell environment, so
 export the same value before running Prisma commands or starting the API:
 
 ```bash
-export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit_lab2"
+export DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/toktickit"
 export FRONTEND_ORIGIN="http://localhost:5173"
 ```
 
@@ -128,15 +137,41 @@ cd server
 npm test
 ```
 
-Run the Lab 2 Playwright flow from the repository root:
+Run the Lab 2 Playwright regression from the repository root:
 
 ```bash
 npx playwright test e2e/lab-02/requester-ticket-flow.spec.ts
 ```
 
-## Lab 2 Scope
+Run the required Lab 3 Playwright flows from the repository root. The Lab 3
+Playwright configuration starts fresh server/client processes against a guarded
+isolated PostgreSQL database whose name must end in `_test`; it refuses the
+normal development database.
 
-Lab 2 provides Development Requester selection for testing, Create Ticket, My
-Tickets, requester-owned Ticket Detail, and Attachment upload, download, and
-soft removal. It does not provide authentication, IT Staff or Administrator
-workflows, comments, Internal Notes, Actions Taken, or later status workflows.
+```bash
+npx playwright test \
+  e2e/lab-03/authentication.spec.ts \
+  e2e/lab-03/staff-ticket-flow.spec.ts \
+  e2e/lab-03/user-administration.spec.ts \
+  e2e/lab-03/visual-evidence.spec.ts
+```
+
+## Lab 3 Documentation
+
+- Engineering contract: `docs/lab-03/specification.md`
+- Test plan and traceability: `docs/lab-03/tests.md`
+- UI contract: `docs/lab-03/ui-spec.md`
+- API contract: `docs/lab-03/api-spec.md`
+- Peer-review record: `docs/lab-03/reviewer.md`
+- AI-use record and reflection: `docs/lab-03/ai-use.md`
+- Submission evidence map: `docs/lab-03/submission-evidence.md`
+
+## Lab 3 Scope
+
+Lab 3 supports the three roles Requester, IT Staff, and Administrator. It
+replaces the Development Requester selector with authenticated identity,
+preserves Requester Create Ticket/My Tickets/Ticket Detail/Attachment behavior,
+adds the Staff Queue and permitted Ticket operations, and adds minimalist User
+Management. Actions Taken, notification services, multi-role users, user
+deletion, advanced account administration, and production/cloud deployment
+remain outside Lab 3 scope.
