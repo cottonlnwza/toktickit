@@ -331,7 +331,7 @@ Part 9 screenshot traceability uses the following fixed folders from `ui-spec.md
 
 ## 8. Final Results Log
 
-The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. These are real local results, not hosted CI. Because Issue #42 and the final `lab3-staging -> main` release review have not yet completed, the same required verification must be rerun from final `main` before submission and this table must then be updated to the final main commit.
+The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. PR #55 was subsequently approved on exact HEAD `6307262` and peer-merged into `lab3-staging` as `44dd6a9`; those later commits only finalized/recorded release documentation around the same verified product state. These are real local results, not hosted CI. The same required verification must still be rerun from final `main` before submission and this table must then be updated to the final main commit.
 
 | Command / Evidence | Branch / Commit | Final result | Notes |
 |---|---|---|---|

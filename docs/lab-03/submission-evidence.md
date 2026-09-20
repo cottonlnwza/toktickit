@@ -2,19 +2,19 @@
 
 This file is a release-preparation map for the single Lab 3 PDF. The final PDF must use the headings `Answer Part 1` through `Answer Part 9` in this exact order. Only evidence that exists in the repository or GitHub history is listed here.
 
-Current release gate: Issues #33-#41 are closed and `Done`; their reviewed changes are integrated into `lab3-staging` through merge commit `2a43450`. Issue #42 pre-release evidence was assembled and verified in release-evidence commit `fcca030`. Issue #42 peer review/integration, the final `lab3-staging -> main` release PR, final `main` verification, and the final all-`Done` Project screenshot remain pending until those events actually occur.
+Current release gate: Issues #33-#41 are closed and `Done`. Issue #42 pre-release evidence was assembled in `fcca030`, approved in PR #55 on exact HEAD `6307262`, and peer-merged into `lab3-staging` as `44dd6a9`. The final `lab3-staging -> main` release PR, final `main` verification, final Issue #42/Project `Done` state, and final Project screenshot still remain pending until those events actually occur.
 
 ## Answer Part 1
 
 Git Use with Engineering Workflow evidence:
 
-- GitHub Project #3, `TokTickIT Individual Sprints`, with Issues #33-#41 already `Done`; Issue #42 remains `Started` during this pre-release branch.
-- Feature/follow-up PR history integrated into `lab3-staging`: PRs #43, #44, #45, #46, #47, #48, #49, #50, #51, #52, #53, and #54.
+- GitHub Project #3, `TokTickIT Individual Sprints`, with Issues #33-#41 already `Done`; Issue #42 remains open until the final release-to-main workflow is complete.
+- Feature/follow-up PR history integrated into `lab3-staging`: PRs #43 through #55, including the peer-approved Issue #42 pre-release PR #55.
 - `docs/lab-03/reviewer.md` contains the verified reviewer identities, review IDs/links, corrections, approvals, and merges for completed Issues.
 - `README.md` contains the current Lab 3 project structure, local setup, migration, test, and documentation references.
 - `.gitignore` excludes dependencies, local environment/secrets, build/test output, local Prisma DB files, logs/OS files, and starter handout/archive files.
 - Repository evidence folders: `docs/lab-03/`, `server/tests/lab-03/`, `client/tests/lab-03/`, `e2e/lab-03/`, and `artifacts/lab-03/screenshots/`.
-- Final evidence still required after peer release integration: Issue #42 `Done`, final Project board with all Sprint 3 Issues `Done`, reviewed `lab3-staging -> main` PR, and final `main` commit/test evidence.
+- Final evidence still required: reviewed `lab3-staging -> main` PR, final `main` commit/test evidence, Issue #42 `Done`, and the final Project board with all Sprint 3 Issues `Done`.
 
 ## Answer Part 2
 
