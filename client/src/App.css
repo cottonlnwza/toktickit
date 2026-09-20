@@ -1,13 +1,13 @@
 .toktickit-app {
   min-height: 100vh;
   background: #f5f7f6;
-  color: #143326;
+  color: #1f352b;
 }
 
 .auth-page {
   align-items: center;
   background: #f5f7f6;
-  color: #143326;
+  color: #1f352b;
   display: flex;
   justify-content: center;
   min-height: 100vh;
@@ -17,7 +17,7 @@
 .auth-card,
 .auth-ready-panel {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 10px;
   box-shadow: 0 0.4rem 1.5rem rgba(20, 51, 38, 0.1);
   max-width: 520px;
@@ -27,7 +27,7 @@
 
 .auth-brand h1,
 .auth-ready-panel h2 {
-  color: #143326;
+  color: #1f352b;
   font-weight: 700;
   margin-bottom: 0.25rem;
 }
@@ -35,7 +35,7 @@
 .auth-brand p,
 .auth-rule,
 .auth-ready-panel p {
-  color: #52665d;
+  color: #5d6f65;
 }
 
 .auth-rule {
@@ -58,7 +58,7 @@
 
 .auth-loading {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   padding: 1rem 1.5rem;
 }
@@ -87,7 +87,7 @@
 .role-badge {
   background: #eaf6ef;
   border-radius: 999px;
-  color: #143326;
+  color: #1f352b;
   font-size: 0.8rem;
   font-weight: 700;
   padding: 0.2rem 0.6rem;
@@ -107,6 +107,34 @@
 .toktickit-app .btn-success:active {
   background-color: #0b7a46;
   border-color: #0b7a46;
+}
+
+.toktickit-app .btn-warning {
+  background-color: #b7791f;
+  border-color: #b7791f;
+  color: #1f352b;
+}
+
+.toktickit-app .btn-warning:hover,
+.toktickit-app .btn-warning:focus,
+.toktickit-app .btn-warning:active {
+  background-color: #9c6518;
+  border-color: #9c6518;
+  color: #ffffff;
+}
+
+.auth-page .form-control:focus,
+.toktickit-app .form-control:focus,
+.toktickit-app .form-select:focus {
+  border-color: #0b7a46;
+  box-shadow: 0 0 0 0.25rem rgba(11, 122, 70, 0.2);
+}
+
+.auth-page .btn:focus-visible,
+.toktickit-app .btn:focus-visible {
+  box-shadow: 0 0 0 0.25rem rgba(11, 122, 70, 0.25);
+  outline: 2px solid #0b7a46;
+  outline-offset: 2px;
 }
 
 .app-shell {
@@ -157,7 +185,7 @@
 .ticket-detail-panel,
 .system-check-panel {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
   margin: 0 auto 1.5rem;
@@ -175,7 +203,7 @@
 
 .staff-queue-panel {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 10px;
   box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
   margin: 0 auto;
@@ -198,7 +226,7 @@
   background: #eaf6ef;
   border: 1px solid #c6dbcf;
   border-radius: 999px;
-  color: #143326;
+  color: #1f352b;
   display: inline-block;
   font-size: 0.8rem;
   font-weight: 700;
@@ -208,7 +236,7 @@
 
 .staff-queue-controls {
   background: #f8fbf9;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   display: grid;
   gap: 0.9rem;
@@ -239,7 +267,7 @@
 }
 
 .staff-queue-table small {
-  color: #52665d;
+  color: #5d6f65;
 }
 
 .staff-queue-mobile {
@@ -248,7 +276,7 @@
 
 .staff-queue-card {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   padding: 1rem;
 }
@@ -287,7 +315,7 @@
 
 .staff-detail-panel {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 10px;
   box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
   padding: 1.5rem;
@@ -305,7 +333,7 @@
 }
 
 .staff-detail-section {
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   margin-bottom: 1rem;
   padding: 1rem;
@@ -323,7 +351,7 @@
 }
 
 .staff-detail-section dt {
-  color: #52665d;
+  color: #5d6f65;
 }
 
 .readonly-control {
@@ -392,7 +420,7 @@
 
 .admin-users-panel {
   background: #ffffff;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 10px;
   box-shadow: 0 0.25rem 1rem rgba(20, 51, 38, 0.08);
   padding: 1.5rem;
@@ -482,7 +510,7 @@
 }
 
 .admin-user-card {
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   display: grid;
   gap: 0.55rem;
@@ -505,8 +533,8 @@
 }
 
 .ticket-detail-grid > div {
-  background: #eaf6ef;
-  border: 1px solid #c6dbcf;
+  background: #f3f2ea;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   padding: 0.9rem 1rem;
 }
@@ -527,13 +555,13 @@
 }
 
 .detail-attachments {
-  border-top: 1px solid #d8e6de;
+  border-top: 1px solid #d6e2db;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
 }
 
 .detail-comments {
-  border-top: 1px solid #d8e6de;
+  border-top: 1px solid #d6e2db;
   margin-top: 1.5rem;
   padding-top: 1.5rem;
 }
@@ -565,7 +593,7 @@
 }
 
 .public-comment-item small {
-  color: #52665d;
+  color: #5d6f65;
 }
 
 .attachment-upload-button input {
@@ -583,12 +611,12 @@
 
 .attachment-item.removed {
   background: #f5f7f6;
-  color: #52665d;
+  color: #5d6f65;
 }
 
 .removal-confirmation {
   background: #ffffff;
-  border: 2px solid #9b1c1c;
+  border: 2px solid #9f1d20;
   border-radius: 8px;
   margin-top: 1rem;
   padding: 1rem;
@@ -631,7 +659,7 @@
 
 .my-tickets-table th {
   background: #eaf6ef;
-  color: #143326;
+  color: #1f352b;
   white-space: nowrap;
 }
 
@@ -676,7 +704,7 @@
 
 .requester-panel h2,
 .ticket-panel h2 {
-  color: #143326;
+  color: #1f352b;
   font-size: 1.5rem;
   font-weight: 700;
   margin-bottom: 0.75rem;
@@ -695,8 +723,8 @@
 }
 
 .readonly-field {
-  background: #eaf6ef;
-  border: 1px solid #c6dbcf;
+  background: #f3f2ea;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   display: flex;
   flex-direction: column;
@@ -734,7 +762,7 @@
 
 .attachment-item {
   align-items: center;
-  border: 1px solid #d8e6de;
+  border: 1px solid #d6e2db;
   border-radius: 8px;
   display: flex;
   gap: 0.75rem;
@@ -745,7 +773,7 @@
 
 .attachment-item.invalid,
 .attachment-item.failed {
-  border-color: #9b1c1c;
+  border-color: #9f1d20;
   color: #7f1d1d;
 }
 
@@ -768,7 +796,7 @@
 }
 
 .required-marker {
-  color: #9b1c1c;
+  color: #9f1d20;
 }
 
 @media (min-width: 768px) and (max-width: 991px) {
@@ -782,7 +810,7 @@
   }
 
   .my-ticket-card {
-    border: 1px solid #d8e6de;
+    border: 1px solid #d6e2db;
     border-radius: 8px;
     padding: 1rem;
   }
@@ -923,7 +951,7 @@
   }
 
   .my-ticket-card {
-    border: 1px solid #d8e6de;
+    border: 1px solid #d6e2db;
     border-radius: 8px;
     padding: 1rem;
   }

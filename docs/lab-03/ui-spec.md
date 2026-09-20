@@ -286,23 +286,31 @@ Required Part 9 breakpoint evidence matrix:
 
 ## 13. Visual Inspection Checklist
 
-- [ ] Login uses Zen Green and exposes no Requester selector.
-- [ ] Mandatory Change Password blocks normal navigation and clearly shows password rules.
-- [ ] Authenticated shell shows correct User name/role and role-specific navigation.
-- [ ] Requester Create/List/Detail/Attachment screens preserve Lab 2 behavior under authenticated identity.
-- [ ] Public Comments and Problem Appears Resolved are clear on Requester Ticket Detail.
-- [ ] Queue desktop field set is readable and not a mega-grid.
-- [ ] Queue cards preserve essential fields/actions on tablet/mobile.
-- [ ] Requested Priority and IT Priority are visually distinct and correctly labeled.
-- [ ] Staff Ticket Detail clearly separates read-only Ticket data from operational fields.
-- [ ] Public Comments and Internal Notes are unmistakably different.
-- [ ] User Management remains minimalist and does not expose excluded features.
-- [ ] Role/status/priority badges include readable text.
-- [ ] Validation appears adjacent to the affected control.
-- [ ] Busy/saving states prevent duplicate submissions.
-- [ ] Empty/no-results/forbidden/not-found/conflict/failure states are readable and safe.
-- [ ] Keyboard focus remains visible and logical.
-- [ ] No clipped labels, overlapping feedback, hidden required actions, unreadable filenames/emails, or page-level horizontal overflow at required breakpoints.
+- [x] Login uses Zen Green and exposes no Requester selector.
+- [x] Mandatory Change Password blocks normal navigation and clearly shows password rules.
+- [x] Authenticated shell shows correct User name/role and role-specific navigation.
+- [x] Requester Create/List/Detail/Attachment screens preserve Lab 2 behavior under authenticated identity.
+- [x] Public Comments and Problem Appears Resolved are clear on Requester Ticket Detail.
+- [x] Queue desktop field set is readable and not a mega-grid.
+- [x] Queue cards preserve essential fields/actions on tablet/mobile.
+- [x] Requested Priority and IT Priority are visually distinct and correctly labeled.
+- [x] Staff Ticket Detail clearly separates read-only Ticket data from operational fields.
+- [x] Public Comments and Internal Notes are unmistakably different.
+- [x] User Management remains minimalist and does not expose excluded features.
+- [x] Role/status/priority badges include readable text.
+- [x] Validation appears adjacent to the affected control.
+- [x] Busy/saving states prevent duplicate submissions.
+- [x] Empty/no-results/forbidden/not-found/conflict/failure states are readable and safe.
+- [x] Keyboard focus remains visible and logical.
+- [x] No clipped labels, overlapping feedback, hidden required actions, unreadable filenames/emails, or page-level horizontal overflow at required breakpoints.
+
+### Issue #41 visual-audit evidence
+
+The Issue #41 audit used the final integrated Lab 3 application on the isolated Playwright `_test` database. `e2e/lab-03/visual-evidence.spec.ts` walks the real Login, optional Change Password view, authenticated Requester Create/List/Detail flow, IT Staff Queue/Detail flow, and Administrator User Management flow. Before every required screenshot it asserts that the document does not have page-level horizontal overflow. The three configured projects are desktop `1440x900`, tablet `820x1180`, and mobile `390x844`.
+
+All 21 required base screenshots now exist under the fixed structure in Section 12: seven major areas x `desktop.png`, `tablet.png`, and `mobile.png`. The Requester captures include Attachment controls and authenticated identity; My Tickets includes query/list controls; Requester Detail includes Attachment, Public Comments, and Problem Appears Resolved; Staff Queue includes filters plus priority/status/owner presentation; Staff Detail includes ownership/IT Priority/status plus clearly labeled Public Comments/Internal Notes and Attachments; User Management includes list/search/filter plus the create panel and initial-password control. Login evidence includes adjacent validation, while Change Password and authenticated-shell responsiveness are additionally exercised by the browser audit before the role workflows continue.
+
+The audit made visual-contract-only corrections rather than adding product behavior: semantic colors were aligned to the approved Zen Green tokens, read-only Requester fields now use the specified `#F3F2EA` treatment instead of the pale-green editable/success treatment, the Internal Note warning action uses the approved warning token, and keyboard focus for application form controls/buttons uses a visible secondary-green ring/outline. `STYLE-01` verifies the Login, Requester read-only/editable distinction, textual role/status indicators, and absence of the excluded User delete action.
 
 ## 14. UI Decisions
 
