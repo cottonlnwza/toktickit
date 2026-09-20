@@ -30,6 +30,17 @@ async function captureEvidence(page: Page, testInfo: TestInfo, area: EvidenceAre
   });
 }
 
+async function captureSupportingEvidence(page: Page, testInfo: TestInfo, area: EvidenceArea, stem: string) {
+  await expectNoHorizontalOverflow(page);
+  const directory = resolve(process.cwd(), "artifacts", "lab-03", "screenshots", area);
+  mkdirSync(directory, { recursive: true });
+  await page.screenshot({
+    path: resolve(directory, `${stem}-${testInfo.project.name}.png`),
+    fullPage: true,
+    animations: "disabled",
+  });
+}
+
 test("Issue 9 captures required responsive visual evidence", async ({ page }, testInfo) => {
   const suffix = `${testInfo.project.name}-visual`;
   const summary = `Issue 9 visual audit ${suffix}`;
@@ -52,7 +63,7 @@ test("Issue 9 captures required responsive visual evidence", async ({ page }, te
   await expect(page.getByRole("heading", { name: "Change Password" })).toBeVisible();
   await expect(page.getByText(/12-128 characters/i)).toBeVisible();
   await expect(page.getByLabel("Current / Initial Password")).toBeVisible();
-  await expectNoHorizontalOverflow(page);
+  await captureSupportingEvidence(page, testInfo, "authentication", "change-password");
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("heading", { name: "Create Ticket" })).toBeVisible();
   await expect(page.getByText("Anong Student", { exact: true }).first()).toBeVisible();

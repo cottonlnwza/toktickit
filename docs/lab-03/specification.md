@@ -370,17 +370,17 @@ Every AC is mapped to one or more planned tests in `docs/lab-03/tests.md`.
 
 Lab 3 is product-complete only when all of the following are true:
 
-- [ ] Approved `specification.md`, `tests.md`, `ui-spec.md`, and `api-spec.md` existed before the main feature implementation was completed.
-- [ ] Migration preserves existing Lab 2 Ticket/Attachment data and passes migration/regression checks.
-- [ ] Authentication, first-password change, logout, current-user behavior, session expiration, CSRF handling, and safe errors satisfy the contract.
-- [ ] Backend authorization enforces the approved role/ownership matrix.
-- [ ] Lab 2 Requester features work under authenticated identity with the temporary selector removed.
-- [ ] IT Staff Queue and Ticket Detail satisfy approved search/filter/sort/page, ownership, priority, status, Public Comment, Internal Note, and Attachment behavior.
-- [ ] Administrator User Management remains within the minimalist Lab 3 scope and enforces all safety rules.
-- [ ] Required unit, API/integration, UI component, UI style, responsive, security/authorization, migration/regression, and E2E tests pass from the final integrated state.
-- [ ] Major screens pass desktop/tablet/mobile visual and accessibility checks using the Zen Green language.
+- [x] Approved `specification.md`, `tests.md`, `ui-spec.md`, and `api-spec.md` existed before the main feature implementation was completed.
+- [x] Migration preserves existing Lab 2 Ticket/Attachment data and passes migration/regression checks.
+- [x] Authentication, first-password change, logout, current-user behavior, session expiration, CSRF handling, and safe errors satisfy the contract.
+- [x] Backend authorization enforces the approved role/ownership matrix.
+- [x] Lab 2 Requester features work under authenticated identity with the temporary selector removed.
+- [x] IT Staff Queue and Ticket Detail satisfy approved search/filter/sort/page, ownership, priority, status, Public Comment, Internal Note, and Attachment behavior.
+- [x] Administrator User Management remains within the minimalist Lab 3 scope and enforces all safety rules.
+- [x] Required unit, API/integration, UI component, UI style, responsive, security/authorization, migration/regression, and E2E tests pass on the Issue #42 pre-release integrated state; final `main` rerun is still required before submission.
+- [x] Major screens pass desktop/tablet/mobile visual and accessibility checks using the Zen Green language.
 - [ ] Feature work followed `feature/* -> lab3-staging -> main`, with real peer review/approval/merge evidence.
-- [ ] `reviewer.md` and `ai-use.md` contain only real events; no review/test/AI evidence is fabricated.
+- [x] `reviewer.md` and `ai-use.md` contain only real events; no review/test/AI evidence is fabricated.
 - [ ] Required Lab 3 screenshots/evidence and Answer Part 1-9 material are readable and traceable to final `main`.
 
 ## 11. Assumptions and Decisions
