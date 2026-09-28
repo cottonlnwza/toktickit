@@ -1,6 +1,6 @@
 # Lab 3 Sprint Engineering Specification
 
-Status: Draft engineering contract for Issue #33. This document must be reviewed and approved before Lab 3 implementation begins.
+Status: Approved Sprint 3 engineering contract. The contract was established and peer-reviewed before the main Lab 3 implementation; final release verification from `main` remains pending.
 
 ## 1. Sprint Goal
 

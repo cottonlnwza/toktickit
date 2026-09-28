@@ -1,6 +1,6 @@
 # Lab 3 UI Specification
 
-Status: Draft contract for Issue #33. Lab 3 extends the existing Lab 2 Zen Green system; it does not introduce a second visual language.
+Status: Approved Sprint 3 UI contract. The responsive/visual audit is complete on the pre-release integrated state; final release verification from `main` remains pending. Lab 3 extends the existing Lab 2 Zen Green system and does not introduce a second visual language.
 
 ## 1. Visual Direction and Existing Tokens
 
