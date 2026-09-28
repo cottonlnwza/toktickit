@@ -1,19 +1,54 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import {
+  AdminUser,
+  AuthApiError,
+  AuthUser,
+  addAuthenticatedTicketAttachment,
+  changePassword as changeOwnPassword,
+  claimStaffTicket,
   checkSystem,
   Category,
+  createAuthenticatedTicket,
+  createAdminUser,
   createTicket,
   CreatedTicket,
+  getAuthenticatedMyTickets,
+  getAuthenticatedTicketDetail,
+  getAdminUsers,
+  getCurrentUser,
   getCategories,
   getMyTickets,
+  getPublicComments,
   getRelatedSystems,
+  getStaffTicketQueue,
+  getStaffTicketDetail,
   getTicketDetail,
+  login as loginUser,
+  logout as logoutUser,
+  markProblemAppearsResolved,
   MyTicketsQuery,
   MyTicketsResponse,
+  postPublicComment,
+  postInternalNote,
+  PublicComment,
+  Requester,
+  removeAuthenticatedTicketAttachment,
   removeTicketAttachment,
   RelatedSystem,
+  StaffQueueApiError,
+  StaffQueueResponse,
+  StaffQueueTicket,
+  StaffTicketApiError,
+  StaffTicketDetail,
+  setAdminInitialPassword,
   TicketAttachment,
   TicketDetail,
+  TicketStatus,
+  updateStaffTicketItPriority,
+  updateStaffTicketOwner,
+  updateStaffTicketStatus,
+  updateAdminUser,
+  UserManagementApiError,
   addTicketAttachment,
   uploadTicketAttachment,
 } from "./api.js";
@@ -29,8 +64,913 @@ type AppView = "createTicket" | "myTickets" | "ticketDetail";
 const allowedAttachmentExtensions = [".jpg", ".jpeg", ".png", ".webp", ".pdf"];
 const maxAttachmentSizeBytes = 5 * 1024 * 1024;
 
+type AuthState = "loading" | "unauthenticated" | "authenticated";
+
+function roleLabel(role: AuthUser["role"]) {
+  if (role === "IT_STAFF") return "IT Staff";
+  if (role === "ADMINISTRATOR") return "Administrator";
+  return "Requester";
+}
+
+function safeLoginMessage(error: unknown) {
+  if (error instanceof AuthApiError) {
+    if (error.code === "INVALID_CREDENTIALS") return "Invalid email or password.";
+    if (error.code === "ACCOUNT_INACTIVE") return "This account is inactive. Contact an Administrator for access.";
+    if (error.code === "LOGIN_THROTTLED") return "Too many login attempts. Please try again later.";
+    if (error.status === 400) return "Enter a valid email and password.";
+  }
+  return "Unable to sign in. Please try again.";
+}
+
+function LoginScreen({ onAuthenticated }: { onAuthenticated: (user: AuthUser, csrfToken: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!email.trim()) nextErrors.email = "Email is required.";
+    else if (!email.trim().includes("@")) nextErrors.email = "Enter a valid email address.";
+    if (!password) nextErrors.password = "Password is required.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const response = await loginUser(email, password);
+      onAuthenticated(response.user, response.csrfToken);
+    } catch (error) {
+      setMessage(safeLoginMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="login-heading">
+        <div className="auth-brand">
+          <h1 id="login-heading">TokTickIT</h1>
+          <p>IT Service Desk</p>
+        </div>
+        <form onSubmit={(event) => void submit(event)} noValidate>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="login-email">Email</label>
+            <input id="login-email" className={"form-control " + (errors.email ? "is-invalid" : "")} type="email" autoComplete="username" disabled={submitting} value={email} onChange={(event) => setEmail(event.target.value)} />
+            {errors.email && <div className="invalid-feedback">{errors.email}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="login-password">Password</label>
+            <input id="login-password" className={"form-control " + (errors.password ? "is-invalid" : "")} type="password" autoComplete="current-password" disabled={submitting} value={password} onChange={(event) => setPassword(event.target.value)} />
+            {errors.password && <div className="invalid-feedback">{errors.password}</div>}
+          </div>
+          {message && <div className="alert alert-danger" role="alert">{message}</div>}
+          <button className="btn btn-success w-100" type="submit" disabled={submitting}>
+            {submitting ? "Signing in..." : "Sign In"}
+          </button>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function ChangePasswordScreen({
+  csrfToken,
+  forced,
+  onChanged,
+  onLogout,
+  onCancel,
+  logoutError,
+}: {
+  csrfToken: string;
+  forced: boolean;
+  onChanged: (user: AuthUser, csrfToken: string) => void;
+  onLogout: () => Promise<void>;
+  onCancel?: () => void;
+  logoutError?: string;
+}) {
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const nextErrors: Record<string, string> = {};
+    if (!currentPassword) nextErrors.currentPassword = "Current password is required.";
+    if (newPassword.length < 12 || newPassword.length > 128) nextErrors.newPassword = "New password must be 12-128 characters.";
+    else if (newPassword.trim().length === 0) nextErrors.newPassword = "New password cannot be all whitespace.";
+    else if (newPassword === currentPassword) nextErrors.newPassword = "New password must differ from the current password.";
+    if (confirmPassword !== newPassword) nextErrors.confirmPassword = "Password confirmation must match the new password.";
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setSaving(true);
+    setMessage("");
+    try {
+      const response = await changeOwnPassword(csrfToken, { currentPassword, newPassword, confirmPassword });
+      onChanged(response.user, response.csrfToken);
+    } catch (error) {
+      if (error instanceof AuthApiError && Object.keys(error.fields).length > 0) setErrors(error.fields);
+      setMessage(error instanceof AuthApiError ? error.message : "Unable to change password. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <main className="auth-page">
+      <section className="auth-card" aria-labelledby="change-password-heading">
+        <div className="auth-brand">
+          <h1 id="change-password-heading">Change Password</h1>
+          <p>{forced ? "You must change your initial password before continuing." : "Update your TokTickIT password."}</p>
+        </div>
+        <p className="auth-rule">Use 12-128 characters. The new password must differ from the current password and confirmation must match.</p>
+        <form onSubmit={(event) => void submit(event)} noValidate>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="current-password">Current / Initial Password</label>
+            <input id="current-password" className={"form-control " + (errors.currentPassword ? "is-invalid" : "")} type="password" autoComplete="current-password" disabled={saving} value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} />
+            {errors.currentPassword && <div className="invalid-feedback">{errors.currentPassword}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="new-password">New Password</label>
+            <input id="new-password" className={"form-control " + (errors.newPassword ? "is-invalid" : "")} type="password" autoComplete="new-password" disabled={saving} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            {errors.newPassword && <div className="invalid-feedback">{errors.newPassword}</div>}
+          </div>
+          <div className="mb-3">
+            <label className="form-label" htmlFor="confirm-password">Confirm New Password</label>
+            <input id="confirm-password" className={"form-control " + (errors.confirmPassword ? "is-invalid" : "")} type="password" autoComplete="new-password" disabled={saving} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
+            {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
+          </div>
+          {message && <div className="alert alert-danger" role="alert">{message}</div>}
+          {logoutError && <div className="alert alert-danger" role="alert">{logoutError}</div>}
+          <div className="auth-actions">
+            {!forced && onCancel && <button className="btn btn-outline-secondary" type="button" disabled={saving} onClick={onCancel}>Cancel</button>}
+            <button className="btn btn-success" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Password"}</button>
+            <button className="btn btn-outline-danger" type="button" disabled={saving} onClick={() => void onLogout()}>Logout</button>
+          </div>
+        </form>
+      </section>
+    </main>
+  );
+}
+
+function queueStatusLabel(status: TicketStatus) {
+  return {
+    NEW: "NEW",
+    OPEN: "OPEN",
+    IN_PROGRESS: "IN PROGRESS",
+    WAITING_FOR_REQUESTER: "WAITING FOR REQUESTER",
+    RESOLVED: "RESOLVED",
+    CLOSED: "CLOSED",
+    REOPENED: "REOPENED",
+    CANCELLED: "CANCELLED",
+  }[status];
+}
+
+function StaffTicketQueue() {
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"" | TicketStatus>("");
+  const [requestedPriority, setRequestedPriority] = useState("");
+  const [itPriority, setItPriority] = useState("");
+  const [owner, setOwner] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [relatedSystemId, setRelatedSystemId] = useState("");
+  const [sortBy, setSortBy] = useState<"updatedAt" | "createdAt" | "ticketNumber" | "requestedPriority" | "itPriority" | "status">("updatedAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const [queue, setQueue] = useState<StaffQueueResponse | null>(null);
+  const [queueState, setQueueState] = useState<"loading" | "ready" | "forbidden" | "error">("loading");
+  const [retryToken, setRetryToken] = useState(0);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+
+  useEffect(() => {
+    let current = true;
+    void Promise.all([getCategories(), getRelatedSystems()])
+      .then(([nextCategories, nextSystems]) => {
+        if (!current) return;
+        setCategories(nextCategories);
+        setRelatedSystems(nextSystems);
+      })
+      .catch(() => {
+        if (!current) return;
+        setCategories([]);
+        setRelatedSystems([]);
+      });
+    return () => { current = false; };
+  }, []);
+
+  useEffect(() => {
+    let current = true;
+    setQueueState("loading");
+    void getStaffTicketQueue({
+      search: search.trim() || undefined,
+      status: status || undefined,
+      requestedPriority: requestedPriority ? requestedPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT" : undefined,
+      itPriority: itPriority ? itPriority as "LOW" | "MEDIUM" | "HIGH" | "URGENT" : undefined,
+      owner: owner === "unassigned" ? "unassigned" : owner ? Number(owner) : undefined,
+      categoryId: categoryId ? Number(categoryId) : undefined,
+      relatedSystemId: relatedSystemId ? Number(relatedSystemId) : undefined,
+      sortBy,
+      sortOrder,
+      page,
+      pageSize,
+    })
+      .then((response) => {
+        if (!current) return;
+        setQueue(response);
+        setQueueState("ready");
+      })
+      .catch((error) => {
+        if (!current) return;
+        setQueue(null);
+        if (error instanceof StaffQueueApiError && error.status === 403) setQueueState("forbidden");
+        else setQueueState("error");
+      });
+    return () => { current = false; };
+  }, [search, status, requestedPriority, itPriority, owner, categoryId, relatedSystemId, sortBy, sortOrder, page, pageSize, retryToken]);
+
+  function resetPageAnd(action: () => void) {
+    setPage(1);
+    action();
+  }
+
+  function clearFilters() {
+    setPage(1);
+    setSearch("");
+    setStatus("");
+    setRequestedPriority("");
+    setItPriority("");
+    setOwner("");
+    setCategoryId("");
+    setRelatedSystemId("");
+  }
+
+  const hasFilters = Boolean(search.trim() || status || requestedPriority || itPriority || owner || categoryId || relatedSystemId);
+  function openTicket(ticket: StaffQueueTicket) {
+    window.location.hash = `staff-ticket-${ticket.id}`;
+  }
+
+  function renderOpenAction(ticket: StaffQueueTicket) {
+    return (
+      <button className="btn btn-sm btn-outline-success" type="button" aria-label={`Open Ticket ${ticket.ticketNumber}`} onClick={() => openTicket(ticket)}>
+        Open
+      </button>
+    );
+  }
+
+  return (
+    <main className="container py-4 staff-queue-page">
+      <section className="staff-queue-panel" aria-labelledby="staff-queue-heading">
+        <div className="staff-queue-heading">
+          <div>
+            <h2 id="staff-queue-heading">Ticket Queue</h2>
+            <p className="text-muted mb-0">Search and prioritize the shared IT Staff workload.</p>
+          </div>
+          {queue && <span className="queue-count" aria-label={`${queue.totalItems} total Tickets`}>{queue.totalItems} Tickets</span>}
+        </div>
+
+        <div className="staff-queue-controls" aria-label="Ticket Queue controls">
+          <div className="queue-search-control">
+            <label className="form-label" htmlFor="staff-queue-search">Search Tickets</label>
+            <input id="staff-queue-search" className="form-control" value={search} onChange={(event) => resetPageAnd(() => setSearch(event.target.value))} placeholder="Ticket Number, Summary, Requester name/email" />
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-status">Status</label>
+            <select id="staff-queue-status" className="form-select" value={status} onChange={(event) => resetPageAnd(() => setStatus(event.target.value as "" | TicketStatus))}>
+              <option value="">All</option>
+              <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option><option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option><option value="CLOSED">Closed</option><option value="REOPENED">Reopened</option><option value="CANCELLED">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-requested-priority">Requested Priority</label>
+            <select id="staff-queue-requested-priority" className="form-select" value={requestedPriority} onChange={(event) => resetPageAnd(() => setRequestedPriority(event.target.value))}>
+              <option value="">All</option><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-it-priority">IT Priority</label>
+            <select id="staff-queue-it-priority" className="form-select" value={itPriority} onChange={(event) => resetPageAnd(() => setItPriority(event.target.value))}>
+              <option value="">All</option><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-owner">Owner</label>
+            <select id="staff-queue-owner" className="form-select" value={owner} onChange={(event) => resetPageAnd(() => setOwner(event.target.value))}>
+              <option value="">All</option>
+              <option value="unassigned">Unassigned</option>
+              {(queue?.ownerOptions ?? []).map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-category">Category</label>
+            <select id="staff-queue-category" className="form-select" value={categoryId} onChange={(event) => resetPageAnd(() => setCategoryId(event.target.value))}>
+              <option value="">All</option>
+              {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-related-system">Related System</label>
+            <select id="staff-queue-related-system" className="form-select" value={relatedSystemId} onChange={(event) => resetPageAnd(() => setRelatedSystemId(event.target.value))}>
+              <option value="">All</option>
+              {relatedSystems.map((system) => <option key={system.id} value={system.id}>{system.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-sort-by">Sort By</label>
+            <select id="staff-queue-sort-by" className="form-select" value={sortBy} onChange={(event) => resetPageAnd(() => setSortBy(event.target.value as typeof sortBy))}>
+              <option value="updatedAt">Last Updated</option><option value="createdAt">Created</option><option value="ticketNumber">Ticket Number</option><option value="requestedPriority">Requested Priority</option><option value="itPriority">IT Priority</option><option value="status">Status</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-sort-order">Sort Order</label>
+            <select id="staff-queue-sort-order" className="form-select" value={sortOrder} onChange={(event) => resetPageAnd(() => setSortOrder(event.target.value as "asc" | "desc"))}>
+              <option value="desc">Descending</option><option value="asc">Ascending</option>
+            </select>
+          </div>
+          <div>
+            <label className="form-label" htmlFor="staff-queue-page-size">Page Size</label>
+            <select id="staff-queue-page-size" className="form-select" value={pageSize} onChange={(event) => { setPage(1); setPageSize(Number(event.target.value) as 10 | 25 | 50); }}>
+              <option value="10">10</option><option value="25">25</option><option value="50">50</option>
+            </select>
+          </div>
+          <div className="queue-clear-control">
+            <button className="btn btn-outline-secondary" type="button" onClick={clearFilters}>Clear Filters</button>
+          </div>
+        </div>
+
+        {queueState === "loading" && <div className="queue-state" role="status">Loading Ticket Queue...</div>}
+        {queueState === "forbidden" && <div className="alert alert-danger" role="alert">Forbidden. Your role is not permitted to use the IT Staff Ticket Queue.</div>}
+        {queueState === "error" && (
+          <div className="alert alert-danger queue-failure" role="alert">
+            <span>Unable to load Ticket Queue. Please try again.</span>
+            <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button>
+          </div>
+        )}
+
+        {queueState === "ready" && queue && queue.items.length === 0 && (
+          <div className="queue-state">
+            {queue.totalItems === 0 && hasFilters ? (
+              <><strong>No Tickets match the current filters.</strong><button className="btn btn-sm btn-outline-secondary" type="button" onClick={clearFilters}>Clear Filters</button></>
+            ) : queue.totalItems === 0 ? (
+              <strong>The Ticket Queue is empty. No Tickets are waiting for IT Staff.</strong>
+            ) : (
+              <strong>No Tickets are available on this page.</strong>
+            )}
+          </div>
+        )}
+
+        {queueState === "ready" && queue && queue.items.length > 0 && (
+          <>
+            <div className="staff-queue-desktop" data-testid="staff-queue-desktop">
+              <div className="table-responsive">
+                <table className="table align-middle staff-queue-table" aria-label="Ticket Queue">
+                  <thead><tr><th>Ticket Number</th><th>Summary</th><th>Requested Priority</th><th>IT Priority</th><th>Status</th><th>Owner</th><th>Last Updated</th><th><span className="visually-hidden">Open</span></th></tr></thead>
+                  <tbody>
+                    {queue.items.map((ticket) => (
+                      <tr key={ticket.id}>
+                        <td><strong>{ticket.ticketNumber}</strong></td>
+                        <td><div>{ticket.summary}</div><small>{ticket.requester.name}</small></td>
+                        <td><span className="queue-badge">{ticket.requestedPriority}</span></td>
+                        <td><span className="queue-badge">{ticket.itPriority}</span></td>
+                        <td><span className="queue-badge">{queueStatusLabel(ticket.currentStatus)}</span></td>
+                        <td>{ticket.owner?.name ?? "Unassigned"}</td>
+                        <td>{new Date(ticket.updatedAt).toLocaleString()}</td>
+                        <td>{renderOpenAction(ticket)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="staff-queue-mobile" data-testid="staff-queue-mobile">
+              {queue.items.map((ticket) => (
+                <article className="staff-queue-card" key={ticket.id} aria-label={`Ticket ${ticket.ticketNumber}`}>
+                  <div className="staff-queue-card-heading"><strong>{ticket.ticketNumber}</strong><span className="queue-badge">{queueStatusLabel(ticket.currentStatus)}</span></div>
+                  <h3>{ticket.summary}</h3>
+                  <p className="mb-2">Requester: {ticket.requester.name}</p>
+                  <dl><dt>Requested Priority</dt><dd>{ticket.requestedPriority}</dd><dt>IT Priority</dt><dd>{ticket.itPriority}</dd><dt>Owner</dt><dd>{ticket.owner?.name ?? "Unassigned"}</dd><dt>Updated</dt><dd>{new Date(ticket.updatedAt).toLocaleString()}</dd></dl>
+                  {renderOpenAction(ticket)}
+                </article>
+              ))}
+            </div>
+          </>
+        )}
+
+        {queueState === "ready" && queue && queue.totalItems > 0 && (
+          <div className="staff-queue-pagination" aria-label="Ticket Queue pagination">
+            <button className="btn btn-outline-secondary" type="button" disabled={page <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))}>Previous</button>
+            <span>Page {queue.page} of {Math.max(queue.totalPages, 1)}</span>
+            <button className="btn btn-outline-secondary" type="button" disabled={queue.totalPages === 0 || page >= queue.totalPages} onClick={() => setPage((value) => value + 1)}>Next</button>
+          </div>
+        )}
+      </section>
+    </main>
+  );
+}
+
+const staffStatusTransitions: Record<TicketStatus, TicketStatus[]> = {
+  NEW: ["OPEN", "CANCELLED"],
+  OPEN: ["IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"],
+  IN_PROGRESS: ["WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"],
+  WAITING_FOR_REQUESTER: ["IN_PROGRESS", "RESOLVED", "CANCELLED"],
+  RESOLVED: ["CLOSED", "REOPENED"],
+  CLOSED: ["REOPENED"],
+  REOPENED: ["IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CANCELLED"],
+  CANCELLED: ["REOPENED"],
+};
+
+function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number; user: AuthUser; csrfToken: string }) {
+  const [detail, setDetail] = useState<StaffTicketDetail | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [statusTarget, setStatusTarget] = useState("");
+  const [publicContent, setPublicContent] = useState("");
+  const [internalContent, setInternalContent] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+  const staffMode = user.role === "IT_STAFF";
+
+  useEffect(() => {
+    let current = true;
+    setState("loading");
+    setError("");
+    void getStaffTicketDetail(ticketId)
+      .then((response) => {
+        if (!current) return;
+        setDetail(response);
+        setState("ready");
+        setStatusTarget("");
+      })
+      .catch((caught) => {
+        if (!current) return;
+        setState("error");
+        if (caught instanceof StaffTicketApiError && caught.status === 403) setError("Forbidden. Your role is not permitted to view this Ticket Detail.");
+        else if (caught instanceof StaffTicketApiError && caught.status === 404) setError("Ticket Detail was not found.");
+        else setError("Unable to load Ticket Detail. Please try again.");
+      });
+    return () => { current = false; };
+  }, [ticketId, retryToken]);
+
+  async function runMutation(action: () => Promise<void>, success: string) {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await action();
+      setMessage(success);
+    } catch (caught) {
+      if (caught instanceof StaffTicketApiError && caught.status === 400) {
+        if (caught.code === "INVALID_OWNER") {
+          setError("The selected owner is no longer available. Choose an active IT Staff or Administrator.");
+        } else if (caught.code === "INVALID_TRANSITION") {
+          setError("This status transition is no longer allowed. Refresh the Ticket Detail and try again.");
+        } else if (caught.code === "VALIDATION_ERROR") {
+          setError(caught.message || "The submitted Ticket values are invalid. Review the fields and try again.");
+        } else {
+          setError("The Ticket change is invalid. Review the current values and try again.");
+        }
+      } else if (caught instanceof StaffTicketApiError && caught.status === 403) {
+        setError("Forbidden. Your role is not permitted to perform this Ticket action.");
+      } else if (caught instanceof StaffTicketApiError && caught.status === 404) {
+        setError("Ticket Detail was not found. Return to the previous screen and refresh before trying again.");
+      } else if (caught instanceof StaffTicketApiError && caught.status === 409) {
+        if (caught.code === "OWNER_CONFLICT") {
+          setError("This Ticket is already assigned. Refresh the Ticket Detail before changing the owner.");
+        } else {
+          setError("The Ticket changed before this action completed. Refresh the Ticket Detail and try again.");
+        }
+      } else {
+        setError("Unable to save the Ticket change. Please try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Ticket Detail...</div></main>;
+  if (state === "error" || !detail) return <main className="container py-4"><div className="alert alert-danger" role="alert">{error || "Unable to load Ticket Detail."}<button className="btn btn-sm btn-outline-danger ms-3" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
+
+  const requiresConfirmation = (status: TicketStatus) => ["RESOLVED", "CLOSED", "CANCELLED", "REOPENED"].includes(status);
+  const nextStatuses = staffStatusTransitions[detail.currentStatus];
+
+  return (
+    <main className="container py-4 staff-detail-page">
+      <div className="staff-detail-topbar"><button className="btn btn-outline-secondary" type="button" onClick={() => { window.location.hash = staffMode ? "ticket-queue" : "user-management"; }}>{staffMode ? "Back to Queue" : "Back to User Management"}</button><span className="queue-badge">{detail.currentStatusLabel}</span></div>
+      <section className="staff-detail-panel" aria-labelledby="staff-detail-heading">
+        <div className="staff-detail-heading"><div><h2 id="staff-detail-heading">Ticket Detail</h2><strong>{detail.ticketNumber}</strong></div><div><span className="queue-badge">Requested {detail.requestedPriority}</span> <span className="queue-badge">IT {detail.itPriority}</span></div></div>
+        {message && <div className="alert alert-success" role="status">{message}</div>}
+        {error && <div className="alert alert-danger" role="alert">{error}</div>}
+
+        <div className="staff-detail-grid">
+          <section className="staff-detail-section"><h3>Ticket Information</h3><dl><dt>Summary</dt><dd>{detail.summary}</dd><dt>Description</dt><dd>{detail.description}</dd><dt>Created</dt><dd>{new Date(detail.createdAt).toLocaleString()}</dd><dt>Last Updated</dt><dd>{new Date(detail.updatedAt).toLocaleString()}</dd></dl></section>
+          <section className="staff-detail-section"><h3>Requester & Classification</h3><dl><dt>Requester</dt><dd>{detail.requester.name} ({detail.requester.email})</dd><dt>Category</dt><dd>{detail.category.name}</dd><dt>Related System</dt><dd>{detail.relatedSystem.name}</dd></dl></section>
+        </div>
+
+        <section className="staff-detail-section"><h3>Operations</h3><div className="staff-operation-grid">
+          <div><label className="form-label" htmlFor="staff-requested-priority">Requested Priority</label><input id="staff-requested-priority" aria-label="Requested Priority" className="form-control readonly-control" value={detail.requestedPriority} disabled readOnly /></div>
+          <div><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" aria-label="IT Priority" className="form-select" value={detail.itPriority} disabled={saving} onChange={(event) => void runMutation(async () => { const response = await updateStaffTicketItPriority(csrfToken, detail.id, event.target.value as Priority); setDetail((current) => current ? { ...current, itPriority: response.itPriority } : current); }, "IT Priority updated.")}><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option></select></div>
+          {staffMode && <div><label className="form-label" htmlFor="staff-owner">Owner</label><select id="staff-owner" aria-label="Owner" className="form-select" value={detail.owner?.id ?? ""} disabled={saving} onChange={(event) => { const nextOwnerId = event.target.value ? Number(event.target.value) : null; if (detail.owner && nextOwnerId !== detail.owner.id && !window.confirm("Reassign this Ticket owner?")) return; void runMutation(async () => { const response = await updateStaffTicketOwner(csrfToken, detail.id, nextOwnerId); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Owner updated."); }}><option value="">Unassigned</option>{detail.ownerOptions.map((option) => <option value={option.id} key={option.id}>{option.name} ({option.role === "IT_STAFF" ? "IT Staff" : "Administrator"})</option>)}</select>{!detail.owner && <button className="btn btn-sm btn-success mt-2" type="button" disabled={saving} onClick={() => void runMutation(async () => { const response = await claimStaffTicket(csrfToken, detail.id); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Ticket claimed.")}>Claim Ticket</button>}</div>}
+          {staffMode && <div><label className="form-label" htmlFor="staff-status-transition">Status Transition</label><select id="staff-status-transition" aria-label="Status Transition" className="form-select" value={statusTarget} disabled={saving} onChange={(event) => setStatusTarget(event.target.value)}><option value="">Select next status</option>{nextStatuses.map((status) => <option value={status} key={status}>{queueStatusLabel(status)}</option>)}</select><button className="btn btn-sm btn-success mt-2" type="button" disabled={saving || !statusTarget} onClick={() => { const target = statusTarget as TicketStatus; if (requiresConfirmation(target) && !window.confirm(`Confirm transition to ${queueStatusLabel(target)}?`)) return; void runMutation(async () => { const response = await updateStaffTicketStatus(csrfToken, detail.id, target); setDetail((current) => current ? { ...current, currentStatus: response.currentStatus, currentStatusLabel: response.currentStatusLabel } : current); setStatusTarget(""); }, "Status updated."); }}>Apply Status</button></div>}
+        </div></section>
+
+        {detail.problemAppearsResolvedAt && <div className="alert alert-info" role="status"><strong>Problem Appears Resolved</strong> indicated by the Requester on {new Date(detail.problemAppearsResolvedAt).toLocaleString()}. This does not change formal Ticket status.</div>}
+
+        <section className="staff-detail-section public-communication"><h3>Public Comments <span className="communication-label">Public</span></h3><p>Visible to the Requester, IT Staff, and Administrator.</p>{detail.publicComments.length === 0 ? <p>No Public Comments yet.</p> : <div className="communication-list">{detail.publicComments.map((comment) => <article key={comment.id}><strong>{comment.author.name}</strong><small>{new Date(comment.createdAt).toLocaleString()}</small><p>{comment.content}</p></article>)}</div>}{staffMode && <><label className="form-label" htmlFor="staff-public-comment">Public Comment</label><textarea id="staff-public-comment" aria-label="Public Comment" className="form-control" maxLength={2000} value={publicContent} disabled={saving} onChange={(event) => setPublicContent(event.target.value)} /><button className="btn btn-success mt-2" type="button" disabled={saving || !publicContent.trim()} onClick={() => void runMutation(async () => { const comment = await postPublicComment(csrfToken, detail.id, publicContent); setDetail((current) => current ? { ...current, publicComments: [...current.publicComments, comment] } : current); setPublicContent(""); }, "Public Comment posted.")}>Post Public Comment</button></>}</section>
+
+        <section className="staff-detail-section internal-communication"><h3>Internal Notes <span className="communication-label internal-label">Internal - not visible to Requester</span></h3><p>Private Staff communication. Internal Notes are append-only in Lab 3.</p>{detail.internalNotes.length === 0 ? <p>No Internal Notes yet.</p> : <div className="communication-list">{detail.internalNotes.map((note) => <article key={note.id}><strong>{note.author.name}</strong><small>{new Date(note.createdAt).toLocaleString()}</small><p>{note.content}</p></article>)}</div>}{staffMode && <><label className="form-label" htmlFor="staff-internal-note">Internal Note</label><textarea id="staff-internal-note" aria-label="Internal Note" className="form-control" maxLength={2000} value={internalContent} disabled={saving} onChange={(event) => setInternalContent(event.target.value)} /><button className="btn btn-warning mt-2" type="button" disabled={saving || !internalContent.trim()} onClick={() => void runMutation(async () => { const note = await postInternalNote(csrfToken, detail.id, internalContent); setDetail((current) => current ? { ...current, internalNotes: [...current.internalNotes, note] } : current); setInternalContent(""); }, "Internal Note added.")}>Add Internal Note</button></>}</section>
+
+        <section className="staff-detail-section"><h3>Attachments</h3>{detail.attachments.length === 0 ? <p>No Attachments.</p> : <ul className="staff-attachment-list">{detail.attachments.map((attachment) => <li key={attachment.id}><span>{attachment.originalFilename}</span>{attachment.state === "active" && attachment.downloadUrl ? <a className="btn btn-sm btn-outline-success" href={attachment.downloadUrl}>Download</a> : <span>Removed{attachment.removalReason ? `: ${attachment.removalReason}` : ""}</span>}</li>)}</ul>}</section>
+      </section>
+    </main>
+  );
+}
+
+type AdminFormState = {
+  name: string;
+  email: string;
+  role: AuthUser["role"];
+  isActive: boolean;
+  initialPassword: string;
+};
+
+const emptyAdminForm: AdminFormState = {
+  name: "",
+  email: "",
+  role: "REQUESTER",
+  isActive: true,
+  initialPassword: "",
+};
+
+function UserManagement({ currentUser, csrfToken }: { currentUser: AuthUser; csrfToken: string }) {
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<AuthUser["role"] | "">("");
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [loadError, setLoadError] = useState("");
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [panelMode, setPanelMode] = useState<"create" | "edit" | null>(null);
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [form, setForm] = useState<AdminFormState>(emptyAdminForm);
+  const [resetPassword, setResetPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let current = true;
+    setLoadState("loading");
+    setLoadError("");
+    void getAdminUsers({ search, role: roleFilter })
+      .then((response) => {
+        if (!current) return;
+        setUsers(response);
+        setLoadState("ready");
+      })
+      .catch((caught) => {
+        if (!current) return;
+        setUsers([]);
+        setLoadState("error");
+        if (caught instanceof UserManagementApiError && caught.status === 403) {
+          setLoadError("Forbidden. Your role is not permitted to access User Management.");
+        } else {
+          setLoadError("Unable to load Users. Please try again.");
+        }
+      });
+    return () => { current = false; };
+  }, [search, roleFilter, refreshToken]);
+
+  function openCreate() {
+    setPanelMode("create");
+    setSelectedUser(null);
+    setForm(emptyAdminForm);
+    setResetPassword("");
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+  }
+
+  function openEdit(user: AdminUser) {
+    setPanelMode("edit");
+    setSelectedUser(user);
+    setForm({ name: user.name, email: user.email, role: user.role, isActive: user.isActive, initialPassword: "" });
+    setResetPassword("");
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+  }
+
+  function explainAdminError(caught: unknown) {
+    if (!(caught instanceof UserManagementApiError)) return "Unable to save the User change. Please try again.";
+    if (caught.code === "DUPLICATE_EMAIL") return "That email is already in use.";
+    if (caught.code === "SELF_DEACTIVATION_FORBIDDEN") return "You cannot deactivate your own Administrator account.";
+    if (caught.code === "LAST_ACTIVE_ADMIN_REQUIRED") return "At least one active Administrator is required.";
+    if (caught.status === 403) return "Forbidden. Your role is not permitted to perform this User Management action.";
+    if (caught.status === 404) return "User was not found. Refresh User Management and try again.";
+    if (caught.status === 400) return caught.message || "Please correct the highlighted fields.";
+    return "Unable to save the User change. Please try again.";
+  }
+
+  async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+    const localFields: Record<string, string> = {};
+    if (!form.name.trim()) localFields.name = "Name is required.";
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) localFields.email = "Enter a valid email address.";
+    if (panelMode === "create" && (form.initialPassword.length < 12 || form.initialPassword.length > 128 || !form.initialPassword.trim())) {
+      localFields.initialPassword = "Initial password must be 12-128 characters and not all whitespace.";
+    }
+    if (Object.keys(localFields).length > 0) {
+      setFieldErrors(localFields);
+      setActionError("Please correct the highlighted fields.");
+      return;
+    }
+
+    setSaving(true);
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+    try {
+      if (panelMode === "create") {
+        await createAdminUser(csrfToken, {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          isActive: form.isActive,
+          initialPassword: form.initialPassword,
+        });
+        setSuccessMessage("User created successfully. The initial password must be changed at next login.");
+        setPanelMode(null);
+        setForm(emptyAdminForm);
+      } else if (selectedUser) {
+        const updated = await updateAdminUser(csrfToken, selectedUser.id, {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          isActive: form.isActive,
+        });
+        setSelectedUser(updated);
+        setForm((current) => ({ ...current, name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive }));
+        setSuccessMessage("User updated successfully.");
+      }
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      if (caught instanceof UserManagementApiError) setFieldErrors(caught.fields);
+      setActionError(explainAdminError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleInitialPassword() {
+    if (!selectedUser || saving) return;
+    if (resetPassword.length < 12 || resetPassword.length > 128 || !resetPassword.trim()) {
+      setFieldErrors({ initialPassword: "Initial password must be 12-128 characters and not all whitespace." });
+      setActionError("Please correct the highlighted fields.");
+      return;
+    }
+    setSaving(true);
+    setFieldErrors({});
+    setActionError("");
+    setSuccessMessage("");
+    try {
+      await setAdminInitialPassword(csrfToken, selectedUser.id, resetPassword);
+      setResetPassword("");
+      setSuccessMessage("New initial password saved. The User must change it at next login.");
+      setRefreshToken((value) => value + 1);
+    } catch (caught) {
+      if (caught instanceof UserManagementApiError) setFieldErrors(caught.fields);
+      setActionError(explainAdminError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const renderRole = (role: AuthUser["role"]) => roleLabel(role);
+
+  return (
+    <main className="container py-4 admin-users-page">
+      <section className="admin-users-panel" aria-labelledby="admin-users-heading">
+        <div className="admin-users-heading">
+          <div><h2 id="admin-users-heading">User Management</h2><p className="text-muted mb-0">Manage authentication roles and account activation without deleting Users.</p></div>
+          <button className="btn btn-success" type="button" onClick={openCreate}>Create User</button>
+        </div>
+
+        {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+        <div className="admin-user-controls" aria-label="User Management filters">
+          <div><label className="form-label" htmlFor="admin-user-search">Search Users</label><input id="admin-user-search" className="form-control" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name or email" /></div>
+          <div><label className="form-label" htmlFor="admin-user-role-filter">Role Filter</label><select id="admin-user-role-filter" className="form-select" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as AuthUser["role"] | "")}><option value="">All roles</option><option value="REQUESTER">Requester</option><option value="IT_STAFF">IT Staff</option><option value="ADMINISTRATOR">Administrator</option></select></div>
+        </div>
+
+        {loadState === "loading" && <div className="queue-state" role="status">Loading Users...</div>}
+        {loadState === "error" && <div className="alert alert-danger admin-user-failure" role="alert"><span>{loadError}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRefreshToken((value) => value + 1)}>Retry</button></div>}
+        {loadState === "ready" && users.length === 0 && <div className="queue-state">No Users match the current search/filter.</div>}
+
+        {loadState === "ready" && users.length > 0 && <>
+          <div className="table-responsive admin-user-desktop" data-testid="admin-user-desktop">
+            <table className="table align-middle"><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Role</th><th scope="col">Status</th><th scope="col">Edit</th></tr></thead><tbody>{users.map((managedUser) => <tr key={managedUser.id}><td>{managedUser.name}</td><td className="admin-user-email">{managedUser.email}</td><td><span className="role-badge admin-role-badge">{renderRole(managedUser.role)}</span></td><td><span className={`admin-status-badge ${managedUser.isActive ? "active" : "inactive"}`}>{managedUser.isActive ? "Active" : "Inactive"}</span></td><td><button className="btn btn-sm btn-outline-success" type="button" onClick={() => openEdit(managedUser)}>Edit</button></td></tr>)}</tbody></table>
+          </div>
+          <div className="admin-user-mobile" data-testid="admin-user-mobile">{users.map((managedUser) => <article className="admin-user-card" key={managedUser.id}><strong>{managedUser.name}</strong><span className="admin-user-email">{managedUser.email}</span><div><span className="role-badge admin-role-badge">{renderRole(managedUser.role)}</span> <span className={`admin-status-badge ${managedUser.isActive ? "active" : "inactive"}`}>{managedUser.isActive ? "Active" : "Inactive"}</span></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => openEdit(managedUser)}>Edit</button></article>)}</div>
+        </>}
+
+        {panelMode && <section className="admin-user-form-panel" aria-labelledby="admin-user-form-heading">
+          <div className="admin-user-form-heading"><h3 id="admin-user-form-heading">{panelMode === "create" ? "Create User" : "Edit User"}</h3><button className="btn btn-sm btn-outline-secondary" type="button" disabled={saving} onClick={() => { setPanelMode(null); setSelectedUser(null); setFieldErrors({}); setActionError(""); }}>Close</button></div>
+          {actionError && <div className="alert alert-danger" role="alert">{actionError}</div>}
+          <form onSubmit={(event) => void handleProfileSubmit(event)} noValidate>
+            <div className="admin-user-form-grid">
+              <div><label className="form-label" htmlFor="admin-user-name">Name</label><input id="admin-user-name" className={`form-control ${fieldErrors.name ? "is-invalid" : ""}`} value={form.name} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />{fieldErrors.name && <div className="invalid-feedback">{fieldErrors.name}</div>}</div>
+              <div><label className="form-label" htmlFor="admin-user-email">Email</label><input id="admin-user-email" type="email" className={`form-control ${fieldErrors.email ? "is-invalid" : ""}`} value={form.email} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />{fieldErrors.email && <div className="invalid-feedback">{fieldErrors.email}</div>}</div>
+              <div><label className="form-label" htmlFor="admin-user-role">Role</label><select id="admin-user-role" className={`form-select ${fieldErrors.role ? "is-invalid" : ""}`} value={form.role} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, role: event.target.value as AuthUser["role"] }))}><option value="REQUESTER">Requester</option><option value="IT_STAFF">IT Staff</option><option value="ADMINISTRATOR">Administrator</option></select>{fieldErrors.role && <div className="invalid-feedback">{fieldErrors.role}</div>}</div>
+              <div className="admin-active-control"><div className="form-check"><input id="admin-user-active" type="checkbox" className="form-check-input" checked={form.isActive} disabled={saving} onChange={(event) => { const next = event.target.checked; if (!next && form.isActive && !window.confirm("Deactivate this User? Existing sessions will be revoked.")) return; setForm((current) => ({ ...current, isActive: next })); }} /><label className="form-check-label" htmlFor="admin-user-active">Active</label></div>{fieldErrors.isActive && <div className="text-danger small">{fieldErrors.isActive}</div>}</div>
+              {panelMode === "create" && <div className="admin-password-control"><label className="form-label" htmlFor="admin-user-initial-password">Initial Password</label><input id="admin-user-initial-password" type="password" className={`form-control ${fieldErrors.initialPassword ? "is-invalid" : ""}`} value={form.initialPassword} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, initialPassword: event.target.value }))} /><div className="form-text">12-128 characters. The User must change it at next login.</div>{fieldErrors.initialPassword && <div className="invalid-feedback">{fieldErrors.initialPassword}</div>}</div>}
+            </div>
+            <button className="btn btn-success mt-3" type="submit" disabled={saving}>{saving ? "Saving..." : panelMode === "create" ? "Create User" : "Save User"}</button>
+          </form>
+
+          {panelMode === "edit" && selectedUser && selectedUser.id !== currentUser.id && <div className="admin-password-reset">
+            <h4>Set New Initial Password</h4><p className="text-muted">This is separate from profile editing and revokes the User's active sessions.</p>
+            <label className="form-label" htmlFor="admin-reset-password">Set New Initial Password</label><input id="admin-reset-password" type="password" className={`form-control ${fieldErrors.initialPassword ? "is-invalid" : ""}`} value={resetPassword} disabled={saving} onChange={(event) => setResetPassword(event.target.value)} />{fieldErrors.initialPassword && <div className="invalid-feedback">{fieldErrors.initialPassword}</div>}
+            <button className="btn btn-outline-success mt-2" type="button" disabled={saving || !resetPassword} onClick={() => void handleInitialPassword()}>Apply New Initial Password</button>
+          </div>}
+        </section>}
+      </section>
+    </main>
+  );
+}
+
+function ForbiddenUserManagement() {
+  return <main className="container py-5"><div className="alert alert-danger" role="alert"><strong>Forbidden.</strong> Your role is not permitted to access User Management.</div></main>;
+}
+
+function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
+  const [routeHash, setRouteHash] = useState(() => window.location.hash);
+  useEffect(() => {
+    const update = () => setRouteHash(window.location.hash);
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
+  }, []);
+  const staffTicketMatch = routeHash.match(/^#staff-ticket-(\d+)$/);
+  const staffTicketId = staffTicketMatch ? Number(staffTicketMatch[1]) : null;
+  const userManagementRequested = routeHash === "#user-management";
+  const navigation = user.role === "REQUESTER"
+    ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
+    : user.role === "IT_STAFF"
+      ? [{ label: "Ticket Queue", href: "#ticket-queue" }]
+      : [{ label: "User Management", href: "#user-management" }];
+
+  return (
+    <div className="toktickit-app">
+      <header className="app-shell auth-shell">
+        <div>
+          <h1>TokTickIT IT Service Desk</h1>
+          <nav aria-label="Primary navigation">
+            {navigation.map((item) => <a className="auth-nav-item" href={item.href} key={item.href}>{item.label}</a>)}
+          </nav>
+        </div>
+        <div className="auth-identity">
+          <div><strong>{user.name}</strong><span className="role-badge">{roleLabel(user.role)}</span></div>
+          <div className="auth-shell-actions">
+            <button className="btn btn-sm btn-outline-light" type="button" onClick={onChangePassword}>Change Password</button>
+            <button className="btn btn-sm btn-light" type="button" onClick={() => void onLogout()}>Logout</button>
+          </div>
+        </div>
+      </header>
+      {userManagementRequested && user.role !== "ADMINISTRATOR" ? (
+        <ForbiddenUserManagement />
+      ) : staffTicketId && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
+        <StaffTicketDetailView ticketId={staffTicketId} user={user} csrfToken={csrfToken} />
+      ) : user.role === "REQUESTER" ? (
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <RequesterWorkflow
+            authenticatedRequester={{ id: user.id, name: user.name, email: user.email }}
+            csrfToken={csrfToken}
+            embedded
+          />
+        </>
+      ) : user.role === "IT_STAFF" ? (
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <StaffTicketQueue />
+        </>
+      ) : (
+        <>
+          <div className="container pt-4">
+            {errorMessage && <div className="alert alert-danger auth-shell-error" role="alert">{errorMessage}</div>}
+            {successMessage && <div className="alert alert-success" role="status">{successMessage}</div>}
+          </div>
+          <UserManagement currentUser={user} csrfToken={csrfToken} />
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
-  const requesterContext = useRequesterContext();
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [csrfToken, setCsrfToken] = useState("");
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [authActionError, setAuthActionError] = useState("");
+  const [authSuccessMessage, setAuthSuccessMessage] = useState("");
+
+  useEffect(() => {
+    if (!authSuccessMessage) return;
+    const timer = window.setTimeout(() => setAuthSuccessMessage(""), 3_000);
+    return () => window.clearTimeout(timer);
+  }, [authSuccessMessage]);
+
+  useEffect(() => {
+    let current = true;
+    void getCurrentUser()
+      .then((response) => {
+        if (!current) return;
+        setUser(response.user);
+        setCsrfToken(response.csrfToken);
+        setAuthState("authenticated");
+      })
+      .catch(() => {
+        if (!current) return;
+        setUser(null);
+        setCsrfToken("");
+        setAuthState("unauthenticated");
+      });
+    return () => { current = false; };
+  }, []);
+
+  function acceptAuthentication(nextUser: AuthUser, nextCsrfToken: string) {
+    setUser(nextUser);
+    setCsrfToken(nextCsrfToken);
+    setShowChangePassword(false);
+    setAuthActionError("");
+    setAuthSuccessMessage("");
+    setAuthState("authenticated");
+  }
+
+  function acceptPasswordChange(nextUser: AuthUser, nextCsrfToken: string) {
+    setUser(nextUser);
+    setCsrfToken(nextCsrfToken);
+    setShowChangePassword(false);
+    setAuthActionError("");
+    setAuthSuccessMessage("Password changed successfully.");
+    setAuthState("authenticated");
+  }
+
+  async function handleLogout() {
+    setAuthActionError("");
+    try {
+      if (!csrfToken) throw new Error("Missing CSRF token");
+      await logoutUser(csrfToken);
+      setUser(null);
+      setCsrfToken("");
+      setShowChangePassword(false);
+      setAuthSuccessMessage("");
+      setAuthState("unauthenticated");
+    } catch {
+      setAuthActionError("Unable to sign out. Please try again.");
+    }
+  }
+
+  if (authState === "loading") {
+    return <main className="auth-page"><div className="auth-loading" role="status">Loading TokTickIT...</div></main>;
+  }
+  if (authState === "unauthenticated" || !user) {
+    return <LoginScreen onAuthenticated={acceptAuthentication} />;
+  }
+  if (user.mustChangePassword || showChangePassword) {
+    return (
+      <ChangePasswordScreen
+        csrfToken={csrfToken}
+        forced={user.mustChangePassword}
+        onChanged={acceptPasswordChange}
+        onLogout={handleLogout}
+        onCancel={user.mustChangePassword ? undefined : () => setShowChangePassword(false)}
+        logoutError={authActionError}
+      />
+    );
+  }
+  return <AuthenticatedShell user={user} csrfToken={csrfToken} onLogout={handleLogout} onChangePassword={() => { setAuthActionError(""); setAuthSuccessMessage(""); setShowChangePassword(true); }} errorMessage={authActionError} successMessage={authSuccessMessage} />;
+}
+
+function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = false }: { authenticatedRequester?: Requester; csrfToken?: string; embedded?: boolean } = {}) {
+  const requesterContext = useRequesterContext(authenticatedRequester);
   const [pendingRequesterId, setPendingRequesterId] = useState("");
   const [selectionError, setSelectionError] = useState("");
   const [state, setState] = useState<UiState>("idle");
@@ -59,6 +999,12 @@ export default function App() {
   const [ticketDetailState, setTicketDetailState] = useState<"idle" | "loading" | "success" | "notFound" | "error">("idle");
   const [ticketDetailError, setTicketDetailError] = useState("");
   const [ticketDetailReload, setTicketDetailReload] = useState(0);
+  const [publicComments, setPublicComments] = useState<PublicComment[]>([]);
+  const [publicCommentText, setPublicCommentText] = useState("");
+  const [publicCommentsState, setPublicCommentsState] = useState<"idle" | "loading" | "success" | "posting" | "error">("idle");
+  const [publicCommentsError, setPublicCommentsError] = useState("");
+  const [resolutionState, setResolutionState] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [resolutionError, setResolutionError] = useState("");
   const [detailUploadState, setDetailUploadState] = useState<"idle" | "uploading" | "error">("idle");
   const [detailUploadError, setDetailUploadError] = useState("");
   const [removeTarget, setRemoveTarget] = useState<TicketAttachment | null>(null);
@@ -74,13 +1020,26 @@ export default function App() {
   const [ticketPage, setTicketPage] = useState(1);
   const [ticketPageSize, setTicketPageSize] = useState<5 | 10 | 20>(10);
   const [myTicketsReload, setMyTicketsReload] = useState(0);
+  const [createClientRequestId, setCreateClientRequestId] = useState("");
   const formDisabled = referenceState === "loading";
+  const authenticatedMode = Boolean(authenticatedRequester);
 
   useEffect(() => {
     if (requesterContext.selectedRequester && referenceState === "idle") {
       void loadTicketReferences();
     }
   }, [requesterContext.selectedRequester, referenceState]);
+
+  useEffect(() => {
+    if (!embedded) return;
+    const syncViewFromHash = () => {
+      if (window.location.hash === "#my-tickets") setActiveView("myTickets");
+      if (window.location.hash === "#create-ticket") setActiveView("createTicket");
+    };
+    syncViewFromHash();
+    window.addEventListener("hashchange", syncViewFromHash);
+    return () => window.removeEventListener("hashchange", syncViewFromHash);
+  }, [embedded]);
 
   useEffect(() => {
     const requester = requesterContext.selectedRequester;
@@ -94,14 +1053,15 @@ export default function App() {
       categoryId: ticketCategoryFilter ? Number(ticketCategoryFilter) : undefined,
       relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
       requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
-      currentStatus: ticketStatusFilter === "NEW" ? "NEW" : undefined,
+      currentStatus: ticketStatusFilter ? ticketStatusFilter as NonNullable<MyTicketsQuery["currentStatus"]> : undefined,
       sortBy: ticketSortBy,
       sortDirection: ticketSortDirection,
       page: ticketPage,
       pageSize: ticketPageSize,
     };
 
-    void getMyTickets(requester.id, query)
+    const ticketsRequest = authenticatedMode ? getAuthenticatedMyTickets(query) : getMyTickets(requester.id, query);
+    void ticketsRequest
       .then((result) => {
         if (!current) return;
         setMyTickets(result);
@@ -118,6 +1078,7 @@ export default function App() {
       current = false;
     };
   }, [
+    authenticatedMode,
     activeView,
     requesterContext.selectedRequester,
     ticketSearch,
@@ -138,11 +1099,28 @@ export default function App() {
     let current = true;
     setTicketDetailState("loading");
     setTicketDetailError("");
-    void getTicketDetail(requester.id, selectedTicketId)
+    const detailRequest = authenticatedMode ? getAuthenticatedTicketDetail(selectedTicketId) : getTicketDetail(requester.id, selectedTicketId);
+    void detailRequest
       .then((detail) => {
         if (!current) return;
         setTicketDetail(detail);
         setTicketDetailState("success");
+        if (authenticatedMode) {
+          setPublicCommentsState("loading");
+          setPublicCommentsError("");
+          void getPublicComments(selectedTicketId)
+            .then((comments) => {
+              if (!current) return;
+              setPublicComments(comments);
+              setPublicCommentsState("success");
+            })
+            .catch(() => {
+              if (!current) return;
+              setPublicComments([]);
+              setPublicCommentsState("error");
+              setPublicCommentsError("Unable to load Public Comments. Please try again.");
+            });
+        }
       })
       .catch((error) => {
         if (!current) return;
@@ -156,7 +1134,7 @@ export default function App() {
         }
       });
     return () => { current = false; };
-  }, [activeView, requesterContext.selectedRequester, selectedTicketId, ticketDetailReload]);
+  }, [activeView, authenticatedMode, requesterContext.selectedRequester, selectedTicketId, ticketDetailReload]);
 
   async function handleCheck() {
     setState("loading");
@@ -262,7 +1240,11 @@ export default function App() {
       }
 
       try {
-        await uploadTicketAttachment(ticketId, requesterId, item.file);
+        if (authenticatedMode) {
+          await addAuthenticatedTicketAttachment(csrfToken, ticketId, item.file);
+        } else {
+          await uploadTicketAttachment(ticketId, requesterId, item.file);
+        }
         nextAttachments.push({ ...item, status: "uploaded", message: "Uploaded" });
       } catch (error) {
         failed = true;
@@ -285,18 +1267,30 @@ export default function App() {
     setTicketError("");
 
     try {
-      const ticket = await createTicket({
-        requesterId: requesterContext.selectedRequester.id,
-        categoryId: Number(categoryId),
-        relatedSystemId: Number(relatedSystemId),
-        summary: summary.trim(),
-        description: description.trim(),
-        requestedPriority,
-      });
+      const clientRequestId = createClientRequestId || crypto.randomUUID();
+      if (authenticatedMode && !createClientRequestId) setCreateClientRequestId(clientRequestId);
+      const ticket = authenticatedMode
+        ? await createAuthenticatedTicket(csrfToken, {
+            clientRequestId,
+            categoryId: Number(categoryId),
+            relatedSystemId: Number(relatedSystemId),
+            summary: summary.trim(),
+            description: description.trim(),
+            requestedPriority,
+          })
+        : await createTicket({
+            requesterId: requesterContext.selectedRequester.id,
+            categoryId: Number(categoryId),
+            relatedSystemId: Number(relatedSystemId),
+            summary: summary.trim(),
+            description: description.trim(),
+            requestedPriority,
+          });
       setCreatedTicket(ticket);
       const hadAttachmentFailure = await uploadPendingAttachments(ticket.id, requesterContext.selectedRequester.id);
       setTicketError(hadAttachmentFailure ? "Some attachments could not be uploaded. Use Retry or Remove for failed files." : "");
       setTicketState("success");
+      if (authenticatedMode) setCreateClientRequestId("");
     } catch (error) {
       setTicketError(error instanceof Error ? error.message : "Unable to create ticket. Please try again.");
       setTicketState("error");
@@ -309,7 +1303,11 @@ export default function App() {
     if (!item) return;
 
     try {
-      await uploadTicketAttachment(createdTicket.id, requesterContext.selectedRequester.id, item.file);
+      if (authenticatedMode) {
+        await addAuthenticatedTicketAttachment(csrfToken, createdTicket.id, item.file);
+      } else {
+        await uploadTicketAttachment(createdTicket.id, requesterContext.selectedRequester.id, item.file);
+      }
       setAttachments((current) =>
         current.map((attachment, currentIndex) =>
           currentIndex === index ? { ...attachment, status: "uploaded", message: "Uploaded" } : attachment,
@@ -341,6 +1339,7 @@ export default function App() {
     setTicketState("idle");
     setTicketError("");
     setCreatedTicket(null);
+    setCreateClientRequestId("");
   }
 
   function resetMyTickets() {
@@ -361,6 +1360,12 @@ export default function App() {
     setTicketDetail(null);
     setTicketDetailState("idle");
     setTicketDetailError("");
+    setPublicComments([]);
+    setPublicCommentText("");
+    setPublicCommentsState("idle");
+    setPublicCommentsError("");
+    setResolutionState("idle");
+    setResolutionError("");
     setDetailUploadState("idle");
     setDetailUploadError("");
     setRemoveTarget(null);
@@ -397,7 +1402,9 @@ export default function App() {
     setDetailUploadState("uploading");
     setDetailUploadError("");
     try {
-      const uploaded = await addTicketAttachment(selectedRequester.id, ticketDetail.id, file);
+      const uploaded = authenticatedMode
+        ? await addAuthenticatedTicketAttachment(csrfToken, ticketDetail.id, file)
+        : await addTicketAttachment(selectedRequester.id, ticketDetail.id, file);
       const attachment: TicketAttachment = {
         ...uploaded,
         state: "active",
@@ -422,7 +1429,9 @@ export default function App() {
     }
     setRemovalError("");
     try {
-      const removed = await removeTicketAttachment(selectedRequester.id, ticketDetail.id, removeTarget.id, reason);
+      const removed = authenticatedMode
+        ? await removeAuthenticatedTicketAttachment(csrfToken, ticketDetail.id, removeTarget.id, reason)
+        : await removeTicketAttachment(selectedRequester.id, ticketDetail.id, removeTarget.id, reason);
       setTicketDetail((current) => current ? {
         ...current,
         attachments: current.attachments.map((item) => item.id === removed.id ? removed : item),
@@ -431,6 +1440,44 @@ export default function App() {
       setRemovalReason("");
     } catch {
       setRemovalError("Unable to remove Attachment. Please try again.");
+    }
+  }
+
+  async function handlePostPublicComment() {
+    if (!authenticatedMode || !ticketDetail) return;
+    const content = publicCommentText.trim();
+    if (!content) {
+      setPublicCommentsError("Public Comment is required.");
+      return;
+    }
+    if (content.length > 2000) {
+      setPublicCommentsError("Public Comment must be 2000 characters or fewer.");
+      return;
+    }
+    setPublicCommentsState("posting");
+    setPublicCommentsError("");
+    try {
+      const comment = await postPublicComment(csrfToken, ticketDetail.id, content);
+      setPublicComments((current) => [...current, comment]);
+      setPublicCommentText("");
+      setPublicCommentsState("success");
+    } catch {
+      setPublicCommentsState("error");
+      setPublicCommentsError("Unable to post Public Comment. Please try again.");
+    }
+  }
+
+  async function handleProblemAppearsResolved() {
+    if (!authenticatedMode || !ticketDetail) return;
+    setResolutionState("saving");
+    setResolutionError("");
+    try {
+      const result = await markProblemAppearsResolved(csrfToken, ticketDetail.id);
+      setTicketDetail((current) => current ? { ...current, problemAppearsResolvedAt: result.problemAppearsResolvedAt } : current);
+      setResolutionState("success");
+    } catch {
+      setResolutionState("error");
+      setResolutionError("Unable to record the resolution indication. Please try again.");
     }
   }
 
@@ -446,50 +1493,55 @@ export default function App() {
   const hasMyTicketsQuery = Boolean(
     ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
   );
+  const resolutionIndicationEligible = ticketDetail
+    ? ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticketDetail.currentStatus)
+    : false;
 
   return (
-    <div className="toktickit-app">
-      <header className="app-shell">
-        <div>
-          <h1>TokTickIT IT Service Desk</h1>
-          <nav aria-label="Primary navigation">
-            <a
-              href="#my-tickets"
-              aria-current={activeView === "myTickets" ? "page" : undefined}
-              onClick={(event) => {
-                event.preventDefault();
-                setActiveView("myTickets");
-              }}
-            >
-              My Tickets
-            </a>
-            <a
-              href="#create-ticket"
-              aria-current={activeView === "createTicket" ? "page" : undefined}
-              onClick={(event) => {
-                event.preventDefault();
-                setActiveView("createTicket");
-              }}
-            >
-              Create Ticket
-            </a>
-          </nav>
-        </div>
-        <div className="requester-display">
-          {selectedRequester ? (
-            <>
-              <span>Requester: {selectedRequester.name}</span>
-              <button className="btn btn-outline-light btn-sm" onClick={handleChangeRequester}>
-                Change Requester
-              </button>
-            </>
-          ) : (
-            <span>No requester set</span>
-          )}
-        </div>
-      </header>
+    <div className={embedded ? "requester-workflow-embedded" : "toktickit-app"}>
+      {!embedded && (
+        <header className="app-shell">
+          <div>
+            <h1>TokTickIT IT Service Desk</h1>
+            <nav aria-label="Primary navigation">
+              <a
+                href="#my-tickets"
+                aria-current={activeView === "myTickets" ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setActiveView("myTickets");
+                }}
+              >
+                My Tickets
+              </a>
+              <a
+                href="#create-ticket"
+                aria-current={activeView === "createTicket" ? "page" : undefined}
+                onClick={(event) => {
+                  event.preventDefault();
+                  setActiveView("createTicket");
+                }}
+              >
+                Create Ticket
+              </a>
+            </nav>
+          </div>
+          <div className="requester-display">
+            {selectedRequester ? (
+              <>
+                <span>Requester: {selectedRequester.name}</span>
+                <button className="btn btn-outline-light btn-sm" onClick={handleChangeRequester}>
+                  Change Requester
+                </button>
+              </>
+            ) : (
+              <span>No requester set</span>
+            )}
+          </div>
+        </header>
+      )}
 
-      <main className="container py-5">
+      <main className={embedded ? "container pb-5" : "container py-5"}>
         {showSelector ? (
           <section className="requester-panel" aria-labelledby="requester-heading">
             <h2 id="requester-heading">Select Development Requester</h2>
@@ -620,6 +1672,62 @@ export default function App() {
                   )}
                 </section>
 
+                {authenticatedMode && (
+                  <section className="detail-comments" aria-labelledby="public-comments-heading">
+                    <div className="detail-comments-heading">
+                      <div>
+                        <h3 id="public-comments-heading">Public Comments</h3>
+                        <p>Visible to the Requester and permitted service-desk roles.</p>
+                      </div>
+                      <button
+                        className="btn btn-outline-success"
+                        type="button"
+                        disabled={resolutionState === "saving" || Boolean(ticketDetail.problemAppearsResolvedAt) || !resolutionIndicationEligible}
+                        onClick={() => void handleProblemAppearsResolved()}
+                      >
+                        {resolutionState === "saving" ? "Saving..." : ticketDetail.problemAppearsResolvedAt ? "Problem Appears Resolved Recorded" : "Problem Appears Resolved"}
+                      </button>
+                    </div>
+                    {!resolutionIndicationEligible && !ticketDetail.problemAppearsResolvedAt && (
+                      <p className="text-muted">Problem Appears Resolved is available only while this Ticket is Open, In Progress, Waiting for Requester, or Reopened.</p>
+                    )}
+                    {resolutionState === "success" && <div className="alert alert-success" role="status">Resolution indication recorded. Ticket status was not changed.</div>}
+                    {resolutionError && <div className="alert alert-danger" role="alert">{resolutionError}</div>}
+                    {publicCommentsState === "loading" && <div className="alert alert-info" role="status">Loading Public Comments...</div>}
+                    {publicCommentsError && <div className="alert alert-danger" role="alert">{publicCommentsError}</div>}
+                    {publicCommentsState !== "loading" && publicComments.length === 0 && (
+                      <div className="empty-state" role="status">No Public Comments yet.</div>
+                    )}
+                    {publicComments.length > 0 && (
+                      <ul className="public-comment-list">
+                        {publicComments.map((comment) => (
+                          <li key={comment.id} className="public-comment-item">
+                            <div><strong>{comment.author.name}</strong> <span className="role-badge">{roleLabel(comment.author.role)}</span></div>
+                            <p>{comment.content}</p>
+                            <small>{comment.createdAt.slice(0, 16).replace("T", " ")} UTC</small>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <label className="form-label" htmlFor="public-comment">Public Comment</label>
+                    <textarea
+                      id="public-comment"
+                      className="form-control"
+                      rows={3}
+                      maxLength={2000}
+                      value={publicCommentText}
+                      disabled={publicCommentsState === "posting"}
+                      onChange={(event) => { setPublicCommentText(event.target.value); setPublicCommentsError(""); }}
+                    />
+                    <div className="ticket-actions">
+                      <span>{publicCommentText.length}/2000</span>
+                      <button className="btn btn-success" type="button" disabled={publicCommentsState === "posting" || !publicCommentText.trim()} onClick={() => void handlePostPublicComment()}>
+                        {publicCommentsState === "posting" ? "Posting..." : "Post Comment"}
+                      </button>
+                    </div>
+                  </section>
+                )}
+
                 {removeTarget && (
                   <div className="removal-confirmation" role="dialog" aria-labelledby="removal-heading" aria-modal="true">
                     <h3 id="removal-heading">Confirm Attachment removal</h3>
@@ -687,7 +1795,10 @@ export default function App() {
               <div>
                 <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
                 <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
-                  <option value="">All statuses</option><option value="NEW">New</option>
+                  <option value="">All statuses</option>
+                  <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option>
+                  <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option>
+                  <option value="CLOSED">Closed</option><option value="REOPENED">Reopened</option><option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
               <div>
@@ -990,4 +2101,8 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+export function LegacyRequesterApp() {
+  return <RequesterWorkflow />;
 }

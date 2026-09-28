@@ -1,13 +1,19 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { access, unlink } from "fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "path";
 import request from "supertest";
 import { app } from "../../src/app.js";
+import { hashPassword } from "../../src/auth/password.js";
 import { getPrisma } from "../../src/prisma.js";
+
+const FRONTEND_ORIGIN = "http://localhost:5173";
+const AUTH_EMAIL = "lab2.create-ticket-auth@example.test";
+const AUTH_PASSWORD = "Lab3-Create-Ticket-Auth-2026";
 
 async function getReferenceData() {
   const prisma = getPrisma();
-  const requester = await prisma.requesterUser.findFirstOrThrow({ where: { isActive: true } });
+  const requester = await prisma.user.findUniqueOrThrow({ where: { email: AUTH_EMAIL } });
   const category = await prisma.category.findFirstOrThrow({ where: { name: "Hardware" } });
   const relatedSystem = await prisma.relatedSystem.findFirstOrThrow({ where: { isActive: true } });
   return { category, relatedSystem, requester };
@@ -29,14 +35,55 @@ async function cleanupTickets(ticketNumbers: string[]) {
 
 describe("Lab 2 Create Ticket API", () => {
   const createdTicketNumbers: string[] = [];
+  let agent: ReturnType<typeof request.agent>;
+  let csrfToken = "";
+
+  beforeEach(async () => {
+    const prisma = getPrisma();
+    const authUser = await prisma.user.upsert({
+      where: { email: AUTH_EMAIL },
+      update: {
+        name: "Lab 2 Create Ticket Auth",
+        role: "REQUESTER",
+        isActive: true,
+        passwordHash: await hashPassword(AUTH_PASSWORD),
+        mustChangePassword: false,
+      },
+      create: {
+        name: "Lab 2 Create Ticket Auth",
+        email: AUTH_EMAIL,
+        role: "REQUESTER",
+        isActive: true,
+        passwordHash: await hashPassword(AUTH_PASSWORD),
+        mustChangePassword: false,
+      },
+    });
+    await prisma.authSession.deleteMany({ where: { userId: authUser.id } });
+    agent = request.agent(app);
+    const login = await agent
+      .post("/api/auth/login")
+      .set("Origin", FRONTEND_ORIGIN)
+      .send({ email: AUTH_EMAIL, password: AUTH_PASSWORD });
+    expect(login.status).toBe(200);
+    csrfToken = login.body.csrfToken;
+  });
 
   afterEach(async () => {
     await cleanupTickets(createdTicketNumbers);
     createdTicketNumbers.length = 0;
   });
 
+  afterAll(async () => {
+    const prisma = getPrisma();
+    const authUser = await prisma.user.findUnique({ where: { email: AUTH_EMAIL }, select: { id: true } });
+    if (authUser) {
+      await prisma.authSession.deleteMany({ where: { userId: authUser.id } });
+      await prisma.user.delete({ where: { id: authUser.id } });
+    }
+  });
+
   it("returns active Related Systems with a safe shape", async () => {
-    const res = await request(app).get("/api/related-systems");
+    const res = await agent.get("/api/related-systems").set("Origin", FRONTEND_ORIGIN);
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThanOrEqual(6);
@@ -51,10 +98,12 @@ describe("Lab 2 Create Ticket API", () => {
   it("creates a valid requester-owned Ticket with backend-generated values", async () => {
     const { category, relatedSystem, requester } = await getReferenceData();
 
-    const res = await request(app)
+    const res = await agent
       .post("/api/tickets")
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", csrfToken)
       .send({
-        requesterId: requester.id,
+        clientRequestId: randomUUID(),
         categoryId: category.id,
         relatedSystemId: relatedSystem.id,
         summary: "  Laptop battery drains quickly  ",
@@ -85,8 +134,8 @@ describe("Lab 2 Create Ticket API", () => {
   it("rejects invalid create input without saving a Ticket", async () => {
     const before = await getPrisma().ticket.count();
 
-    const res = await request(app).post("/api/tickets").send({
-      requesterId: 0,
+    const res = await agent.post("/api/tickets").set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", csrfToken).send({
+      clientRequestId: "not-a-uuid",
       categoryId: null,
       relatedSystemId: null,
       summary: "",
@@ -100,7 +149,7 @@ describe("Lab 2 Create Ticket API", () => {
         code: "VALIDATION_ERROR",
         message: "Please correct the highlighted fields.",
         fields: expect.objectContaining({
-          requesterId: "Requester is required.",
+          clientRequestId: "clientRequestId must be a valid UUID.",
           categoryId: "Category is required.",
           relatedSystemId: "Related System is required.",
           summary: "Summary is required.",
@@ -115,8 +164,8 @@ describe("Lab 2 Create Ticket API", () => {
 
   it("uploads a valid create-time attachment to an existing Ticket", async () => {
     const { category, relatedSystem, requester } = await getReferenceData();
-    const ticketRes = await request(app).post("/api/tickets").send({
-      requesterId: requester.id,
+    const ticketRes = await agent.post("/api/tickets").set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", csrfToken).send({
+      clientRequestId: randomUUID(),
       categoryId: category.id,
       relatedSystemId: relatedSystem.id,
       summary: "Attachment ticket",
@@ -125,8 +174,10 @@ describe("Lab 2 Create Ticket API", () => {
     });
     if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
 
-    const res = await request(app)
-      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+    const res = await agent
+      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", csrfToken)
       .attach("file", Buffer.from("fake pdf content"), {
         filename: "evidence.pdf",
         contentType: "application/pdf",
@@ -151,8 +202,8 @@ describe("Lab 2 Create Ticket API", () => {
 
   it("rejects an attachment larger than 5 MB with a safe documented response", async () => {
     const { category, relatedSystem, requester } = await getReferenceData();
-    const ticketRes = await request(app).post("/api/tickets").send({
-      requesterId: requester.id,
+    const ticketRes = await agent.post("/api/tickets").set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", csrfToken).send({
+      clientRequestId: randomUUID(),
       categoryId: category.id,
       relatedSystemId: relatedSystem.id,
       summary: "Oversized attachment ticket",
@@ -162,8 +213,10 @@ describe("Lab 2 Create Ticket API", () => {
     if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
 
     const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
-    const res = await request(app)
-      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+    const res = await agent
+      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", csrfToken)
       .attach("file", Buffer.alloc(5 * 1024 * 1024 + 1), {
         filename: "large-evidence.pdf",
         contentType: "application/pdf",
@@ -183,8 +236,8 @@ describe("Lab 2 Create Ticket API", () => {
 
   it("rejects a sixth active attachment with the documented attachment-limit response", async () => {
     const { category, relatedSystem, requester } = await getReferenceData();
-    const ticketRes = await request(app).post("/api/tickets").send({
-      requesterId: requester.id,
+    const ticketRes = await agent.post("/api/tickets").set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", csrfToken).send({
+      clientRequestId: randomUUID(),
       categoryId: category.id,
       relatedSystemId: relatedSystem.id,
       summary: "Attachment limit ticket",
@@ -205,8 +258,10 @@ describe("Lab 2 Create Ticket API", () => {
     });
     const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
 
-    const res = await request(app)
-      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+    const res = await agent
+      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", csrfToken)
       .attach("file", Buffer.from("sixth"), {
         filename: "sixth.pdf",
         contentType: "application/pdf",
@@ -226,8 +281,8 @@ describe("Lab 2 Create Ticket API", () => {
 
   it("rejects invalid create-time attachments without creating an active Attachment", async () => {
     const { category, relatedSystem, requester } = await getReferenceData();
-    const ticketRes = await request(app).post("/api/tickets").send({
-      requesterId: requester.id,
+    const ticketRes = await agent.post("/api/tickets").set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", csrfToken).send({
+      clientRequestId: randomUUID(),
       categoryId: category.id,
       relatedSystemId: relatedSystem.id,
       summary: "Invalid attachment ticket",
@@ -237,8 +292,10 @@ describe("Lab 2 Create Ticket API", () => {
     if (ticketRes.body.ticketNumber) createdTicketNumbers.push(ticketRes.body.ticketNumber);
 
     const before = await getPrisma().attachment.count({ where: { ticketId: ticketRes.body.id, removedAt: null } });
-    const res = await request(app)
-      .post(`/api/requesters/${requester.id}/tickets/${ticketRes.body.id}/attachments`)
+    const res = await agent
+      .post(`/api/tickets/${ticketRes.body.id}/attachments`)
+      .set("Origin", FRONTEND_ORIGIN)
+      .set("X-CSRF-Token", csrfToken)
       .attach("file", Buffer.from("bad"), {
         filename: "malware.exe",
         contentType: "application/octet-stream",

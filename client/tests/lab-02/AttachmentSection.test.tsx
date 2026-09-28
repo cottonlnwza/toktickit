@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App from "../../src/App.js";
+import { LegacyRequesterApp as App } from "../../src/App.js";
 
 const active = { id: 9, originalFilename: "evidence.pdf", mimeType: "application/pdf", sizeBytes: 12, uploadedAt: "2026-09-04T08:30:00.000Z", removedAt: null, removalReason: null, state: "active", downloadUrl: "/download/9" };
 const removed = { ...active, id: 10, originalFilename: "old.png", removedAt: "2026-09-04T09:00:00.000Z", removalReason: "Duplicate", state: "removed", downloadUrl: undefined };

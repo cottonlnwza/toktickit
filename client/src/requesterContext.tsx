@@ -5,13 +5,21 @@ const STORAGE_KEY = "toktickit.devRequesterId";
 
 export type RequesterState = "loading" | "ready" | "empty" | "error";
 
-export function useRequesterContext() {
-  const [requesters, setRequesters] = useState<Requester[]>([]);
-  const [selectedRequester, setSelectedRequester] = useState<Requester | null>(null);
-  const [state, setState] = useState<RequesterState>("loading");
+export function useRequesterContext(fixedRequester?: Requester) {
+  const [requesters, setRequesters] = useState<Requester[]>(fixedRequester ? [fixedRequester] : []);
+  const [selectedRequester, setSelectedRequester] = useState<Requester | null>(fixedRequester ?? null);
+  const [state, setState] = useState<RequesterState>(fixedRequester ? "ready" : "loading");
   const [errorMessage, setErrorMessage] = useState("");
 
   async function loadRequesters() {
+    if (fixedRequester) {
+      setRequesters([fixedRequester]);
+      setSelectedRequester(fixedRequester);
+      setState("ready");
+      setErrorMessage("");
+      return;
+    }
+
     setState("loading");
     setErrorMessage("");
 
@@ -48,7 +56,7 @@ export function useRequesterContext() {
 
   useEffect(() => {
     void loadRequesters();
-  }, []);
+  }, [fixedRequester?.id, fixedRequester?.name, fixedRequester?.email]);
 
   const value = useMemo(
     () => ({
@@ -56,6 +64,9 @@ export function useRequesterContext() {
       reloadRequesters: loadRequesters,
       requesters,
       selectRequester(requesterId: string) {
+        if (fixedRequester) {
+          return String(fixedRequester.id) === requesterId ? fixedRequester : null;
+        }
         const requester = requesters.find((item) => String(item.id) === requesterId) ?? null;
         if (requester) {
           localStorage.setItem(STORAGE_KEY, String(requester.id));
@@ -66,11 +77,12 @@ export function useRequesterContext() {
       selectedRequester,
       state,
       changeRequester() {
+        if (fixedRequester) return;
         localStorage.removeItem(STORAGE_KEY);
         setSelectedRequester(null);
       },
     }),
-    [errorMessage, requesters, selectedRequester, state],
+    [errorMessage, fixedRequester, requesters, selectedRequester, state],
   );
 
   return value;

@@ -6,6 +6,17 @@ vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
 }));
 
+vi.mock("../../src/auth/session.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
+  return {
+    ...actual,
+    requireNormalAccess: (req: { params: { requesterId?: string }; auth?: unknown }, _res: unknown, next: () => void) => {
+      req.auth = { sessionId: "test", csrfTokenHash: "test", user: { id: Number(req.params.requesterId ?? 7), name: "Requester", email: "requester@example.test", role: "REQUESTER", mustChangePassword: false } };
+      next();
+    },
+  };
+});
+
 import { app } from "../../src/app.js";
 
 const mockGetPrisma = vi.mocked(getPrisma);
@@ -36,7 +47,7 @@ function prismaMock(options: {
     : vi.fn().mockResolvedValue(options.count ?? 0);
   const findMany = vi.fn().mockResolvedValue(options.tickets ?? []);
   mockGetPrisma.mockReturnValue({
-    requesterUser: { findFirst },
+    user: { findFirst },
     ticket: { count, findMany },
   } as unknown as ReturnType<typeof getPrisma>);
   return { findFirst, count, findMany };
@@ -55,7 +66,7 @@ describe("GET /api/requesters/:requesterId/tickets", () => {
     const res = await request(app).get("/api/requesters/7/tickets?page=2&pageSize=5");
 
     expect(res.status).toBe(200);
-    expect(findFirst).toHaveBeenCalledWith({ where: { id: 7, isActive: true }, select: { id: true } });
+    expect(findFirst).toHaveBeenCalledWith({ where: { id: 7, role: "REQUESTER", isActive: true }, select: { id: true } });
     expect(count).toHaveBeenCalledWith({ where: { requesterId: 7 } });
     expect(findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { requesterId: 7 },

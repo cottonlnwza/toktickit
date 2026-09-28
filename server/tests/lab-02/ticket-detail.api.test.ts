@@ -6,6 +6,17 @@ vi.mock("../../src/prisma.js", () => ({
   getPrisma: vi.fn(),
 }));
 
+vi.mock("../../src/auth/session.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
+  return {
+    ...actual,
+    requireNormalAccess: (req: { params: { requesterId?: string }; auth?: unknown }, _res: unknown, next: () => void) => {
+      req.auth = { sessionId: "test", csrfTokenHash: "test", user: { id: Number(req.params.requesterId ?? 7), name: "Requester", email: "requester@example.test", role: "REQUESTER", mustChangePassword: false } };
+      next();
+    },
+  };
+});
+
 import { app } from "../../src/app.js";
 
 const mockGetPrisma = vi.mocked(getPrisma);
@@ -100,7 +111,7 @@ describe("GET /api/requesters/:requesterId/tickets/:ticketId", () => {
         downloadUrl: "/api/requesters/7/tickets/42/attachments/9/download",
       }],
     });
-    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|removedByRequesterId|editPermissions|comments|statusActions/i);
+    expect(JSON.stringify(res.body)).not.toMatch(/storagePath|storedFilename|removedByUserId|editPermissions|comments|statusActions/i);
   });
 
   it("rejects invalid Requester or Ticket IDs without querying the database", async () => {

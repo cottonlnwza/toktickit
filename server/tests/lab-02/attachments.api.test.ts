@@ -4,6 +4,17 @@ import { getPrisma } from "../../src/prisma.js";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 
 vi.mock("../../src/prisma.js", () => ({ getPrisma: vi.fn() }));
+vi.mock("../../src/auth/session.js", async () => {
+  const actual = await vi.importActual<typeof import("../../src/auth/session.js")>("../../src/auth/session.js");
+  return {
+    ...actual,
+    requireNormalAccess: (req: { params: { requesterId?: string }; auth?: unknown }, _res: unknown, next: () => void) => {
+      req.auth = { sessionId: "test", csrfTokenHash: "test", user: { id: Number(req.params.requesterId ?? 7), name: "Requester", email: "requester@example.test", role: "REQUESTER", mustChangePassword: false } };
+      next();
+    },
+    requireCsrf: (_req: unknown, _res: unknown, next: () => void) => next(),
+  };
+});
 vi.mock("fs/promises", () => ({
   mkdir: vi.fn(),
   readFile: vi.fn(),
@@ -29,7 +40,7 @@ const activeAttachment = {
   storagePath: "/server/uploads/lab-02/123e4567-e89b-12d3-a456-426614174000.pdf",
   uploadedAt: new Date("2026-09-04T08:30:00.000Z"),
   removedAt: null,
-  removedByRequesterId: null,
+  removedByUserId: null,
   removalReason: null,
 };
 
@@ -42,7 +53,7 @@ function prismaMock(overrides: Record<string, unknown> = {}) {
   const attachmentUpdate = vi.fn().mockResolvedValue({
     ...activeAttachment,
     removedAt: new Date("2026-09-04T10:00:00.000Z"),
-    removedByRequesterId: 7,
+    removedByUserId: 7,
     removalReason: "Uploaded the wrong file",
   });
 
@@ -83,7 +94,7 @@ describe("Requester Attachment lifecycle API", () => {
       ...activeAttachment,
       id: 10,
       removedAt: new Date("2026-09-04T09:00:00.000Z"),
-      removedByRequesterId: 7,
+      removedByUserId: 7,
       removalReason: "Duplicate evidence",
     };
     const mocks = prismaMock();
@@ -106,6 +117,7 @@ describe("Requester Attachment lifecycle API", () => {
 
     const res = await request(app)
       .post("/api/requesters/7/tickets/42/attachments")
+      .set("Origin", "http://localhost:5173")
       .attach("file", Buffer.from("pdf content"), { filename: "evidence.pdf", contentType: "application/pdf" });
 
     expect(res.status).toBe(201);
@@ -148,6 +160,7 @@ describe("Requester Attachment lifecycle API", () => {
 
     const res = await request(app)
       .delete("/api/requesters/8/tickets/42/attachments/9")
+      .set("Origin", "http://localhost:5173")
       .send({ reason: "Not mine" });
 
     expect(res.status).toBe(404);
@@ -163,6 +176,7 @@ describe("Requester Attachment lifecycle API", () => {
 
     const res = await request(app)
       .delete("/api/requesters/7/tickets/42/attachments/9")
+      .set("Origin", "http://localhost:5173")
       .send({ reason: "  Uploaded the wrong file  " });
 
     expect(res.status).toBe(200);
@@ -170,7 +184,7 @@ describe("Requester Attachment lifecycle API", () => {
       where: { id: 9 },
       data: {
         removedAt: expect.any(Date),
-        removedByRequesterId: 7,
+        removedByUserId: 7,
         removalReason: "Uploaded the wrong file",
       },
     });
@@ -189,6 +203,7 @@ describe("Requester Attachment lifecycle API", () => {
 
     const res = await request(app)
       .delete("/api/requesters/7/tickets/42/attachments/9")
+      .set("Origin", "http://localhost:5173")
       .send({ reason: "   " });
 
     expect(res.status).toBe(400);
@@ -208,6 +223,7 @@ describe("Requester Attachment lifecycle API", () => {
 
     const res = await request(app)
       .delete("/api/requesters/7/tickets/42/attachments/9")
+      .set("Origin", "http://localhost:5173")
       .send({ reason: "Remove again" });
 
     expect(res.status).toBe(409);

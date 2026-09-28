@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import App from "../../src/App.js";
+import { LegacyRequesterApp as App } from "../../src/App.js";
 
 const ticket = {
   id: 42,
@@ -70,7 +70,10 @@ describe("Requester Ticket Detail", () => {
       expect(screen.getAllByText(value, { exact: false }).length).toBeGreaterThan(0);
     }
     expect(screen.queryByRole("textbox", { name: /Summary|Description/i })).not.toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/api/requesters/7/tickets/42"));
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/requesters/7/tickets/42"),
+      expect.objectContaining({ credentials: "include" }),
+    );
     await user.click(screen.getByRole("button", { name: /Back to My Tickets/i }));
     expect(screen.getByRole("heading", { name: /My Tickets/i })).toBeInTheDocument();
   });

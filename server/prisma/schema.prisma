@@ -10,16 +10,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ---------------------------------------------------------------------------
-// Issue 3 — Create and seed IT request categories
-// Define a Category model with:
-//   id        Int      @id @default(autoincrement())
-//   name      String   @unique
-//   createdAt DateTime @default(now())
-// Then run:  npx prisma migrate dev --name init
-// TODO(Issue 3): add the Category model below.
-// ---------------------------------------------------------------------------
-
 model Category {
   id        Int      @id @default(autoincrement())
   name      String   @unique
@@ -28,15 +18,25 @@ model Category {
   tickets   Ticket[]
 }
 
-model RequesterUser {
-  id        Int          @id @default(autoincrement())
-  name      String
-  email     String       @unique
-  isActive  Boolean      @default(true)
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
-  tickets   Ticket[]
-  removals  Attachment[] @relation("AttachmentRemovedBy")
+model User {
+  id                           Int           @id @default(autoincrement())
+  name                         String
+  email                        String        @unique
+  role                         UserRole
+  isActive                     Boolean       @default(true)
+  passwordHash                 String
+  mustChangePassword           Boolean       @default(true)
+  createdAt                    DateTime      @default(now())
+  updatedAt                    DateTime      @updatedAt
+  requestedTickets             Ticket[]      @relation("RequestedTickets")
+  ownedTickets                 Ticket[]      @relation("OwnedTickets")
+  problemResolutionIndications Ticket[]      @relation("ProblemResolutionIndications")
+  attachmentRemovals           Attachment[]  @relation("AttachmentRemovedBy")
+  publicComments               PublicComment[]
+  internalNotes                InternalNote[]
+  sessions                     AuthSession[]
+
+  @@index([role, isActive])
 }
 
 model RelatedSystem {
@@ -49,45 +49,107 @@ model RelatedSystem {
 }
 
 model Ticket {
-  id                Int               @id @default(autoincrement())
-  ticketNumber      String            @unique
-  requesterId       Int
-  categoryId        Int
-  relatedSystemId   Int
-  summary           String
-  description       String
-  requestedPriority RequestedPriority
-  currentStatus     TicketStatus      @default(NEW)
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
-  requester         RequesterUser     @relation(fields: [requesterId], references: [id])
-  category          Category          @relation(fields: [categoryId], references: [id])
-  relatedSystem     RelatedSystem     @relation(fields: [relatedSystemId], references: [id])
-  attachments       Attachment[]
+  id                         Int               @id @default(autoincrement())
+  ticketNumber               String            @unique
+  clientRequestId            String            @unique
+  requesterId                Int
+  categoryId                 Int
+  relatedSystemId            Int
+  summary                    String
+  description                String
+  requestedPriority          RequestedPriority
+  itPriority                 RequestedPriority
+  currentStatus              TicketStatus      @default(NEW)
+  ownerId                    Int?
+  problemAppearsResolvedAt   DateTime?
+  problemAppearsResolvedById Int?
+  createdAt                  DateTime          @default(now())
+  updatedAt                  DateTime          @updatedAt
+  requester                  User              @relation("RequestedTickets", fields: [requesterId], references: [id], onDelete: Restrict)
+  owner                      User?             @relation("OwnedTickets", fields: [ownerId], references: [id], onDelete: SetNull)
+  problemAppearsResolvedBy   User?             @relation("ProblemResolutionIndications", fields: [problemAppearsResolvedById], references: [id], onDelete: SetNull)
+  category                   Category          @relation(fields: [categoryId], references: [id])
+  relatedSystem              RelatedSystem     @relation(fields: [relatedSystemId], references: [id])
+  attachments                Attachment[]
+  publicComments             PublicComment[]
+  internalNotes              InternalNote[]
 
   @@index([requesterId, updatedAt])
   @@index([requesterId, ticketNumber])
   @@index([requesterId, categoryId])
   @@index([requesterId, relatedSystemId])
   @@index([requesterId, requestedPriority])
+  @@index([ownerId, updatedAt])
+  @@index([requestedPriority, updatedAt])
+  @@index([itPriority, updatedAt])
+  @@index([currentStatus, updatedAt])
+  @@index([updatedAt])
+  @@index([categoryId, updatedAt])
+  @@index([relatedSystemId, updatedAt])
 }
 
 model Attachment {
-  id                   Int            @id @default(autoincrement())
-  ticketId             Int
-  originalFilename     String
-  storedFilename       String         @unique
-  mimeType             String
-  sizeBytes            Int
-  storagePath          String
-  uploadedAt           DateTime       @default(now())
-  removedAt            DateTime?
-  removedByRequesterId Int?
-  removalReason        String?
-  ticket               Ticket         @relation(fields: [ticketId], references: [id])
-  removedByRequester   RequesterUser? @relation("AttachmentRemovedBy", fields: [removedByRequesterId], references: [id])
+  id               Int      @id @default(autoincrement())
+  ticketId         Int
+  originalFilename String
+  storedFilename   String   @unique
+  mimeType         String
+  sizeBytes        Int
+  storagePath      String
+  uploadedAt       DateTime @default(now())
+  removedAt        DateTime?
+  removedByUserId  Int?
+  removalReason    String?
+  ticket           Ticket   @relation(fields: [ticketId], references: [id])
+  removedByUser    User?    @relation("AttachmentRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
 
   @@index([ticketId, removedAt])
+}
+
+model AuthSession {
+  id            String   @id @default(uuid())
+  userId        Int
+  tokenHash     String   @unique
+  csrfTokenHash String
+  createdAt     DateTime @default(now())
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model PublicComment {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+model InternalNote {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  authorId  Int
+  content   String
+  createdAt DateTime @default(now())
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt])
+  @@index([authorId])
+}
+
+enum UserRole {
+  REQUESTER
+  IT_STAFF
+  ADMINISTRATOR
 }
 
 enum RequestedPriority {
@@ -99,4 +161,11 @@ enum RequestedPriority {
 
 enum TicketStatus {
   NEW
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_REQUESTER
+  RESOLVED
+  CLOSED
+  REOPENED
+  CANCELLED
 }
