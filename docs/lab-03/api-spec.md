@@ -1,6 +1,6 @@
 # Lab 3 REST API Specification
 
-Status: Draft contract for Issue #33. Implementation must follow this file unless the Engineering Contract is explicitly reviewed and amended first.
+Status: Approved Sprint 3 API contract. The implemented pre-release state has been checked against this contract; final release verification from `main` remains pending. Any contract amendment still requires explicit review before changing protected behavior.
 
 ## 1. API Principles
 

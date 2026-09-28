@@ -1,6 +1,6 @@
 # Lab 3 Test Plan and Traceability
 
-Status: Planned before implementation for Issue #33. Final paths/results must be updated from actual repository evidence; passing results must never be invented.
+Status: Test plan created before implementation for Issue #33. Actual paths and pre-release results are recorded from repository evidence; final `main` results remain pending and passing results must never be invented.
 
 ## 1. Test Strategy
 
@@ -331,7 +331,7 @@ Part 9 screenshot traceability uses the following fixed folders from `ui-spec.md
 
 ## 8. Final Results Log
 
-The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. PR #55 was subsequently approved on exact HEAD `6307262` and peer-merged into `lab3-staging` as `44dd6a9`; those later commits only finalized/recorded release documentation around the same verified product state. These are real local results, not hosted CI. The same required verification must still be rerun from final `main` before submission and this table must then be updated to the final main commit.
+The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. PR #55 was subsequently approved on exact HEAD `6307262` and peer-merged into `lab3-staging` as `44dd6a9`. Documentation-only follow-up PR #56 was then approved on exact HEAD `1d5ec4e` in review `5260711993` and peer-merged as `d6d6b06`; final release PR #57 is open from `lab3-staging` to `main`. These later documentation/release-workflow events do not replace the recorded pre-release test run. These are real local results, not hosted CI. The same required verification must still be rerun from final `main` after the peer-reviewed release merge and this table must then be updated to the final main commit.
 
 | Command / Evidence | Branch / Commit | Final result | Notes |
 |---|---|---|---|
