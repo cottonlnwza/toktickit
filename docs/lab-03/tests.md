@@ -1,6 +1,6 @@
 # Lab 3 Test Plan and Traceability
 
-Status: Test plan created before implementation for Issue #33. Actual paths and pre-release results are recorded from repository evidence; final `main` results remain pending and passing results must never be invented.
+Status: Test plan created before implementation for Issue #33. Actual paths and the authoritative final release results are recorded from repository evidence. Final verification completed successfully from exact `main` commit `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` on Node 22.22.2; no hosted CI result is claimed.
 
 ## 1. Test Strategy
 
@@ -16,7 +16,7 @@ Migration verification reconstructs a controlled Lab 2 baseline in that isolated
 
 ## 2. Planned Automated Tests
 
-`Pending` means the test is planned by the Engineering Contract but has not yet been implemented/run for final Lab 3 evidence.
+`Pending` is the historical planning status used before execution. No required final verification item remains pending in the authoritative Final Results Log in Section 8.
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
@@ -331,18 +331,20 @@ Part 9 screenshot traceability uses the following fixed folders from `ui-spec.md
 
 ## 8. Final Results Log
 
-The rows below record the Issue #42 pre-release verification run for exact release-evidence commit `fcca030` on `feature/lab3-10-release-integration`, based on reviewed `lab3-staging` commit `2a43450`. PR #55 was subsequently approved on exact HEAD `6307262` and peer-merged into `lab3-staging` as `44dd6a9`. Documentation-only follow-up PR #56 was then approved on exact HEAD `1d5ec4e` in review `5260711993` and peer-merged as `d6d6b06`; final release PR #57 is open from `lab3-staging` to `main`. These later documentation/release-workflow events do not replace the recorded pre-release test run. These are real local results, not hosted CI. The same required verification must still be rerun from final `main` after the peer-reviewed release merge and this table must then be updated to the final main commit.
+The authoritative Issue #42 final release verification was rerun locally from exact `main` commit `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443`, created by the peer merge of PR #57. The run used Node 22.22.2, matching the project baseline. Server/API/migration tests used isolated PostgreSQL databases whose names end in `_test`; the normal development database was checked before and after the run and remained unchanged. These are real local results, not hosted CI.
+
+PR #58 was approved by `@Tanaboonnnnn` in review [`5338055438`](https://github.com/cottonlnwza/toktickit/pull/58#pullrequestreview-5338055438) on exact HEAD `2eccf1cbb4f6c068ea4a5f45b21e1c14611525fa` and peer-merged as `a3e98cfee0016219cca14765b9a5825826acd63e`. PR #57 was then approved by `@Tanaboonnnnn` in review [`5338768466`](https://github.com/cottonlnwza/toktickit/pull/57#pullrequestreview-5338768466) on exact release HEAD `a3e98cfee0016219cca14765b9a5825826acd63e` and peer-merged into `main` as `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443`.
 
 | Command / Evidence | Branch / Commit | Final result | Notes |
 |---|---|---|---|
-| Server tests | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 25 files / 186 tests | Isolated Lab 3 suite/migration PostgreSQL databases; final `main` rerun pending. |
-| Client tests | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 19 files / 97 tests | Full Vitest client regression; final `main` rerun pending. |
-| Server build | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npm run build --prefix server`. |
-| Client build | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npm run build --prefix client`. |
-| Authentication E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two authentication tests x desktop/tablet/mobile. |
-| Staff Ticket E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two Staff/Requester workflow tests x desktop/tablet/mobile. |
-| User Administration E2E | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 6/6 | Two Administrator tests x desktop/tablet/mobile. |
-| Desktop/tablet/mobile visual checklist | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS — 3/3 visual runs | Combined required Lab 3 Playwright run = 21/21 PASS. Screenshot evidence = 21/21 required base files plus 3 supporting Change Password captures. |
-| Prisma schema validation | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `npx prisma validate`. |
-| Diff whitespace check | `feature/lab3-10-release-integration` / `fcca030` | Pre-release PASS | `git diff --check`. |
-| Normal development DB safety | `feature/lab3-10-release-integration` / `fcca030` | PASS / unchanged | No Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91` after E2E/tests. |
+| Server tests | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS — 25 files / 186 tests** | Node 22.22.2; API/regression suites ran against isolated Lab 3 suite/test PostgreSQL databases. |
+| Client tests | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS — 19 files / 97 tests** | Node 22.22.2 full Vitest regression. |
+| Server build | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS** | `npm run build --prefix server`. |
+| Client build | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS** | `npm run build --prefix client`. |
+| Required Lab 3 Playwright | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS — 21/21** | Authentication 6/6, Staff/Requester workflow 6/6, Administrator 6/6, visual-evidence 3/3 across desktop/tablet/mobile. |
+| Screenshot base matrix | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS — 21/21 base files** | Seven major areas x desktop/tablet/mobile, plus 3 supporting Change Password captures. |
+| Prisma schema validation | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS** | `npx prisma validate`. |
+| Diff whitespace check | `main` / `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` | **PASS** | `git diff --check`. |
+| Normal development DB safety | before/after final run | **PASS / unchanged** | No Lab 3 `User` table; `RequesterUser=5`, `Ticket=99`, `Attachment=91` before and after verification. |
+
+The final evidence run did not change production code, schema, migration behavior, or the normal development database. Any later documentation-only reconciliation must not be represented as a new product verification unless tests are actually rerun.
