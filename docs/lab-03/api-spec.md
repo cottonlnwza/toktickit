@@ -1,6 +1,6 @@
 # Lab 3 REST API Specification
 
-Status: Approved Sprint 3 API contract. The implemented pre-release state has been checked against this contract; final release verification from `main` remains pending. Any contract amendment still requires explicit review before changing protected behavior.
+Status: Approved Sprint 3 API contract. The implemented release state was verified successfully from `main` commit `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443` on Node 22.22.2. Any contract amendment still requires explicit review before changing protected behavior.
 
 ## 1. API Principles
 
