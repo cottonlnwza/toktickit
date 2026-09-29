@@ -2,21 +2,21 @@
 
 This file is a release-preparation map for the single Lab 3 PDF. The final PDF must use the headings `Answer Part 1` through `Answer Part 9` in this exact order. Only evidence that exists in the repository or GitHub history is listed here.
 
-Current release gate: Issues #33-#41 are closed and `Done`. Issue #42 pre-release evidence was assembled in `fcca030`, approved in PR #55 on exact HEAD `6307262`, and peer-merged into `lab3-staging` as `44dd6a9`. Documentation-only follow-up PR #56 was approved by `@Tanaboonnnnn` in review `5260711993` on exact HEAD `1d5ec4e` and peer-merged into `lab3-staging` as `d6d6b06`. Final release PR #57 is now open from `lab3-staging @ d6d6b06` to `main @ 822f7c0`; its peer approval/merge, final `main` verification, final Issue #42/Project `Done` state, and final Project screenshot remain pending until those events actually occur.
+Current release gate: Issues #33-#41 are closed and `Done`. PR #58 final documentation audit was approved by `@Tanaboonnnnn` in review `5338055438` on exact HEAD `2eccf1c` and peer-merged into `lab3-staging` as `a3e98cfee`. Final release PR #57 was then approved by `@Tanaboonnnnn` in review `5338768466` on exact HEAD `a3e98cfee0016219cca14765b9a5825826acd63e` and peer-merged into `main` as `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443`. Final verification from that exact `main` commit passed: server 25/25 files and 186/186 tests, client 19/19 files and 97/97 tests, required Lab 3 Playwright 21/21, server/client builds, Prisma validation, and `git diff --check`; the normal development DB remained unchanged. Issue #42/Project `Done`, the final Project-board screenshot, and final PDF assembly remain pending until the documentation reconciliation is peer-integrated and those events actually occur.
 
 ## Answer Part 1
 
 Git Use with Engineering Workflow evidence:
 
-- GitHub Project #3, `TokTickIT Individual Sprints`, with Issues #33-#41 already `Done`; Issue #42 remains open until the final release-to-main workflow is complete.
-- Feature/follow-up PR history integrated into `lab3-staging`: PRs #43 through #56, including the peer-approved Issue #42 pre-release PR #55 and the peer-approved post-merge evidence correction PR #56.
-- Final release PR #57 is open from `lab3-staging` to `main`; no approval or merge is claimed before a peer submits the real review and performs the merge.
+- GitHub Project #3, `TokTickIT Individual Sprints`, with Issues #33-#41 already `Done`; Issue #42 remains open only for the final documentation integration, AC/DoD closure, final Project `Done` state, and submission evidence capture.
+- Feature/follow-up history was integrated through `lab3-staging`: PRs #43 through #56 plus documentation-audit PR #58.
+- Final release PR #57 was peer-approved on exact HEAD `a3e98cfee0016219cca14765b9a5825826acd63e` and peer-merged into `main` as `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443`.
 - `docs/lab-03/reviewer.md` contains the verified reviewer identities, review IDs/links, corrections, approvals, and merges for completed Issues.
 - `README.md` contains the current Lab 3 project structure, local setup, migration, test, and documentation references.
 - `.gitignore` excludes dependencies, local environment/secrets, build/test output, local Prisma DB files, logs/OS files, and starter handout/archive files.
 - Repository evidence folders: `docs/lab-03/`, `server/tests/lab-03/`, `client/tests/lab-03/`, `e2e/lab-03/`, and `artifacts/lab-03/screenshots/`.
-- The final PDF must include a readable final-`main` commit-history view showing the staged feature/follow-up merges and the `lab3-staging -> main` release, plus the IDE/repository directory structure required by Part 1.
-- Final evidence still required: peer approval/merge of PR #57, final `main` commit/test evidence, Issue #42 `Done`, and the final Project board with all Sprint 3 Issues `Done`.
+- The final PDF must include a readable final-`main` commit-history view showing the staged feature/follow-up merges and the peer `lab3-staging -> main` release, plus the IDE/repository directory structure required by Part 1.
+- Final evidence still required after this documentation reconciliation is peer-integrated: Issue #42 `Done`, the final Project board with all Sprint 3 Issues `Done`, and the assembled single PDF.
 
 ## Answer Part 2
 
@@ -38,7 +38,7 @@ Test DD and traceability evidence:
 - UI/component/style tests under `client/tests/lab-03/`.
 - E2E/responsive/accessibility evidence under `e2e/lab-03/`.
 - `tests.md` maps Test IDs to requirement/AC coverage, exact test paths, and actual recorded results.
-- Issue #42 reruns the complete required server/client/E2E/build verification before release; final `main` verification must replace any pre-release-only result before submission.
+- Final `main` verification is recorded in `tests.md` from exact commit `a6ace3e4e946b13d0827fe4f19d58f38aaa5c443`: server 186/186, client 97/97, required Lab 3 Playwright 21/21, builds/Prisma/diff PASS, and the normal development DB unchanged.
 
 ## Answer Part 4
 
@@ -104,4 +104,4 @@ Zen Green UI and Responsive Evidence:
 - `client/tests/lab-03/ui-style.test.tsx` covers Zen Green/auth, textual role/status indicators, read-only/editable distinction, keyboard focus behavior, and excluded destructive User deletion.
 - `docs/lab-03/ui-spec.md` contains the completed visual inspection checklist and breakpoint/evidence rules.
 
-Before the PDF is finalized, replace the pending release-gate statements in this map with the real Issue #42 review/merge, final `lab3-staging -> main` PR, final Project `Done` state, and final `main` verification. Do not substitute planned evidence for events that have not occurred.
+Before the PDF is finalized, complete the remaining real events only: peer-integrate this final documentation reconciliation, move/close Issue #42 only after its AC/DoD are satisfied, capture the final Project board with all Sprint 3 Issues `Done`, and assemble the single PDF. Do not substitute planned evidence for events that have not occurred.
