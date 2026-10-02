@@ -14,7 +14,7 @@ This file records only review events that actually occur. Do not add reviewer id
 
 | Issue | PR | Reviewer | Review / Comment | Author Response | Approval | Merge | Notes |
 |---|---|---|---|---|---|---|---|
-| #63 Sprint 4 Engineering Contract | Pending | Pending | Pending | Pending | Pending | Pending | Issue started; no review event recorded yet. |
+| #63 Sprint 4 Engineering Contract | [#71](https://github.com/cottonlnwza/toktickit/pull/71) | Pending | Pending | Pending | Pending | Pending | PR opened against `lab4-staging`; waiting for peer review. |
 
 Additional rows are added only from verified GitHub history.
 
