@@ -35,11 +35,11 @@ Status: Proposed Sprint 4 API contract for Issue #63. Existing Lab 3 authenticat
 |---|---|
 | 200 | Successful read/update/replay/status change |
 | 201 | Resource created |
-| 400 | Invalid body/query/value/transition |
+| 400 | Malformed/unknown field, invalid enum/value, or missing/invalid required content |
 | 401 | Missing/expired/revoked authentication |
 | 403 | Authenticated but role-forbidden/password-change-required |
 | 404 | Missing resource or protected resource hidden from caller |
-| 409 | Stale version, replay conflict, invalid current workflow state, inactive assignee, resolution gate |
+| 409 | Validly shaped request conflicts with current domain state: stale revision, replay conflict, inactive assignee, terminal/invalid state transition, assignee mismatch, inactive parent Ticket, or resolution gate |
 | 500 | Safe unexpected server error |
 
 ## 3. Action Taken Resource Shape
@@ -50,7 +50,9 @@ Canonical response item:
 {
   "id": 501,
   "ticketId": 42,
+  "workflowCycle": 1,
   "clientRequestId": "6e6f5842-4919-4ab8-aee8-8ad0fe5e6a11",
+  "createdBy": { "id": 7, "name": "Staff Creator" },
   "actionDateTime": "2026-10-02T12:00:00.000Z",
   "actionDescription": "Replaced the damaged network cable.",
   "result": "Link is stable at 1 Gbps.",
@@ -69,7 +71,7 @@ Canonical response item:
 }
 ```
 
-`actionDateTime` is the same backend value as `createdAt` and is provided as the stakeholder-facing field name. The client cannot set `performedBy`, `completedAt`, `cancelledAt`, `createdAt`, `updatedAt`, or `version` directly.
+`actionDateTime` is the same immutable backend value as `createdAt`, matching the handout wording “Action create date/time”. The client cannot set workflow cycle, creator, performer, audit times, fingerprints, or versions directly.
 
 ## 4. Retrieve Actions Taken
 
@@ -91,7 +93,7 @@ Success `200`:
 }
 ```
 
-Items are returned `createdAt asc, id asc`. No pagination is required for the per-Ticket Lab 4 Action list unless later approved; the API must still use a bounded/selective query and must not include unrelated Tickets.
+Items are returned `workflowCycle asc, createdAt asc, id asc` and include historical cycles. The current Ticket workflow cycle is identified in the Ticket payload/UI so older Actions remain historical evidence. No pagination is required for the per-Ticket Lab 4 Action list unless later approved; the API must still use a bounded/selective query and must not include unrelated Tickets.
 
 Errors: `400` invalid id; `401` unauthenticated; `403` role-forbidden; safe `404` for missing/ownership-protected Ticket; `500` safe failure.
 
@@ -105,6 +107,7 @@ Request:
 
 ```json
 {
+  "expectedTicketVersion": 3,
   "clientRequestId": "6e6f5842-4919-4ab8-aee8-8ad0fe5e6a11",
   "actionDescription": "Replace damaged network cable.",
   "assigneeId": 8,
@@ -117,22 +120,24 @@ Request:
 
 Rules:
 
-- `clientRequestId`: required UUID, globally unique.
+- Parent Ticket must be in `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, or `REOPENED`; otherwise `409 PARENT_TICKET_NOT_ACTIVE`.
+- `expectedTicketVersion`: required non-negative integer aggregate revision.
+- `clientRequestId`: required UUID with **global database uniqueness**.
+- Backend sets `workflowCycle` from the current Ticket and `createdById` from the authenticated actor.
+- Backend computes and stores immutable `createFingerprint` from normalized original create intent: Ticket id, cycle, creator id, Action Description, initial assignee, initial Result, Follow-Up Required/Note, and Attachment Notes.
 - `actionDescription`: trim, required 1-2000 chars.
-- `assigneeId`: optional only in transport shape; when omitted, backend uses authenticated actor. Final persisted assignee must be active IT Staff/Administrator.
+- `assigneeId`: optional in transport shape; when omitted, backend uses authenticated actor. Persisted assignee must be active IT Staff/Administrator.
 - `result`: optional while PLANNED; if supplied, trim 1-2000 chars.
-- `followUpRequired`: required Boolean.
-- `followUpNote`: required 1-1000 chars when true; persisted `null` when false.
+- `followUpRequired`: required Boolean; Note required 1-1000 chars when true and persisted null when false.
 - `attachmentNotes`: optional, trimmed maximum 1000 chars.
-- Initial status is `PLANNED`.
-- `createdAt/actionDateTime` and version 0 are backend generated.
-- `performedBy` is null until completion.
+- Initial status is `PLANNED`; Action version starts 0; Ticket version increments atomically.
+- Backend appends one `CREATED` Action event carrying actor and resulting Action/Ticket versions.
 
-Success new create: `201` with `{ "action": <resource>, "replayed": false }`.
+Success new create: `201` with `{ "action": <resource>, "ticketVersion": <newVersion>, "replayed": false }`.
 
-Exact replay by the same authorized actor/Ticket with the same normalized payload: `200` with original Action and `replayed=true`.
+Exact replay by the same creator/Ticket/cycle and same stored create fingerprint returns `200` with the original Action and `replayed=true`; it is read-only and does not increment Ticket/Action versions or append another event. Later edits to the Action projection do not change the immutable fingerprint.
 
-Reusing `clientRequestId` for another Ticket, another protected context, or a different normalized payload: `409 ACTION_REPLAY_CONFLICT` with no protected original data disclosed.
+Any other reuse of the global UUID returns `409 ACTION_REPLAY_CONFLICT` with no protected original data disclosed.
 
 ## 6. Edit Action Taken
 
@@ -142,11 +147,12 @@ Allowed roles: `IT_STAFF`, `ADMINISTRATOR`.
 
 Only `PLANNED` or `IN_PROGRESS` Actions are editable.
 
-Request contains any editable field plus required concurrency token:
+Request contains any editable field plus both required aggregate concurrency tokens:
 
 ```json
 {
-  "expectedVersion": 1,
+  "expectedTicketVersion": 4,
+  "expectedActionVersion": 1,
   "actionDescription": "Replace and retest the damaged network cable.",
   "assigneeId": 9,
   "result": "Initial retest completed.",
@@ -156,14 +162,16 @@ Request contains any editable field plus required concurrency token:
 }
 ```
 
-Success `200`: updated Action with `version = expectedVersion + 1`.
+Success `200`: updated Action with `version = expectedActionVersion + 1`, incremented Ticket aggregate version, and exactly one immutable `EDITED` or `REASSIGNED` event (reassignment takes the specific event type when assignee changes).
 
 Errors:
 
 - `400 VALIDATION_ERROR` invalid field/length.
 - `409 INACTIVE_ASSIGNEE` assignee no longer eligible.
 - `409 ACTION_TERMINAL` completed/cancelled Action cannot be edited.
-- `409 STALE_UPDATE` version no longer matches persisted row.
+- `409 STALE_UPDATE` when either parent Ticket or Action version no longer matches.
+- `409 PARENT_TICKET_NOT_ACTIVE` when the current parent status is terminal.
+- No partial Action/Ticket/event write is committed on conflict.
 - Safe auth/not-found/failure responses as shared above.
 
 ## 7. Action Status Transition
@@ -175,7 +183,8 @@ Request:
 ```json
 {
   "toStatus": "COMPLETED",
-  "expectedVersion": 1,
+  "expectedTicketVersion": 5,
+  "expectedActionVersion": 1,
   "result": "Link stable after replacement."
 }
 ```
@@ -191,18 +200,20 @@ Allowed transitions:
 
 Completion rules:
 
-- Result is required and validated at 1-2000 trimmed chars. If already stored valid Result exists, request may omit `result` and the backend may use the stored value.
-- Backend sets `performedById` from authenticated actor and `completedAt=server now`.
-- `cancelledAt` remains null.
+- Parent Ticket must still be active and Action cycle must equal current Ticket cycle.
+- Authenticated user must equal the current `assigneeId`; otherwise `409 ACTION_ASSIGNEE_MISMATCH`. A different permitted staff member must reassign first.
+- Result is required and validated at 1-2000 trimmed chars. Missing/invalid Result is deterministic `400 VALIDATION_ERROR`.
+- Backend sets `performedById` from the authenticated assignee and `completedAt=server now`.
+- Backend compare-and-increments Ticket and Action versions and appends one `COMPLETED` event atomically.
 
-Cancellation rules:
+Start/cancellation rules:
 
-- Backend sets `cancelledAt=server now`.
-- `performedById` remains null unless it was already set, which normal state rules prevent.
+- Start appends one `STARTED` event.
+- Any permitted IT Staff/Administrator may cancel an accessible current-cycle non-terminal Action; backend sets `cancelledAt=server now` and appends one `CANCELLED` event with the authenticated actor.
 
-Success `200`: updated Action with incremented version.
+Success `200`: updated Action plus new Ticket aggregate version.
 
-Errors include `400 INVALID_ACTION_TRANSITION`, `400/409` completion validation as documented, `409 STALE_UPDATE`, and safe protected errors.
+Deterministic errors: `400 VALIDATION_ERROR` for malformed target/content; `409 ACTION_TRANSITION_NOT_ALLOWED` for a valid target not allowed from current Action state; `409 ACTION_TERMINAL`, `409 ACTION_ASSIGNEE_MISMATCH`, `409 PARENT_TICKET_NOT_ACTIVE`, or `409 STALE_UPDATE` for domain conflicts; shared auth/protected errors otherwise.
 
 ## 8. Final Ticket Status Update
 
@@ -213,24 +224,31 @@ Request body extends the existing shape with:
 ```json
 {
   "status": "RESOLVED",
-  "expectedVersion": 3
+  "expectedTicketVersion": 6
 }
 ```
 
 Rules:
 
-- Existing final Ticket transition matrix from `specification.md` remains authoritative.
-- Normal Ticket status transition remains IT Staff-only.
-- `expectedVersion` is mandatory for Lab 4 workflow mutation and increments on success.
-- Before `RESOLVED`, backend atomically verifies no Action Taken for the Ticket is in `PLANNED` or `IN_PROGRESS`.
-- If any non-terminal Action exists: `409 ACTIONS_INCOMPLETE`; Ticket status/version do not change.
-- On successful entry to `RESOLVED`, set `resolvedAt=server now`.
-- On successful `REOPENED`, clear current-cycle `resolvedAt`; a later resolve writes a new timestamp.
-- Requester `Problem Appears Resolved` endpoint remains separate/advisory and does not call this formal transition.
+- Final Ticket transition matrix from `specification.md` remains authoritative.
+- Allowed roles are `IT_STAFF` and `ADMINISTRATOR` in Lab 4, consistent with the handout's Administrator “Perform IT Staff behavior” support/testing rule.
+- `expectedTicketVersion` is mandatory and compare-and-increments on success.
+- Before `RESOLVED`, backend evaluates only Actions whose `workflowCycle` equals the current Ticket cycle. The gate requires **at least one `COMPLETED` Action** and **zero `PLANNED`/`IN_PROGRESS` Actions**. Cancelled-only or zero-Action current cycles fail.
+- Gate failure: `409 RESOLUTION_GATE_BLOCKED`; Ticket status/version do not change.
+- On successful `RESOLVED`, set `resolvedAt=server now`.
+- On successful `REOPENED`, atomically increment `workflowCycle`, clear `resolvedAt`, and keep old-cycle Actions as immutable historical work.
+- Requester `Problem Appears Resolved` remains separate/advisory.
+- `400 VALIDATION_ERROR` is used for malformed/unknown status value; `409 TICKET_TRANSITION_NOT_ALLOWED` is used when a valid target status is not allowed from current persisted state.
 
-Stale expectedVersion returns `409 STALE_UPDATE` without overwrite.
+Stale `expectedTicketVersion` returns `409 STALE_UPDATE` without overwrite.
 
-## 9. Requester Dashboard
+## 9. Action Audit Events
+
+Action mutations append immutable `ActionTakenEvent` rows inside the same transaction as projection/revision changes. Normal Lab 4 APIs do not expose event mutation. Staff/Admin Ticket Detail may retrieve/read audit events if needed for review evidence; Requester Action visibility does not require exposing internal audit metadata beyond the Action records themselves.
+
+Event fields include event type, actor, Ticket/Action ids, workflow cycle, resulting Ticket/Action versions, timestamp, and relevant status/assignee before/after metadata. Content-edit events record changed field names rather than duplicating full mutable text.
+
+## 10. Requester Dashboard
 
 ### GET `/api/dashboards/requester`
 
@@ -263,9 +281,9 @@ Success `200`:
 }
 ```
 
-Calculation rules come from BR-27 through BR-30. Empty recent sections are `[]`; counts return numeric `0`, never omitted/null.
+Calculation rules come from BR-29 through BR-32. The server captures one `generatedAt` UTC snapshot; 7-day and 30-day lower/upper boundaries are inclusive. Empty recent sections are `[]`; counts return numeric `0`, never omitted/null. Ordering uses timestamp desc then id desc.
 
-## 10. IT Staff / Administrator Dashboard
+## 11. IT Staff / Administrator Dashboard
 
 ### GET `/api/dashboards/staff`
 
@@ -313,10 +331,11 @@ Rules:
 - `byStatus` includes all eight keys with zero values where needed.
 - `byItPriority` uses active-status Tickets and includes all four priorities with zeros.
 - `recentUrgentTickets` max 5.
-- `myRecentActions` max 5 and includes only Actions where current User is assignee or performer.
-- Administrator uses the same payload contract; `myTickets` and `myOpenActions` are still based on Administrator's own User id where applicable.
+- `myOpenActions` and `myRecentActions` include only Actions whose parent Ticket is active and whose `workflowCycle` equals the parent Ticket current cycle. Historical earlier-cycle/terminal-parent Actions are excluded from current-work dashboard metrics.
+- `myRecentActions` max 5 and includes current-cycle active-parent Actions where current User is assignee or performer, ordered `updatedAt desc, id desc`.
+- Administrator uses the same payload contract; `myTickets` and `myOpenActions` are based on Administrator's own User id where applicable.
 
-## 11. Dashboard Drill-Down Contract
+## 12. Dashboard Drill-Down Contract
 
 Dashboard URLs/query metadata are navigation hints, not authorization grants. Destination endpoints re-authorize normally.
 
@@ -326,7 +345,7 @@ Dashboard URLs/query metadata are navigation hints, not authorization grants. De
 - Staff My Tickets -> Ticket Queue owner filter representing current authenticated user. If the existing Queue API requires numeric owner id, the dashboard response may provide the current safe user id/query value instead of trusting a client-supplied arbitrary identity.
 - Recent Ticket/Action rows -> Ticket Detail URL for the referenced permitted Ticket.
 
-## 12. Safe Empty, Failure, and Conflict Behavior
+## 13. Safe Empty, Failure, and Conflict Behavior
 
 - Dashboard no-data is a successful `200` with explicit zero counts and empty arrays.
 - Invalid dashboard query values, if future approved query options are added, return `400`; current endpoints require no free-form filter query.
@@ -334,7 +353,7 @@ Dashboard URLs/query metadata are navigation hints, not authorization grants. De
 - `STALE_UPDATE` responses do not automatically include protected full current records. Client reloads through the normal authorized GET path.
 - Unexpected errors return safe `500` messages and are logged server-side without returning stack/database internals.
 
-## 13. Regression Compatibility
+## 14. Regression Compatibility
 
 Lab 4 continues all approved Labs 2-3 APIs unless this contract explicitly extends them. In particular:
 
@@ -344,7 +363,7 @@ Lab 4 continues all approved Labs 2-3 APIs unless this contract explicitly exten
 - Internal Notes never appear in Requester dashboard or Actions Taken payloads.
 - Lab 4 does not restore Development Requester selector behavior.
 
-## 14. API-to-Test Traceability
+## 15. API-to-Test Traceability
 
 - Actions Taken endpoints -> `server/tests/lab-04/actions-taken.api.test.ts`.
 - Ticket resolution/concurrency -> `server/tests/lab-04/ticket-workflow.api.test.ts`.

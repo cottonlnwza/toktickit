@@ -39,55 +39,57 @@ Lab 4 adds operational work records under Tickets so permitted staff can plan, a
 
 - **FR-01:** A Ticket shall support zero, one, or many Actions Taken.
 - **FR-02:** Permitted IT Staff and Administrators shall be able to create an Action Taken on an accessible Ticket.
-- **FR-03:** An Action Taken shall expose backend-generated Action Date/Time, Action Description, Result, Performed by, Follow-Up Required, conditional Follow-up Note, and Attachment Notes.
+- **FR-03:** An Action Taken shall expose Action create Date/Time, Action Description, Result, Performed by (auto), Follow-Up Required, conditional Follow-up Note, and Attachment Notes. Action create Date/Time is an immutable server audit timestamp, not a backdated occurrence-time field.
 - **FR-04:** An Action Taken shall support one active staff assignee and a small work-state lifecycle so the required create, assign, edit, status transition, complete, and cancel demonstrations are possible.
 - **FR-05:** Permitted staff shall be able to edit non-terminal Actions Taken and reassign them only to an active IT Staff or Administrator.
-- **FR-06:** Completing an Action Taken shall record the authenticated completing user as Performed by.
+- **FR-06:** Completing an Action Taken shall record the authenticated completing user as Performed by, and completion is permitted only when that user is the current Action assignee; another permitted staff member must reassign the Action before completing it.
 - **FR-07:** Requesters shall be able to read all Actions Taken on their owned Tickets but shall not create, edit, assign, transition, complete, or cancel them.
 - **FR-08:** Action creation shall be retry-safe so repeated clicks/network retry do not create duplicate Actions Taken.
 - **FR-09:** The backend shall enforce the final Ticket status-transition matrix even when the normal UI is bypassed.
-- **FR-10:** Transitioning a Ticket to Resolved shall be rejected while any Action Taken on that Ticket remains non-terminal.
+- **FR-10:** Transitioning a Ticket to Resolved shall be rejected unless the current workflow cycle contains at least one valid `COMPLETED` Action and contains no `PLANNED` or `IN_PROGRESS` Action.
 - **FR-11:** The Requester `Problem Appears Resolved` indication shall remain advisory and shall never directly change Ticket status.
 - **FR-12:** Requesters shall receive a dashboard containing only metrics and recent/attention-required Ticket data for their authenticated identity.
 - **FR-13:** IT Staff shall receive a dashboard containing approved operational counts, current-user Action information, and recent/urgent Ticket information.
-- **FR-14:** Administrators shall be permitted to reuse the IT Staff dashboard for support/testing while retaining User Management navigation.
+- **FR-14:** Administrators shall be permitted to reuse IT Staff Lab 4 behavior for support/testing, including the staff dashboard, Actions Taken, and the same final Ticket status transitions, while retaining User Management navigation.
 - **FR-15:** Dashboard metrics shall be calculated by the backend from PostgreSQL and shall provide documented zero/empty behavior and practical drill-down destinations.
 - **FR-16:** All Lab 4 write operations shall enforce authentication, role authorization, ownership/access rules, CSRF/origin rules from Lab 3, validation, and safe errors on the backend.
-- **FR-17:** Ticket and Action updates shall detect stale writes so one user does not silently overwrite a more recent workflow change.
+- **FR-17:** Ticket and Action aggregate updates shall detect stale writes across both the child Action and parent Ticket revision so one user does not silently overwrite a more recent workflow or Action change.
 - **FR-18:** The migration shall preserve all existing Users, Tickets, Attachments, Public Comments, Internal Notes, authentication state, and ownership relationships.
 - **FR-19:** Seed behavior shall remain idempotent and provide zero/one/many Actions Taken plus zero/non-zero dashboard examples.
 - **FR-20:** Major Lab 4 screens shall preserve the Zen Green design language and remain usable on desktop, tablet, and mobile with keyboard-visible focus and non-color cues.
 - **FR-21:** Important forms shall preserve entered data after recoverable failures, and duplicate actions from repeated submission shall be prevented or safely replayed.
-- **FR-22:** Final verification shall include unit, API/integration, UI component, UI style, responsive, authorization, workflow, migration/regression, performance-smoke, and E2E coverage.
+- **FR-22:** Every Action create/edit/reassign/start/complete/cancel mutation shall append an immutable Action event that records actor, event type, resulting Action/Ticket revisions, and relevant status/assignee change metadata.
+- **FR-23:** Final verification shall include unit, API/integration, UI component, UI style, responsive, authorization, workflow, migration/regression, performance-smoke, and E2E coverage.
 
 ## 5. Business Rules
 
 ### 5.1 Actions Taken
 
-- **BR-01:** Every Action Taken belongs to exactly one Ticket. A Ticket may have zero or many Actions Taken.
-- **BR-02:** The Ticket primary owner coordinates the Ticket, but an Action Taken assignee and the authenticated user who performs/completes the Action may be different people.
+- **BR-01:** Every Action Taken belongs to exactly one Ticket and exactly one Ticket `workflowCycle`. A Ticket may have zero or many historical Actions Taken across cycles.
+- **BR-02:** The Ticket primary owner coordinates the Ticket, but an Action may be assigned to a different active IT Staff or Administrator. The assignee is the accountable person for that Action, not an advisory label.
 - **BR-03:** Requesters may read Actions Taken only through owned Ticket access. Requesters cannot write or transition Actions Taken.
-- **BR-04:** IT Staff may create/update Actions Taken on Tickets available to the IT Staff workflow. Administrator receives the same Actions Taken behavior for Lab 4 support/testing.
-- **BR-05:** `actionDateTime` is the backend creation time (`createdAt`) expressed as an ISO-8601 UTC timestamp. The client does not choose or rewrite it.
+- **BR-04:** IT Staff and Administrators may create/update Actions Taken on accessible Tickets while the parent Ticket is in an active workflow status (`NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `REOPENED`). Actions on `RESOLVED`, `CLOSED`, or `CANCELLED` Tickets are historical/read-only until the Ticket is reopened into a new cycle.
+- **BR-05:** `actionDateTime` is the immutable backend `createdAt` timestamp expressed as ISO-8601 UTC. This follows the handout wording “Action create date/time”; Lab 4 does not invent a separate backdated work-occurrence field.
 - **BR-06:** `actionDescription` is trimmed and required at 1-2000 characters. It is stored/rendered as plain text.
 - **BR-07:** `result` may be empty while an Action is `PLANNED` or `IN_PROGRESS`, but transition to `COMPLETED` requires trimmed Result content of 1-2000 characters.
-- **BR-08:** `followUpRequired` is required. When true, `followUpNote` is required after trimming at 1-1000 characters. When false, the persisted `followUpNote` is `null`.
-- **BR-09:** `attachmentNotes` is optional plain text, trimmed to at most 1000 characters. It describes what existing/supporting file to inspect; Lab 4 does not add an inventory or attachment-billing subsystem.
-- **BR-10:** An Action Taken has exactly one assignee while non-terminal. The assignee must be an active `IT_STAFF` or `ADMINISTRATOR`. Inactive or Requester assignees are rejected with a safe validation/conflict response.
-- **BR-11:** On create, assignee defaults to the authenticated actor if no explicit valid assignee is supplied.
+- **BR-08:** `followUpRequired` is required. When true, `followUpNote` is required after trimming at 1-1000 characters. When false, persisted `followUpNote` is `null`. `followUpRequired` is descriptive/planning evidence and does not by itself block Ticket resolution once the Action is completed.
+- **BR-09:** `attachmentNotes` is optional plain text, trimmed to at most 1000 characters. It describes what existing/supporting file to inspect; Lab 4 does not add a new attachment subsystem.
+- **BR-10:** A non-terminal Action has exactly one assignee. The assignee must be an active `IT_STAFF` or `ADMINISTRATOR`. Inactive or Requester assignees are rejected with `409 INACTIVE_ASSIGNEE`.
+- **BR-11:** On create, assignee defaults to the authenticated actor if no explicit valid assignee is supplied. `createdById` is always the authenticated actor and is immutable audit data.
 - **BR-12:** Action statuses are `PLANNED`, `IN_PROGRESS`, `COMPLETED`, and `CANCELLED`.
 - **BR-13:** Allowed Action transitions are `PLANNED -> IN_PROGRESS|CANCELLED` and `IN_PROGRESS -> COMPLETED|CANCELLED`. `COMPLETED` and `CANCELLED` are terminal.
 - **BR-14:** Editable content/assignee fields may be changed only while an Action is `PLANNED` or `IN_PROGRESS`. Terminal Actions are immutable through normal Lab 4 APIs.
-- **BR-15:** On transition to `COMPLETED`, the backend sets `performedById` from the authenticated actor and `completedAt` from the server clock. The client cannot submit either identity/time.
-- **BR-16:** On transition to `CANCELLED`, the backend records `cancelledAt` from the server clock; `performedById` remains unchanged/null unless the Action had already been completed, which is impossible because terminal states cannot transition.
-- **BR-17:** Actions Taken are ordered by `createdAt asc`, then `id asc` for deterministic display. Dashboard recent-action lists use `updatedAt desc`, then `id desc`.
-- **BR-18:** Action create requests require a client-generated UUID `clientRequestId` with global uniqueness. Exact replay by the same authorized actor/Ticket with the same normalized payload returns the original Action without creating a duplicate; conflicting reuse returns `409 ACTION_REPLAY_CONFLICT`.
+- **BR-15:** Only the current Action assignee may transition that Action to `COMPLETED`. On completion, the backend verifies `authenticatedUser.id == assigneeId`, sets `performedById` to that authenticated assignee, and sets `completedAt` from the server clock. A different staff member must first reassign the Action through an authorized mutation.
+- **BR-16:** Any permitted IT Staff/Administrator may cancel an accessible non-terminal Action. The backend sets `cancelledAt` from the server clock; cancellation actor is captured by the append-only Action event.
+- **BR-17:** Ticket Detail Actions are ordered by `workflowCycle asc`, `createdAt asc`, then `id asc`. The current cycle is visually identified; historical cycles remain readable. Dashboard current-work lists use only the Ticket's current cycle.
+- **BR-18:** Action create requests require a client-generated globally unique UUID `clientRequestId`. Database uniqueness is global. Replay authorization still checks the original `ticketId`, `createdById`, current caller permission, and an immutable `createFingerprint` computed from the normalized original create intent. Edits never change that fingerprint. Exact replay returns the original Action; any other reuse returns `409 ACTION_REPLAY_CONFLICT` without disclosing protected original data.
+- **BR-19:** Every successful Action mutation appends one immutable `ActionTakenEvent`. Event types are `CREATED`, `EDITED`, `REASSIGNED`, `STARTED`, `COMPLETED`, and `CANCELLED`. Each event stores Action id, Ticket id, workflow cycle, authenticated actor, resulting Action version, resulting Ticket version, timestamp, and applicable from/to status or from/to assignee metadata. Events are append-only audit evidence and are not edited/deleted by normal APIs.
 
 ### 5.2 Ticket status and resolution
 
-- **BR-19:** Ticket statuses remain `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, and `CANCELLED`.
-- **BR-20:** Normal Ticket status transitions remain an IT Staff operation. Lab 4 does not broaden Administrator Ticket status authority merely because Administrator may perform Actions Taken.
-- **BR-21:** Final allowed Ticket transitions are:
+- **BR-20:** Ticket statuses remain `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, `RESOLVED`, `CLOSED`, `REOPENED`, and `CANCELLED`.
+- **BR-21:** In Lab 4, both `IT_STAFF` and `ADMINISTRATOR` may perform the final Ticket status transitions below on accessible Tickets. This is an explicit Lab 4 extension because the handout says Administrator may “Perform IT Staff behavior” for support/testing; it does not rewrite completed Lab 3 branches.
+- **BR-22:** Final allowed Ticket transitions are:
 
 | From | Allowed to |
 |---|---|
@@ -100,38 +102,41 @@ Lab 4 adds operational work records under Tickets so permitted staff can plan, a
 | Reopened | In Progress, Waiting for Requester, Resolved, Cancelled |
 | Cancelled | Reopened |
 
-- **BR-22:** Transitions to `RESOLVED`, `CLOSED`, `CANCELLED`, or `REOPENED` require explicit UI confirmation; the backend validates independently.
-- **BR-23:** A transition to `RESOLVED` is allowed only when every Action Taken for that Ticket is terminal (`COMPLETED` or `CANCELLED`). A Ticket with zero Actions Taken passes this specific gate because there is no incomplete Action; other transition rules still apply.
-- **BR-24:** Requester `Problem Appears Resolved` remains advisory and does not satisfy, bypass, or execute the formal `RESOLVED` transition.
-- **BR-25:** Ticket status change and resolution-gate evaluation occur atomically using the current persisted Action states so an incomplete Action cannot be created/left active between validation and the status update.
+- **BR-23:** Transitions to `RESOLVED`, `CLOSED`, `CANCELLED`, or `REOPENED` require explicit UI confirmation; the backend validates independently.
+- **BR-24:** A Ticket has integer `workflowCycle` beginning at 1. Every Action copies the Ticket's current cycle at creation. Successful transition to `REOPENED` atomically increments `workflowCycle` before new work is created, so old-cycle Actions remain history and cannot satisfy or block the new cycle.
+- **BR-25:** A transition to `RESOLVED` is allowed only when the Ticket's **current workflow cycle** contains at least one `COMPLETED` Action and contains zero `PLANNED` or `IN_PROGRESS` Actions. `CANCELLED` Actions neither satisfy the required completed-work evidence nor block resolution. Therefore zero Actions and cancelled-only Actions fail the resolution gate.
+- **BR-26:** Requester `Problem Appears Resolved` remains advisory and does not satisfy, bypass, or execute the formal `RESOLVED` transition.
+- **BR-27:** Ticket status changes, workflow-cycle changes, and resolution-gate evaluation are atomic against current persisted Action state. A concurrent Action create/update/status mutation cannot slip between the gate check and Ticket transition.
 
 ### 5.3 Dashboard calculations
 
-All dashboard calculations use the authenticated identity and server-side PostgreSQL queries. `now` is server UTC. API timestamps are UTC ISO-8601; the UI formats them in the browser locale without changing calculation boundaries.
+All dashboard calculations capture one `generatedAt` server-UTC instant per response. Rolling-window lower bounds are inclusive (`timestamp >= cutoff`) and the upper bound is inclusive of the captured snapshot (`timestamp <= generatedAt`). API timestamps are UTC ISO-8601; UI locale formatting does not change calculation boundaries.
 
-- **BR-26:** Active Ticket statuses for dashboard counts are `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, and `REOPENED`.
-- **BR-27:** Requester `openTickets` = count of owned Tickets in active statuses.
-- **BR-28:** Requester `waitingForRequester` = count of owned Tickets with `WAITING_FOR_REQUESTER`.
-- **BR-29:** Requester `recentlyUpdated` = up to 5 owned Tickets ordered `updatedAt desc, id desc`, restricted to updates in the previous 7 * 24 hours; empty list when none match.
-- **BR-30:** Requester `recentlyResolved` = up to 5 owned Tickets with a non-null `resolvedAt` in the previous 30 * 24 hours, ordered `resolvedAt desc, id desc`.
-- **BR-31:** IT Staff `unassignedTickets` = active-status Tickets with `ownerId=null`.
-- **BR-32:** IT Staff `myTickets` = active-status Tickets where `ownerId` equals the authenticated staff User id.
-- **BR-33:** IT Staff `byStatus` returns counts for all eight Ticket statuses, including explicit zero counts.
-- **BR-34:** IT Staff `byItPriority` returns active-status counts for `LOW`, `MEDIUM`, `HIGH`, and `URGENT`, including explicit zero counts.
-- **BR-35:** IT Staff `recentUrgentTickets` = up to 5 active `URGENT` IT Priority Tickets ordered `updatedAt desc, id desc`.
-- **BR-36:** IT Staff `myOpenActions` = count of `PLANNED` or `IN_PROGRESS` Actions assigned to the authenticated staff User.
-- **BR-37:** IT Staff `myRecentActions` = up to 5 Actions where the authenticated staff User is assignee or performer, ordered `updatedAt desc, id desc`.
-- **BR-38:** Administrator dashboard reuses the IT Staff dashboard contract. Additional user-account KPI cards are intentionally deferred to avoid unneeded analytics scope.
-- **BR-39:** Every actionable metric/card provides a documented drill-down destination where practical. A zero metric still renders as `0`; empty recent lists render a clear empty state rather than disappearing.
+- **BR-28:** Active Ticket statuses are `NEW`, `OPEN`, `IN_PROGRESS`, `WAITING_FOR_REQUESTER`, and `REOPENED`.
+- **BR-29:** Requester `openTickets` = count of owned Tickets in active statuses.
+- **BR-30:** Requester `waitingForRequester` = count of owned Tickets with `WAITING_FOR_REQUESTER`.
+- **BR-31:** Requester `recentlyUpdated` = up to 5 owned Tickets with `updatedAt >= generatedAt - 7 days` and `updatedAt <= generatedAt`, ordered `updatedAt desc, id desc`. Seven days represents one operational week of recent activity while keeping the dashboard concise.
+- **BR-32:** Requester `recentlyResolved` = up to 5 owned Tickets with `resolvedAt >= generatedAt - 30 days` and `resolvedAt <= generatedAt`, ordered `resolvedAt desc, id desc`. Thirty days provides a one-month post-resolution reference window without turning the dashboard into report history.
+- **BR-33:** IT Staff/Admin `unassignedTickets` = active-status Tickets with `ownerId=null`.
+- **BR-34:** IT Staff/Admin `myTickets` = active-status Tickets where `ownerId` equals the authenticated User id.
+- **BR-35:** IT Staff/Admin `byStatus` returns counts for all eight Ticket statuses, including explicit zero counts.
+- **BR-36:** IT Staff/Admin `byItPriority` returns active-status counts for `LOW`, `MEDIUM`, `HIGH`, and `URGENT`, including explicit zero counts.
+- **BR-37:** `recentUrgentTickets` = up to 5 active `URGENT` IT Priority Tickets ordered `updatedAt desc, id desc`.
+- **BR-38:** `myOpenActions` = count of `PLANNED` or `IN_PROGRESS` Actions assigned to the authenticated User **only when** the parent Ticket is active and the Action `workflowCycle` equals the Ticket's current `workflowCycle`.
+- **BR-39:** `myRecentActions` = up to 5 current-cycle Actions on active parent Tickets where the authenticated User is assignee or performer, ordered `updatedAt desc, id desc`. Historical Actions on terminal Tickets or earlier cycles remain available on Ticket Detail but do not appear as current dashboard work.
+- **BR-40:** Administrator dashboard reuses the IT Staff dashboard contract. Additional user-account KPI cards are intentionally deferred to avoid unneeded analytics scope.
+- **BR-41:** Every actionable metric/card provides a documented drill-down destination where practical. A zero metric renders as `0`; empty recent lists render a clear empty state rather than disappearing.
 
 ### 5.4 Concurrency, failures, and preservation
 
-- **BR-40:** Ticket and Action Taken records use integer `version` values beginning at 0. Mutable APIs require `expectedVersion`; successful mutation atomically matches the old version and increments it. A mismatch returns `409 STALE_UPDATE` with no overwrite.
-- **BR-41:** Safe failures never expose stack traces, database internals, password/session secrets, storage paths, protected cross-user resource details, or Internal Note content to Requesters.
-- **BR-42:** Recoverable UI failures preserve entered Action/Ticket form data. Submit buttons are disabled while the request is in flight.
-- **BR-43:** Existing Public Comments and Internal Notes remain append-only. Lab 4 does not add edit/delete behavior for them.
-- **BR-44:** Existing authentication, role navigation, ownership, Requester Ticket/Attachment behavior, IT Staff Queue/Detail behavior, comments/notes, and Administrator User Management remain regression requirements.
-- **BR-45:** A Lab 3 defect discovered during Lab 4 verification is recorded honestly but is not repaired by rewriting a completed Lab 3 branch. Any correction required to satisfy an explicit Lab 4 requirement must be implemented as new Lab 4 work through the Lab 4 review flow.
+- **BR-42:** Ticket and Action Taken records use integer `version` values beginning at 0. The Ticket version is the aggregate revision for status/owner/priority/Action changes.
+- **BR-43:** Every Action aggregate write (create, edit, reassign, start, complete, cancel) requires `expectedTicketVersion`; edits/status transitions also require `expectedActionVersion`. The transaction first compare-and-increments the Ticket version, then validates/compare-and-increments the Action version where applicable, then writes the append-only Action event. Any mismatch returns `409 STALE_UPDATE` with no partial write. Exact idempotent create replay is read-only and does not increment versions again.
+- **BR-44:** Deterministic failure taxonomy: `400 VALIDATION_ERROR` for malformed/unknown fields, invalid enum values, or missing/invalid required content such as completion Result; `403 FORBIDDEN` for role authorization; protected `404 NOT_FOUND` for missing/ownership-hidden resources; `409` for validly shaped requests that conflict with current domain state (`STALE_UPDATE`, `ACTION_REPLAY_CONFLICT`, `INACTIVE_ASSIGNEE`, `ACTION_TERMINAL`, `ACTION_TRANSITION_NOT_ALLOWED`, `ACTION_ASSIGNEE_MISMATCH`, `PARENT_TICKET_NOT_ACTIVE`, `RESOLUTION_GATE_BLOCKED`).
+- **BR-45:** Safe failures never expose stack traces, database internals, password/session secrets, storage paths, protected cross-user resource details, or Internal Note content to Requesters.
+- **BR-46:** Recoverable UI failures preserve entered Action/Ticket form data. Submit buttons are disabled while the request is in flight.
+- **BR-47:** Existing Public Comments and Internal Notes remain append-only. Lab 4 does not add edit/delete behavior for them.
+- **BR-48:** Existing authentication, role navigation, ownership, Requester Ticket/Attachment behavior, IT Staff Queue/Detail behavior, comments/notes, and Administrator User Management remain regression requirements.
+- **BR-49:** A Lab 3 defect discovered during Lab 4 verification is recorded honestly but is not repaired by rewriting a completed Lab 3 branch. Any correction required to satisfy an explicit Lab 4 requirement is implemented as new Lab 4 work through the Lab 4 review flow.
 
 ## 6. Authorization Matrix
 
@@ -144,7 +149,7 @@ All dashboard calculations use the authenticated identity and server-side Postgr
 | Edit/reassign non-terminal Action Taken | No | Yes | Yes |
 | Transition/complete/cancel Action Taken | No | Yes | Yes |
 | Be Action assignee | No | Active only | Active only |
-| Change normal Ticket status | No | Per Ticket matrix | No |
+| Change final Ticket status | No | Per Ticket matrix | Per Ticket matrix (Lab 4 support/testing) |
 | Indicate Problem Appears Resolved | Owned Ticket only | No | No |
 | Existing Lab 3 User Management | No | No | Yes |
 
@@ -157,7 +162,7 @@ Frontend visibility is feedback only. Every protected operation above is re-chec
 - IT Staff Dashboard uses concise metric cards plus recent/urgent Ticket and current-user Action lists; each actionable item links to Ticket Queue, filtered Queue, or Ticket Detail.
 - Requester Dashboard shows only owned metrics and recent/attention-required Ticket cards and does not duplicate the full My Tickets screen.
 - Existing Ticket Detail gains an **Actions Taken** area. Staff/Admin receive list + create/edit/status controls; Requester receives read-only list on owned Tickets.
-- Action create/edit uses field-level validation and visibly distinguishes assignee, status, server-generated Action Date/Time, and server-derived Performed by.
+- Action create/edit uses field-level validation and visibly distinguishes assignee, workflow cycle, status, immutable server Action create Date/Time, and server-derived Performed by. Completion is available only to the current assignee; other permitted staff must reassign first.
 - Loading, saving, success, empty/no-results, forbidden, not-found, conflict/stale, and safe API-failure feedback is provided where meaningful.
 - No page-level horizontal scrolling; keyboard focus remains visible; icons do not replace necessary text/labels.
 
@@ -171,57 +176,83 @@ Planned Prisma-level fields:
 |---|---|
 | `id` | `Int @id @default(autoincrement())` |
 | `ticketId` | Required FK to `Ticket`, `onDelete: Restrict` |
+| `workflowCycle` | Required positive Int copied from parent Ticket at create |
 | `clientRequestId` | Required globally unique UUID string for retry-safe create |
+| `createFingerprint` | Required immutable hash/string of normalized original create intent |
+| `createdById` | Required FK; authenticated creator, immutable |
 | `actionDescription` | Required string, 1-2000 trimmed chars |
 | `result` | Nullable until completion; 1-2000 trimmed chars when present/required |
 | `status` | `ActionStatus`, default `PLANNED` |
 | `assigneeId` | Required FK to active IT Staff/Administrator User |
-| `performedById` | Nullable FK; backend set on completion |
+| `performedById` | Nullable FK; backend set only when assignee completes |
 | `followUpRequired` | Required Boolean |
 | `followUpNote` | Nullable; required 1-1000 chars when follow-up is true |
 | `attachmentNotes` | Nullable; max 1000 chars |
 | `completedAt` | Nullable server timestamp |
 | `cancelledAt` | Nullable server timestamp |
 | `version` | `Int @default(0)` optimistic concurrency token |
-| `createdAt` | Backend timestamp; displayed as Action Date/Time |
+| `createdAt` | Immutable backend Action create date/time |
 | `updatedAt` | `@updatedAt` |
 
-Relationships added to `Ticket` and `User` are named explicitly to distinguish Action assignee and performer relationships.
+Relationships to `Ticket`/`User` use explicit names for creator, assignee, and performer.
 
 Indexes:
 
-- `@@index([ticketId, createdAt, id])` for Ticket Detail stable Action ordering.
+- `@@index([ticketId, workflowCycle, createdAt, id])` for stable cycle-aware Ticket Detail ordering.
 - `@@index([assigneeId, status, updatedAt])` for current-user Action dashboard queries.
 - `@@index([performedById, updatedAt])` for recent performed Actions.
-- Unique `clientRequestId` for retry-safe creation.
+- Unique `clientRequestId` for globally retry-safe creation.
 
-### 8.2 Ticket additions
+### 8.2 `ActionTakenEvent` append-only audit model
 
-- `version Int @default(0)` for stale Ticket workflow mutation detection.
-- `resolvedAt DateTime?` maintained by formal status transitions. Entering `RESOLVED` sets server time. Reopening clears it only for the new active lifecycle; a later resolve sets a new value.
-- Index `@@index([requesterId, resolvedAt])` supports the Requester recently-resolved dashboard query.
+| Field | Contract |
+|---|---|
+| `id` | `Int @id @default(autoincrement())` |
+| `actionTakenId` | Required FK to Action Taken |
+| `ticketId` | Required FK to Ticket for audit query |
+| `workflowCycle` | Required cycle snapshot |
+| `eventType` | Enum: `CREATED`, `EDITED`, `REASSIGNED`, `STARTED`, `COMPLETED`, `CANCELLED` |
+| `actorId` | Required authenticated User FK |
+| `fromStatus` / `toStatus` | Nullable status snapshots where applicable |
+| `fromAssigneeId` / `toAssigneeId` | Nullable assignee snapshots where applicable |
+| `actionVersion` | Resulting Action revision |
+| `ticketVersion` | Resulting aggregate Ticket revision |
+| `changedFields` | Optional JSON/string array of changed field names, not a mutable projection |
+| `createdAt` | Server timestamp; immutable |
 
-### 8.3 Migration and backfill
+Normal APIs never update/delete events. The mutable `ActionTaken` row is the current projection; events provide actor/change-sequence evidence for auditability.
 
-- Migration adds new nullable/with-safe-default columns first, creates `ActionTaken`, indexes, and enum, backfills required values, then applies final constraints where necessary.
-- Existing Tickets receive `version=0`.
-- Existing Tickets currently `RESOLVED` or `CLOSED` receive `resolvedAt=updatedAt` as a documented legacy approximation because Labs 1-3 did not persist a resolution timestamp; other existing Tickets receive `resolvedAt=null`.
+### 8.3 Ticket additions
+
+- `version Int @default(0)` as aggregate revision for Ticket and Action writes.
+- `workflowCycle Int @default(1)`; increment atomically when entering `REOPENED`.
+- `resolvedAt DateTime?` maintained by formal status transitions. Entering `RESOLVED` sets server time. Reopening clears current `resolvedAt`; later resolution writes a new value.
+- Index `@@index([requesterId, resolvedAt])` supports recently-resolved queries.
+
+### 8.4 Migration and backfill
+
+- Add Ticket `version=0`, `workflowCycle=1`, and nullable `resolvedAt`; create Action/Event schema and indexes without recreating earlier rows.
+- Existing `RESOLVED` or `CLOSED` Tickets receive `resolvedAt=updatedAt` as a documented legacy approximation because Labs 1-3 did not persist resolution time; others receive `null`.
+- Legacy Tickets have no Actions, which is valid historical data. They do **not** automatically satisfy the new Lab 4 resolution gate if reopened: after reopening into cycle 2, that current cycle must produce at least one completed Action before resolving again.
 - Existing Users/Tickets/Attachments/Public Comments/Internal Notes are not recreated, renumbered, or deleted.
-- Recovery approach: restore the pre-migration database backup for destructive migration failure in local lab use; schema deployment itself remains forward-only. The integration test verifies preservation/backfill on a Lab 3-shaped fixture database before release.
+- Recovery approach: restore the pre-migration database backup for destructive local migration failure; schema deployment remains forward-only. Migration integration tests verify preservation/backfill from a Lab 3-shaped fixture database.
 
-### 8.4 Seed decisions
+### 8.5 Seed decisions
 
 - Seed remains idempotent through deterministic lookup/upsert keys.
-- Seed covers all major Ticket statuses/priorities and assigned/unassigned Ticket ownership.
-- Seed includes Tickets with zero, one, and multiple Actions Taken.
-- Seed includes non-terminal, completed, and cancelled Actions assigned across active staff.
+- Seed covers all major Ticket statuses/priorities and assigned/unassigned ownership.
+- Seed includes Tickets with zero, one, and multiple Actions across at least two workflow cycles.
+- Seed includes non-terminal, completed, and cancelled Actions assigned across active staff plus corresponding Action events.
+- Seed includes active-parent current-cycle Action fixtures and historical/terminal-parent fixtures so dashboard inclusion/exclusion is demonstrable.
 - Seed includes data that makes selected dashboard metrics non-zero plus at least one User/Ticket fixture producing zero/empty dashboard states.
 
-### 8.5 Database design justifications
+### 8.6 Database design justifications
 
-1. **Optimistic version fields instead of last-write-wins:** Ticket/Action mutations are low-volume interactive writes where a small integer compare-and-increment prevents silent overwrites without holding long-lived locks across browser requests.
-2. **Persist `resolvedAt` instead of deriving “recently resolved” from `updatedAt`:** comments, notes, attachments, or later metadata can change `updatedAt`; a dedicated resolution timestamp makes the dashboard calculation authoritative and stable.
-3. **Globally unique Action `clientRequestId`:** repeated browser/network submissions can safely replay one creation without duplicating operational work records.
+1. **Ticket aggregate version plus Action version:** Action writes can depend on parent status/cycle/ownership; requiring both child and parent revisions prevents a client from editing against stale aggregate state.
+2. **Explicit workflow cycle:** Reopen starts new operational work while preserving old Actions as history; cycle scoping prevents old completed work from satisfying a new resolution and prevents historical work from polluting current dashboard metrics.
+3. **Append-only Action events plus mutable projection:** current reads stay simple while actor/reassignment/status sequence remains auditable.
+4. **Persist `resolvedAt`:** comments/notes/attachments or Action changes can alter `updatedAt`; dedicated resolution time makes recently-resolved metrics authoritative.
+5. **Global retry UUID plus immutable create fingerprint:** database uniqueness prevents duplicate creates globally, while the fingerprint lets the original create replay after later edits without comparing against mutable current Action values.
 
 ## 9. API Contract Summary
 
@@ -229,32 +260,35 @@ Exact request/response shapes and errors are in `docs/lab-04/api-spec.md`.
 
 - Actions Taken: shared read plus staff/admin create, edit, and status-transition endpoints under the Ticket resource.
 - Dashboards: `GET /api/dashboards/requester` and `GET /api/dashboards/staff`.
-- Ticket status update keeps the existing Lab 3 endpoint but adds `expectedVersion` and the Lab 4 resolution gate.
+- Ticket status update keeps the existing Lab 3 endpoint but adds aggregate `expectedTicketVersion`, workflow-cycle handling, and the Lab 4 resolution gate.
+- Action aggregate writes require `expectedTicketVersion`; Action edit/status writes additionally require `expectedActionVersion`.
 - Existing Labs 2-3 APIs remain available according to existing authorization and ownership rules.
 - Lab 4 uses the existing authenticated session/CSRF/origin mechanism; no new authentication system is introduced.
 
 ## 10. Acceptance Criteria
 
-- **AC-01:** Given permitted IT Staff/Admin and valid data, when an Action Taken is created, then exactly one Action is stored under the correct Ticket with backend creation time, approved assignee, retry key, and version 0.
-- **AC-02:** Given an Action create request is retried with the same request id and normalized payload, when the backend receives it again, then the original Action is returned without a duplicate; conflicting reuse returns 409.
-- **AC-03:** Given a Requester, when Actions Taken are requested for an owned Ticket, then all permitted Action records are readable; writing any Action is rejected.
-- **AC-04:** Given a non-terminal Action, when permitted staff edits/reassigns it, then validation and active-assignee rules are enforced and stale expectedVersion is rejected without overwrite.
-- **AC-05:** Given an Action in `PLANNED`, when permitted staff transitions it, then only `IN_PROGRESS` or `CANCELLED` is accepted.
-- **AC-06:** Given an Action in `IN_PROGRESS`, when completion is requested with a valid Result, then status becomes `COMPLETED` and backend sets `performedBy`/`completedAt`; missing Result is rejected.
-- **AC-07:** Given `followUpRequired=true`, when Follow-up Note is blank, then create/update is rejected with field-level validation; when false, stored Follow-up Note is null.
-- **AC-08:** Given a Ticket with one or more non-terminal Actions, when IT Staff requests `RESOLVED`, then the backend rejects the transition even if the UI is bypassed.
-- **AC-09:** Given a Ticket with zero Actions or only terminal Actions and an otherwise permitted transition, when IT Staff requests `RESOLVED`, then the transition is allowed and `resolvedAt` is set from the server clock.
-- **AC-10:** Given an authenticated Requester, when dashboard data is retrieved, then counts/lists include only owned Tickets and match BR-27 through BR-30.
-- **AC-11:** Given authenticated IT Staff, when dashboard data is retrieved, then operational metrics and current-user Action data match BR-31 through BR-37 and include explicit zero/empty values.
-- **AC-12:** Given an Administrator, when the staff dashboard is requested, then the same support/testing dashboard contract is available without removing Administrator User Management access.
-- **AC-13:** Given a dashboard actionable card/list item, when activated, then it opens the documented Queue/My Tickets/Ticket Detail drill-down with matching filter intent.
-- **AC-14:** Given concurrent Ticket/Action edits, when a stale expectedVersion is submitted, then the operation returns safe `409 STALE_UPDATE` and the newer persisted data is not overwritten.
-- **AC-15:** Given the Lab 3 database state, when the Lab 4 migration runs, then all existing Users/Tickets/Attachments/Comments/Notes and relationships remain valid, new fields are backfilled as specified, and legacy Resolved/Closed Tickets receive the documented `resolvedAt` approximation.
-- **AC-16:** Given the Lab 4 seed runs repeatedly, then required Ticket/Action/dashboard fixtures exist without accumulating duplicates.
-- **AC-17:** Given repeated clicks or recoverable API/network failures, when a Lab 4 form retries, then duplicate Actions are prevented and entered data is preserved where recovery is possible.
-- **AC-18:** Given any major Lab 4 screen on desktop/tablet/mobile, when rendered and operated by keyboard, then required controls remain visible/usable with no material clipping, overlap, or page-level horizontal overflow.
-- **AC-19:** Given the final Lab 4 integrated state, when representative Labs 1-3 regression tests run, then actual results are recorded without rewriting completed Lab 3 history; any Lab 4-required correction follows the Lab 4 branch/review flow.
-- **AC-20:** Given final verification, when required unit/API/integration/UI/style/responsive/authorization/workflow/migration/regression/performance-smoke/E2E suites run, then `tests.md` traceability and final statuses match actual repository evidence.
+- **AC-01:** Given permitted IT Staff/Admin and valid data on an active parent Ticket, when an Action is created with matching `expectedTicketVersion`, then exactly one current-cycle Action is stored with immutable creator, create fingerprint, server create time, approved assignee, Action version 0, incremented Ticket version, and a `CREATED` audit event.
+- **AC-02:** Given the same global `clientRequestId`, when the original authorized creator retries the same normalized create intent after the Action may have been edited, then the immutable create fingerprint permits replay of the original Action without duplicate/version increment; any other reuse returns 409 without protected-data disclosure.
+- **AC-03:** Given a Requester, when Actions are requested for an owned Ticket, then Actions across cycles are readable; writing any Action is rejected.
+- **AC-04:** Given a non-terminal current-cycle Action, when permitted staff edits/reassigns it with matching Action/Ticket revisions, then validation and active-assignee rules are enforced, both revisions advance as contracted, and an audit event records the actor/change; stale parent or child revision is rejected without partial write.
+- **AC-05:** Given a `PLANNED` Action, when permitted staff transitions it, then only `IN_PROGRESS` or `CANCELLED` is accepted and an immutable event records the transition.
+- **AC-06:** Given an `IN_PROGRESS` Action, when the **current assignee** completes it with valid Result and matching revisions, then status becomes `COMPLETED`, `performedBy` equals that assignee, timestamps/revisions are set, and a `COMPLETED` event is appended; a non-assignee completion is rejected until reassignment.
+- **AC-07:** Given `followUpRequired=true`, when Follow-up Note is blank, then create/update is rejected with `400 VALIDATION_ERROR`; when false, stored Follow-up Note is null.
+- **AC-08:** Given a Ticket current cycle with zero completed Actions, only cancelled Actions, or any `PLANNED`/`IN_PROGRESS` Action, when IT Staff/Admin requests `RESOLVED`, then backend returns `409 RESOLUTION_GATE_BLOCKED` and the Ticket remains unchanged.
+- **AC-09:** Given a Ticket current cycle with at least one `COMPLETED` Action and zero `PLANNED`/`IN_PROGRESS` Actions, when IT Staff/Admin requests an otherwise permitted `RESOLVED` transition with matching aggregate revision, then it succeeds and sets `resolvedAt`.
+- **AC-10:** Given a resolved/closed/cancelled Ticket, when an authorized `REOPENED` transition succeeds, then `workflowCycle` increments atomically, old Actions remain historical, and old-cycle completed Actions cannot satisfy or block the new cycle.
+- **AC-11:** Given an authenticated Requester, when dashboard data is retrieved, then counts/lists include only owned Tickets and rolling windows use one server-UTC `generatedAt` snapshot with inclusive documented boundaries.
+- **AC-12:** Given authenticated IT Staff/Admin, when staff dashboard data is retrieved, then current Action metrics include only current-cycle Actions whose parent Tickets are active; historical/terminal-parent Actions do not pollute current-work metrics.
+- **AC-13:** Given an Administrator, when Lab 4 staff behavior is used, then Actions Taken, staff dashboard, and final Ticket transitions are authorized consistently for support/testing while User Management remains available.
+- **AC-14:** Given a dashboard actionable card/list item, when activated, then it opens the documented Queue/My Tickets/Ticket Detail drill-down with matching filter intent.
+- **AC-15:** Given concurrent parent/child changes, when stale `expectedTicketVersion` or `expectedActionVersion` is submitted, then `409 STALE_UPDATE` is returned and no projection/event partial write occurs.
+- **AC-16:** Given the Lab 3 database state, when Lab 4 migration runs, then all existing rows/relationships remain valid, Ticket version/cycle/resolution backfill follows the contract, and legacy no-Action Tickets are preserved.
+- **AC-17:** Given the Lab 4 seed runs repeatedly, then cycle-aware Action/Event/dashboard fixtures exist without accumulating duplicates.
+- **AC-18:** Given each Action create/edit/reassign/start/complete/cancel mutation, when it succeeds, then exactly one immutable Action event captures authenticated actor and resulting revisions plus relevant status/assignee metadata.
+- **AC-19:** Given repeated clicks or recoverable failures, when a Lab 4 form retries, then duplicate Actions are prevented and entered data is preserved where recovery is possible.
+- **AC-20:** Given any major Lab 4 screen on desktop/tablet/mobile, when rendered and operated by keyboard, then required controls remain visible/usable with no material clipping, overlap, or page-level horizontal overflow.
+- **AC-21:** Given the final Lab 4 integrated state, when representative Labs 1-3 regression tests run, then actual results are recorded without rewriting completed Lab 3 history; any Lab 4-required correction follows the Lab 4 branch/review flow.
+- **AC-22:** Given final verification, when required unit/API/integration/UI/style/responsive/authorization/workflow/migration/regression/performance-smoke/E2E suites run, then `tests.md` traceability and final statuses match actual repository evidence.
 
 Every Acceptance Criterion maps to at least one planned test in `docs/lab-04/tests.md`.
 
@@ -284,13 +318,15 @@ Every Acceptance Criterion maps to at least one planned test in `docs/lab-04/tes
 
 ## 12. Assumptions and Decisions
 
-- **AD-01:** Page 6 of the Lab 4 handout clarifies Action Date/Time as Action create date/time, so it is backend-generated `createdAt`, not an arbitrary client-editable timestamp.
-- **AD-02:** The submission requirement to demonstrate assign/edit/status transition/complete/cancel is implemented with `assigneeId` plus the minimal four-state Action lifecycle `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`.
-- **AD-03:** `performedById` is assigned by the backend when work is completed; this keeps “Performed by (auto)” truthful even when creator, assignee, and actual completing staff member differ.
-- **AD-04:** Cancelled Actions are terminal and do not block Ticket resolution because they no longer represent incomplete work.
-- **AD-05:** Zero Actions Taken do not by themselves block Ticket resolution; the handout defers the rule that incomplete Actions block resolution, not a rule requiring at least one Action.
-- **AD-06:** Administrator receives full Actions Taken behavior as explicitly required in Lab 4 but does not gain normal Ticket status-transition authority; this preserves Lab 3's separation of Administrator and IT Staff Ticket workflow except where Lab 4 explicitly extends Administrator behavior.
-- **AD-07:** Dashboard rolling windows are UTC server-time windows of 7 days for recently updated and 30 days for recently resolved. UI formatting may localize timestamps, but calculation boundaries stay server-authoritative.
-- **AD-08:** Administrator reuses the IT Staff dashboard without extra account KPIs to keep analytics concise and inside required scope.
-- **AD-09:** Existing Project #3 is reused for Lab 4 because it already contains the required Kanban statuses and prior individual sprint history; Lab 4 Issues are added as new items.
-- **AD-10:** Findings that are purely historical Lab 3 defects are not fixed by modifying old Lab 3 branches. If an explicit Lab 4 requirement cannot be met without changing shared code, that change is new Lab 4 work and must be reviewed in the relevant Lab 4 Issue.
+- **AD-01:** The handout explicitly says “Action create date/time” for Ticket Detail. Therefore `actionDateTime=createdAt` is an immutable audit timestamp. A separate backdated occurrence timestamp is not added because that would be a new field not required by the source.
+- **AD-02:** The submission evidence requires assign/edit/status transition/complete/cancel, so the minimal four-state Action lifecycle remains `PLANNED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`.
+- **AD-03:** Assignee is accountable, not advisory. Only the current assignee may complete; another permitted staff member must reassign first. This makes auto `Performed by` auditable and meaningful.
+- **AD-04:** Lab 4 explicitly says Administrator may “Perform IT Staff behavior” for support/testing. Therefore Administrator receives the same Lab 4 Action/status workflow authority on accessible Tickets, even though Lab 3 previously kept normal status transitions IT Staff-only. This is a new Lab 4 rule, not a historical Lab 3 rewrite.
+- **AD-05:** Resolution requires positive current-cycle work evidence: at least one completed Action and no active Action. Zero/cancelled-only Actions do not prove completed work.
+- **AD-06:** Reopening increments a workflow cycle so historical completed work cannot satisfy a later resolution.
+- **AD-07:** Follow-up Required is planning/evidence metadata. It does not independently block resolution after completion; any additional required work must exist as a new current-cycle Action and is then covered by the active-Action gate.
+- **AD-08:** Seven-day recently-updated window represents one operational week; 30-day recently-resolved window represents a concise one-month reference period. Both use one server UTC snapshot, inclusive lower/upper bounds, and deterministic id tie-breaks.
+- **AD-09:** Global create UUID remains a database uniqueness key. Privacy/authorization checks and immutable create fingerprint are still required to distinguish safe replay from conflicting reuse after the mutable Action projection changes.
+- **AD-10:** Append-only Action events are introduced because mutable Action projection alone cannot prove who reassigned/edited/transitioned work over time. Events are audit evidence, not a second editable workflow.
+- **AD-11:** Existing Project #3 is reused because it already contains the required Kanban statuses and prior individual sprint history; Lab 4 Issues are new items.
+- **AD-12:** Purely historical Lab 3 defects are not fixed by modifying old Lab 3 branches. If an explicit Lab 4 requirement needs shared-code change, that change is new Lab 4 work and follows the Lab 4 review flow.

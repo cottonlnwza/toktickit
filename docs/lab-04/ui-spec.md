@@ -103,7 +103,7 @@ Add an **Actions Taken** section below the main Ticket operational summary and b
 
 Each Action item shows:
 
-- Action Date/Time (`createdAt`, read-only)
+- Action create Date/Time (`createdAt`, immutable/read-only)
 - Status badge
 - Action Description
 - Result (`Not completed yet` when null)
@@ -112,6 +112,7 @@ Each Action item shows:
 - Follow-Up Required (`Yes/No` text plus non-color cue)
 - Follow-up Note when required/present
 - Attachment Notes when present
+- Workflow Cycle (current or historical)
 - Last Updated
 
 Stable Ticket-detail ordering is oldest Action first so the work sequence reads chronologically.
@@ -134,7 +135,8 @@ Permitted staff see the list plus role-authorized controls.
 - Follow-up Note * only when Follow-Up Required is Yes
 - Attachment Notes (optional)
 - Result is not required during initial `PLANNED` creation and may be omitted.
-- Action Date/Time is shown as a read-only server value after creation, not as an editable client field.
+- Action create Date/Time is shown as an immutable server value after creation, matching the handout wording; no backdated occurrence-time field is invented.
+- Current Ticket workflow cycle is read-only context; new Actions are created only in that current cycle.
 - `clientRequestId` is generated/managed by the client and never shown as a normal editable field.
 
 Primary action: **Create Action**. During submission, relevant inputs/actions are disabled and a busy state is visible.
@@ -150,16 +152,17 @@ Allowed only for `PLANNED` or `IN_PROGRESS` Actions:
 - Follow-up Note
 - Attachment Notes
 
-The UI carries the current `version` invisibly as the concurrency token. On `STALE_UPDATE`, show a conflict message and a **Reload latest** action; do not silently overwrite the newer record.
+The UI carries both current `action.version` and parent `ticket.version` invisibly as concurrency tokens. Every Action aggregate write sends both required revisions. On `STALE_UPDATE`, show a conflict message and a **Reload latest** action; do not silently overwrite the newer parent or child record.
 
 #### Action status controls
 
 - `PLANNED`: Start, Cancel.
-- `IN_PROGRESS`: Complete, Cancel.
+- `IN_PROGRESS`: Complete **only when the authenticated user is the current assignee**; otherwise show Reassign (if authorized) and Cancel.
+- A non-assignee cannot complete directly; to perform the work, an authorized user must first reassign the Action and receive the refreshed revisions.
 - `COMPLETED`: no status mutation controls.
 - `CANCELLED`: no status mutation controls.
 
-Complete requires Result. Complete and Cancel use explicit confirmation because they are terminal Action states. Cancel confirmation explains that cancelled Actions no longer block Ticket resolution.
+Complete requires Result and current-assignee identity. Complete and Cancel use explicit confirmation because they are terminal Action states. Cancel confirmation explains that cancelled Actions do not count as completed-work evidence and do not by themselves satisfy Ticket resolution.
 
 ### 6.5 Validation and feedback
 
@@ -167,6 +170,7 @@ Complete requires Result. Complete and Cancel use explicit confirmation because 
 - Whitespace-only required text is invalid.
 - Follow-up Note appears/becomes required immediately when Follow-Up Required = Yes.
 - Inactive/invalid assignee response is shown near Assignee and preserves other form values.
+- `ACTION_ASSIGNEE_MISMATCH`, `PARENT_TICKET_NOT_ACTIVE`, and stale parent/child conflicts use distinct text so the user knows whether to reassign, reopen/reload the Ticket, or reload newer data.
 - Safe network/API failure preserves recoverable entered values.
 - Success updates the list from the server response and clears only the completed form.
 - Replay-safe response must not append a duplicate visible Action.
@@ -174,15 +178,25 @@ Complete requires Result. Complete and Cancel use explicit confirmation because 
 ## 7. Ticket Workflow and Resolution Feedback
 
 - Existing Ticket status control shows only transitions allowed from the current status.
+- IT Staff and Administrator receive the same Lab 4 final Ticket transition controls on accessible Tickets for support/testing; Requesters do not.
 - UI filtering is guidance only; backend remains authoritative.
-- `Resolved`, `Closed`, `Cancelled`, and `Reopened` keep explicit confirmation behavior from Lab 3.
-- If resolution is blocked by non-terminal Actions, show a clear message such as: `Complete or cancel all open Actions Taken before resolving this Ticket.`
-- The message may link/scroll to the Actions Taken section.
+- `Resolved`, `Closed`, `Cancelled`, and `Reopened` use explicit confirmation.
+- Resolve eligibility is current-cycle only: at least one `COMPLETED` Action is required and zero `PLANNED`/`IN_PROGRESS` Actions may remain. Zero Actions or cancelled-only Actions do not satisfy the gate.
+- Gate feedback states the exact problem, for example `Complete at least one Action Taken in the current work cycle before resolving this Ticket.` or `Complete or cancel all open Actions Taken in the current work cycle before resolving this Ticket.`
+- Reopen confirmation explains that a new workflow cycle starts and earlier Actions remain historical. Ticket Detail visually groups/labels historical versus current-cycle Actions.
+- The gate message may link/scroll to the Actions Taken section.
 - On `STALE_UPDATE`, show conflict feedback and offer Reload latest; do not auto-resubmit a stale mutation.
-- Successful Ticket status mutation refreshes Ticket summary/status and the Action-related resolution eligibility.
+- Successful Ticket/Action mutation refreshes Ticket `version`, workflow cycle, summary/status, current-cycle Actions, and resolution eligibility from the server response or authorized reload.
 - Requester `Problem Appears Resolved` remains visually described as advisory, not a formal status change.
 
-## 8. Badges and State Labels
+## 8. Action Auditability Presentation
+
+- The immutable Action event log is backend audit evidence; the normal Requester UI does not expose internal audit-event metadata.
+- Staff/Admin Ticket Detail may show a concise read-only change history when useful for verification, but there are no edit/delete controls for events.
+- Reassignment, Start, Complete, and Cancel feedback identifies the actor from the authenticated server response rather than trusting client-supplied identity.
+- Historical workflow-cycle labels make clear that an old completed Action is previous-cycle evidence and is not current work.
+
+## 9. Badges and State Labels
 
 ### Action status
 
@@ -193,14 +207,14 @@ Complete requires Result. Complete and Cancel use explicit confirmation because 
 
 Every badge includes readable text. Existing Ticket Status, Requested Priority, IT Priority, and role badge conventions continue unchanged.
 
-## 9. Public vs Private Content Continuity
+## 10. Public vs Private Content Continuity
 
 - Public Comments remain visibly labeled public/shared.
 - Internal Notes retain the persistent `Internal - not visible to Requester` warning treatment.
 - Actions Taken are not treated as Internal Notes. Requesters can read Actions Taken on owned Tickets as required by Lab 4.
 - No Lab 4 control causes Internal Note content to appear in Requester dashboard/Ticket Action payloads.
 
-## 10. Processing, Empty, Error, and Conflict States
+## 11. Processing, Empty, Error, and Conflict States
 
 Major Lab 4 screens/components define meaningful handling for:
 
@@ -217,7 +231,7 @@ Major Lab 4 screens/components define meaningful handling for:
 
 Errors include text and do not rely on red color alone. Retry/reload actions remain keyboard reachable.
 
-## 11. Accessibility Rules
+## 12. Accessibility Rules
 
 - Native labels or `aria-label`/`aria-labelledby` for every interactive control.
 - Icon-only controls require accessible label and tooltip; prefer visible text for important actions.
@@ -228,7 +242,7 @@ Errors include text and do not rely on red color alone. Retry/reload actions rem
 - Tables use headers; card alternatives retain visible field labels.
 - Dashboard cards used as links have meaningful destinations in their accessible names.
 
-## 12. Responsive Layout Rules
+## 13. Responsive Layout Rules
 
 ### Desktop
 
@@ -249,7 +263,7 @@ Errors include text and do not rely on red color alone. Retry/reload actions rem
 - Forms are one column.
 - Terminal/status actions remain touch-friendly and wrap rather than overflow.
 
-## 13. Visual and Accessibility Checklist
+## 14. Visual and Accessibility Checklist
 
 Final evidence must verify and record:
 
@@ -259,7 +273,9 @@ Final evidence must verify and record:
 - [ ] Actions Taken create/list/edit/status states are visually distinct and understandable.
 - [ ] Read-only server-generated Action fields are visually distinct from editable fields.
 - [ ] Follow-up conditional validation is placed at the field.
-- [ ] Ticket resolution-gate/conflict feedback is clear and non-color-only.
+- [ ] Current versus historical workflow cycles are clear and old-cycle Actions are not presented as current work.
+- [ ] Assignee-only completion and reassignment path are understandable.
+- [ ] Ticket resolution-gate/conflict feedback distinguishes missing completed evidence, open Actions, and stale state and is non-color-only.
 - [ ] Public Comments, Internal Notes, and Actions Taken remain visually distinguishable.
 - [ ] Keyboard focus is visible on all required actions.
 - [ ] Desktop `>=992px` has no material clipping/overlap/overflow.
@@ -268,7 +284,7 @@ Final evidence must verify and record:
 - [ ] Long descriptions/results/notes wrap safely.
 - [ ] Loading, empty, forbidden, conflict, and safe-failure states are captured where required.
 
-## 14. Required Screenshot Paths
+## 15. Required Screenshot Paths
 
 Minimum repository evidence structure from the handout:
 
