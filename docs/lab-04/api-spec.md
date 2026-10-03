@@ -193,7 +193,7 @@ Allowed transitions:
 
 | From | To |
 |---|---|
-| `PLANNED` | `IN_PROGRESS`, `CANCELLED` |
+| `PLANNED` | `IN_PROGRESS`, `COMPLETED`, `CANCELLED` |
 | `IN_PROGRESS` | `COMPLETED`, `CANCELLED` |
 | `COMPLETED` | none |
 | `CANCELLED` | none |
@@ -248,7 +248,17 @@ Action mutations append immutable `ActionTakenEvent` rows inside the same transa
 
 Event fields include event type, actor, Ticket/Action ids, workflow cycle, resulting Ticket/Action versions, timestamp, and relevant status/assignee before/after metadata. Content-edit events record changed field names rather than duplicating full mutable text.
 
+### Audit invariants
+
+- Canonical event order is `actionVersion asc, id asc`.
+- `CREATED` is version 0; each later successful mutation emits exactly one event for the resulting Action version. Database uniqueness is `UNIQUE(actionTakenId, actionVersion)`.
+- A single edit request that changes content and assignee emits one `UPDATED` event with all changed fields and assignee before/after snapshots.
+- Exact idempotent create replay emits no new event and does not change Ticket/Action versions.
+- Validation, authorization, protected-not-found, stale-version, and domain-conflict failures emit no event and perform no projection mutation.
+
 ## 10. Requester Dashboard
+
+Dashboard routes intentionally use `/api/dashboards/*` because these are role-specific read models, not Ticket-operation commands under `/api/staff/*`; no compatibility aliases are created.
 
 ### GET `/api/dashboards/requester`
 
@@ -332,7 +342,8 @@ Rules:
 - `byItPriority` uses active-status Tickets and includes all four priorities with zeros.
 - `recentUrgentTickets` max 5.
 - `myOpenActions` and `myRecentActions` include only Actions whose parent Ticket is active and whose `workflowCycle` equals the parent Ticket current cycle. Historical earlier-cycle/terminal-parent Actions are excluded from current-work dashboard metrics.
-- `myRecentActions` max 5 and includes current-cycle active-parent Actions where current User is assignee or performer, ordered `updatedAt desc, id desc`.
+- `myOpenActions` counts only current-cycle `PLANNED`/`IN_PROGRESS` Actions on active parent Tickets where current User is the current assignee.
+- `myRecentActions` max 5 and includes current-cycle active-parent Actions where current User is the current assignee or `performedBy`; `createdBy` alone does not qualify. Order is `updatedAt desc, id desc`.
 - Administrator uses the same payload contract; `myTickets` and `myOpenActions` are based on Administrator's own User id where applicable.
 
 ## 12. Dashboard Drill-Down Contract

@@ -156,13 +156,13 @@ The UI carries both current `action.version` and parent `ticket.version` invisib
 
 #### Action status controls
 
-- `PLANNED`: Start, Cancel.
+- `PLANNED`: Start, Complete, Cancel. Direct Complete supports one-step work without forcing a ceremonial Start.
 - `IN_PROGRESS`: Complete **only when the authenticated user is the current assignee**; otherwise show Reassign (if authorized) and Cancel.
 - A non-assignee cannot complete directly; to perform the work, an authorized user must first reassign the Action and receive the refreshed revisions.
 - `COMPLETED`: no status mutation controls.
 - `CANCELLED`: no status mutation controls.
 
-Complete requires Result and current-assignee identity. Complete and Cancel use explicit confirmation because they are terminal Action states. Cancel confirmation explains that cancelled Actions do not count as completed-work evidence and do not by themselves satisfy Ticket resolution.
+Complete requires Result and current-assignee identity. Follow-Up Required/Note is planning evidence and does not independently block resolution after completion; any unresolved follow-up that must block resolution is represented as a separate current-cycle Action. Complete and Cancel use explicit confirmation because they are terminal Action states. Cancel confirmation explains that cancelled Actions do not count as completed-work evidence and do not by themselves satisfy Ticket resolution.
 
 ### 6.5 Validation and feedback
 

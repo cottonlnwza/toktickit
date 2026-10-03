@@ -22,21 +22,26 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-03 | Authorization | FR-07 / AC-03 | Requester Action visibility/write restriction | Owned Actions across cycles readable; writes forbidden | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-04 | API | BR-10, BR-11 / AC-01, AC-04 | Assignee validation | Active IT Staff/Admin accepted; inactive/Requester rejected `409 INACTIVE_ASSIGNEE` | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-05 | Concurrency/API | BR-42-BR-44 / AC-04, AC-15 | Edit with parent+child CAS | Both revisions must match; stale parent or Action causes 409 and zero partial writes | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-06 | Workflow/API | BR-13 / AC-05 | Action transitions | Valid edges succeed; valid-but-disallowed state edge returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-07 | Workflow/API | BR-15 / AC-06 | Assignee-only completion | Assignee succeeds; non-assignee gets 409 until reassigned; performer=assignee | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-06 | Workflow/API | BR-13 / AC-05 | Action transitions | PLANNED -> IN_PROGRESS/COMPLETED/CANCELLED and IN_PROGRESS -> COMPLETED/CANCELLED succeed; disallowed state edge returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-07 | Workflow/API | BR-15 / AC-06 | Assignee-only completion | Current assignee may complete from PLANNED or IN_PROGRESS; non-assignee gets 409 until reassigned; performer=assignee | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-08 | Validation/API | BR-07, BR-08, BR-44 / AC-06, AC-07 | Completion/follow-up validation taxonomy | Missing Result/follow-up Note => deterministic 400 VALIDATION_ERROR | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-09 | Workflow/API | BR-04 / AC-01, AC-04 | Parent Ticket eligibility | Action create/edit/status blocked with `409 PARENT_TICKET_NOT_ACTIVE` on terminal parent | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-10 | Audit/API | BR-19 / AC-18 | Append-only Action events | Exactly one event per successful create/edit/reassign/start/complete/cancel with actor/revisions | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-10A | Audit/API | BR-19 / AC-18 | Event invariants and failed mutation behavior | Event order/version uniqueness deterministic; combined edit+reassign emits one UPDATED event; replay/stale/failed mutations append none | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-10B | Authorization/Idempotency | BR-18, BR-44 / AC-02, AC-03 | Protected UUID reuse | UUID collision under inaccessible Ticket returns safe 404; authorized-context fingerprint mismatch returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-11 | Authorization | FR-16 / AC-03, AC-13 | Direct role authorization | Requester cannot mutate; Admin has Lab 4 staff behavior; protected data not leaked | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
 | API-12 | Workflow/API | BR-25 / AC-08 | Resolve without completed current-cycle evidence | Zero Actions/cancelled-only => 409 RESOLUTION_GATE_BLOCKED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-13 | Workflow/API | BR-25 / AC-08 | Resolve with active current-cycle Action | Any PLANNED/IN_PROGRESS => 409; no Ticket mutation | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-14 | Workflow/API | BR-25 / AC-09 | Resolve with valid completed evidence | >=1 COMPLETED and no active current-cycle Action succeeds, sets resolvedAt | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
+| API-14A | Workflow/API | BR-08, BR-25 / AC-07, AC-09 | Follow-up metadata vs resolution gate | Completed Action with followUpRequired=true does not block by metadata alone; separate non-terminal follow-up Action does block | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-15 | Workflow/API | BR-24 / AC-10 | Reopen workflow cycle | REOPENED increments cycle; old Actions remain history and cannot satisfy new resolution | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-16 | Workflow/API | BR-21-BR-23 / AC-09, AC-13 | Final Ticket matrix + Admin parity | IT Staff/Admin same Lab 4 final transition authority; invalid state edge deterministic 409 | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-17 | Regression/API | BR-26 / AC-08, AC-09 | Requester appears-resolved | Advisory only; never changes formal status/gate | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-18 | Concurrency/API | BR-42-BR-44 / AC-15 | Aggregate stale Ticket workflow | Stale expectedTicketVersion => 409, no status/cycle change | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-19 | Dashboard/API | BR-29-BR-32 / AC-11 | Requester dashboard ownership + exact windows | Owned only; inclusive UTC cutoffs; stable id tie-break; zero/empty explicit | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
+| API-19A | Dashboard/API | BR-31-BR-32 / AC-11 | Exact time-window boundaries | Exact lower bound included, exact generatedAt included, future timestamp excluded, equal-time rows ordered by id desc | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
 | API-20 | Dashboard/API | BR-33-BR-39 / AC-12 | Staff dashboard current-work scope | Active-parent/current-cycle Actions only; historical/terminal-parent Actions excluded | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
+| API-20A | Dashboard/API | BR-38-BR-39 / AC-12 | Current-user Action predicate | myOpenActions=current assignee only; myRecentActions=current assignee OR performer; creator-only Action excluded | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
 | API-21 | Authorization | BR-40 / AC-13 | Administrator staff-dashboard reuse | Admin allowed with same metric semantics; Requester forbidden | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
 | API-22 | Dashboard/API | BR-41 / AC-14 | Drill-down metadata/query intent | Links/query metadata map to supported detailed views | `server/tests/lab-04/requester-dashboard.api.test.ts`; `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
 | MIG-01 | Migration/Integration | FR-18 / AC-16 | Lab 3-shaped DB preservation | Earlier rows/relationships survive; new schema valid | `server/tests/lab-04/migration.integration.test.ts` | Planned |
@@ -67,12 +72,12 @@ Required levels from the handout are represented below: unit, API/integration, U
 | AC-04 | API-04, API-05, API-10, UI-01, E2E-01 |
 | AC-05 | UNIT-01, API-06, API-10, UI-01, E2E-01 |
 | AC-06 | UNIT-01, UNIT-02, API-07, API-08, API-10, UI-01, E2E-01 |
-| AC-07 | UNIT-02, API-08, UI-01, E2E-01 |
+| AC-07 | UNIT-02, API-08, API-14A, UI-01, E2E-01 |
 | AC-08 | UNIT-03, API-12, API-13, API-17, UI-04, E2E-02 |
-| AC-09 | UNIT-03, API-14, API-16, API-17, UI-04, E2E-02 |
+| AC-09 | UNIT-03, API-14, API-14A, API-16, API-17, UI-04, E2E-02 |
 | AC-10 | UNIT-03, API-15, UI-04, E2E-02 |
-| AC-11 | UNIT-04, API-19, UI-02, E2E-03 |
-| AC-12 | UNIT-04, API-20, PERF-01, UI-03, E2E-03 |
+| AC-11 | UNIT-04, API-19, API-19A, UI-02, E2E-03 |
+| AC-12 | UNIT-04, API-20, API-20A, PERF-01, UI-03, E2E-03 |
 | AC-13 | API-11, API-16, API-21, UI-03, UI-04, E2E-02, E2E-03 |
 | AC-14 | API-22, UI-02, UI-03, E2E-03 |
 | AC-15 | API-05, API-18, UI-04, E2E-01, E2E-02 |
@@ -112,7 +117,7 @@ cd client && npm test
 npx playwright test e2e/lab-04
 ```
 
-Release verification must also run the documented existing Labs 1-3 regression commands from the integrated `lab4-staging`/final `main` state. No result is marked Pass until the command actually completes successfully.
+Release verification must also run the documented existing Labs 1-3 regression commands from the integrated `lab4-staging`/final `main` state. No result is marked Pass until the command actually completes successfully. This repository currently has no hosted GitHub Actions check configured for this docs-only contract PR; therefore exact-head evidence for Issue #63 is local `git show --check HEAD` plus the contract sanity script, reported in the PR after the final docs commit.
 
 ## 6. TDD Checkpoint Rule
 
