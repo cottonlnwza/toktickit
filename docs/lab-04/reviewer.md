@@ -15,6 +15,7 @@ This file records only review events that actually occur. Do not add reviewer id
 | Issue | PR | Reviewer | Review / Comment | Author Response | Approval | Merge | Notes |
 |---|---|---|---|---|---|---|---|
 | #63 Sprint 4 Engineering Contract | [#71](https://github.com/cottonlnwza/toktickit/pull/71) | Tanaboonnnnn | Two requested-changes rounds refined resolution cycles, auditability, concurrency, idempotency, dashboard boundaries, and evidence semantics. Final review at HEAD `74762ad` found no remaining blocker. | Corrections were pushed in `7afcfd8` and `74762ad`, with exact-head verification and re-review requests recorded on the PR. | Approved | Peer merged to `lab4-staging` as `4196e6f` | Verified GitHub approval and merge on 2026-10-03; Issue #63 moved to Done. |
+| #64 Actions Taken Data, Migration, API, and Seed Foundation | [#72](https://github.com/cottonlnwza/toktickit/pull/72) | Pending | Pending | Implementation and executed test evidence are pushed; waiting for peer review. | Pending | Pending | PR opened against `lab4-staging`; no approval or merge is claimed yet. |
 
 Additional rows are added only from verified GitHub history.
 
