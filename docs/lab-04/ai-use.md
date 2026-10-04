@@ -14,6 +14,7 @@ Additional tools/models are added only if actually used during Lab 4.
 |---|---|---|---|---|
 | 1 | Lab 4 handout review | Asked ChatGPT to read Lab 4 carefully before starting, following the same disciplined process used for earlier labs. | Requirement discovery and scope control before repository changes. | Lab 4 handout was read before Sprint 4 setup. |
 | 2 | Sprint setup | Authorized continuing Lab 4 work through Issue 1, with the explicit rule not to go back and repair completed Lab 3 work; stop when Issue 1 PR is waiting for peer review. | Defined workflow boundary and regression-handling rule for this work session. | Final Lab 3 `main` was synchronized, `lab4-staging` was created, Lab 4 Issues were decomposed, and Issue #63 PR #71 was opened for peer review. |
+| 3 | Issue #64 implementation | Authorized continuing Issue 2 through implementation and opening the PR for peer review. | Re-read the Lab 4 database/API requirements, introduced tests before implementation, then implemented the Actions Taken data/API/migration/seed foundation and reran regression. | Actions Taken schema/API/audit events, migration/backfill, idempotent seed data, concurrency checks, and server regression evidence were produced on the Lab 4 feature branch. |
 
 Only real later interactions may be appended.
 

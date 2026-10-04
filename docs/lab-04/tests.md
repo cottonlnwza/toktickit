@@ -12,24 +12,24 @@ Required levels from the handout are represented below: unit, API/integration, U
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
-| UNIT-01 | Unit | BR-12-BR-16 / AC-05, AC-06 | Action lifecycle + assignee completion rule | Only approved transitions; only current assignee may complete | `server/tests/lab-04/actions-taken.unit.test.ts` | Planned |
-| UNIT-02 | Unit | BR-06-BR-09 / AC-06, AC-07 | Action text/follow-up validation | Deterministic required/length/null behavior | `server/tests/lab-04/actions-taken.unit.test.ts` | Planned |
+| UNIT-01 | Unit | BR-12-BR-16 / AC-05, AC-06 | Action lifecycle + assignee completion rule | Only approved transitions; only current assignee may complete | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
+| UNIT-02 | Unit | BR-06-BR-09 / AC-06, AC-07 | Action text/follow-up validation | Deterministic required/length/null behavior | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
 | UNIT-03 | Unit | BR-24-BR-27 / AC-08-AC-10 | Cycle-aware Ticket resolution helper | Current cycle requires >=1 completed and zero active Actions; reopen increments cycle | `server/tests/lab-04/ticket-workflow.unit.test.ts` | Planned |
 | UNIT-04 | Unit | BR-28-BR-41 / AC-11, AC-12 | Dashboard calculations/boundaries | UTC snapshot, inclusive 7/30-day cutoffs, active-parent/current-cycle filters, tie-breaks | `server/tests/lab-04/dashboard.unit.test.ts` | Planned |
-| UNIT-05 | Unit | BR-18 / AC-02 | Immutable create fingerprint | Later Action edit does not alter replay fingerprint | `server/tests/lab-04/actions-taken.unit.test.ts` | Planned |
-| API-01 | API | FR-01-FR-06 / AC-01 | Create valid current-cycle Action | 201; creator/cycle/create time/version/event persisted; Ticket version increments | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-02 | API | BR-18 / AC-02 | Global UUID retry semantics | Exact original-intent replay after edit returns original without new versions/event; conflicting reuse 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-03 | Authorization | FR-07 / AC-03 | Requester Action visibility/write restriction | Owned Actions across cycles readable; writes forbidden | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-04 | API | BR-10, BR-11 / AC-01, AC-04 | Assignee validation | Active IT Staff/Admin accepted; inactive/Requester rejected `409 INACTIVE_ASSIGNEE` | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-05 | Concurrency/API | BR-42-BR-44 / AC-04, AC-15 | Edit with parent+child CAS | Both revisions must match; stale parent or Action causes 409 and zero partial writes | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-06 | Workflow/API | BR-13 / AC-05 | Action transitions | PLANNED -> IN_PROGRESS/COMPLETED/CANCELLED and IN_PROGRESS -> COMPLETED/CANCELLED succeed; disallowed state edge returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-07 | Workflow/API | BR-15 / AC-06 | Assignee-only completion | Current assignee may complete from PLANNED or IN_PROGRESS; non-assignee gets 409 until reassigned; performer=assignee | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-08 | Validation/API | BR-07, BR-08, BR-44 / AC-06, AC-07 | Completion/follow-up validation taxonomy | Missing Result/follow-up Note => deterministic 400 VALIDATION_ERROR | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-09 | Workflow/API | BR-04 / AC-01, AC-04 | Parent Ticket eligibility | Action create/edit/status blocked with `409 PARENT_TICKET_NOT_ACTIVE` on terminal parent | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-10 | Audit/API | BR-19 / AC-18 | Append-only Action events | Exactly one event per successful create/edit/reassign/start/complete/cancel with actor/revisions | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-10A | Audit/API | BR-19 / AC-18 | Event invariants and failed mutation behavior | Event order/version uniqueness deterministic; combined edit+reassign emits one UPDATED event; replay/stale/failed mutations append none | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| UNIT-05 | Unit | BR-18 / AC-02 | Immutable create fingerprint | Later Action edit does not alter replay fingerprint | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
+| API-01 | API | FR-01-FR-06 / AC-01 | Create valid current-cycle Action | 201; creator/cycle/create time/version/event persisted; Ticket version increments | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-02 | API | BR-18 / AC-02 | Global UUID retry semantics | Exact original-intent replay after edit returns original without new versions/event; conflicting reuse 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-03 | Authorization | FR-07 / AC-03 | Requester Action visibility/write restriction | Owned Actions across cycles readable; writes forbidden | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-04 | API | BR-10, BR-11 / AC-01, AC-04 | Assignee validation | Active IT Staff/Admin accepted; inactive/Requester rejected `409 INACTIVE_ASSIGNEE` | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-05 | Concurrency/API | BR-42-BR-44 / AC-04, AC-15 | Edit with parent+child CAS | Both revisions must match; stale parent or Action causes 409 and zero partial writes | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-06 | Workflow/API | BR-13 / AC-05 | Action transitions | PLANNED -> IN_PROGRESS/COMPLETED/CANCELLED and IN_PROGRESS -> COMPLETED/CANCELLED succeed; disallowed state edge returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-07 | Workflow/API | BR-15 / AC-06 | Assignee-only completion | Current assignee may complete from PLANNED or IN_PROGRESS; non-assignee gets 409 until reassigned; performer=assignee | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-08 | Validation/API | BR-07, BR-08, BR-44 / AC-06, AC-07 | Completion/follow-up validation taxonomy | Missing Result/follow-up Note => deterministic 400 VALIDATION_ERROR | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-09 | Workflow/API | BR-04 / AC-01, AC-04 | Parent Ticket eligibility | Action create/edit/status blocked with `409 PARENT_TICKET_NOT_ACTIVE` on terminal parent | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-10 | Audit/API | BR-19 / AC-18 | Append-only Action events | Exactly one event per successful create/edit/reassign/start/complete/cancel with actor/revisions | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-10A | Audit/API | BR-19 / AC-18 | Event invariants and failed mutation behavior | Event order/version uniqueness deterministic; combined edit+reassign emits one UPDATED event; replay/stale/failed mutations append none | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-10B | Authorization/Idempotency | BR-18, BR-44 / AC-02, AC-03 | Protected UUID reuse | UUID collision under inaccessible Ticket returns safe 404; authorized-context fingerprint mismatch returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
-| API-11 | Authorization | FR-16 / AC-03, AC-13 | Direct role authorization | Requester cannot mutate; Admin has Lab 4 staff behavior; protected data not leaked | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-11 | Authorization | FR-16 / AC-03, AC-13 | Direct role authorization | Requester cannot mutate; Admin has Lab 4 staff behavior; protected data not leaked | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-12 | Workflow/API | BR-25 / AC-08 | Resolve without completed current-cycle evidence | Zero Actions/cancelled-only => 409 RESOLUTION_GATE_BLOCKED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-13 | Workflow/API | BR-25 / AC-08 | Resolve with active current-cycle Action | Any PLANNED/IN_PROGRESS => 409; no Ticket mutation | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-14 | Workflow/API | BR-25 / AC-09 | Resolve with valid completed evidence | >=1 COMPLETED and no active current-cycle Action succeeds, sets resolvedAt | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
@@ -44,9 +44,9 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-20A | Dashboard/API | BR-38-BR-39 / AC-12 | Current-user Action predicate | myOpenActions=current assignee only; myRecentActions=current assignee OR performer; creator-only Action excluded | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
 | API-21 | Authorization | BR-40 / AC-13 | Administrator staff-dashboard reuse | Admin allowed with same metric semantics; Requester forbidden | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
 | API-22 | Dashboard/API | BR-41 / AC-14 | Drill-down metadata/query intent | Links/query metadata map to supported detailed views | `server/tests/lab-04/requester-dashboard.api.test.ts`; `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
-| MIG-01 | Migration/Integration | FR-18 / AC-16 | Lab 3-shaped DB preservation | Earlier rows/relationships survive; new schema valid | `server/tests/lab-04/migration.integration.test.ts` | Planned |
-| MIG-02 | Migration/Integration | Data 8.4 / AC-16 | Ticket backfill/cycle legacy semantics | version=0; cycle=1; resolvedAt approximation; no-Action legacy rows preserved | `server/tests/lab-04/migration.integration.test.ts` | Planned |
-| SEED-01 | Integration | FR-19 / AC-17 | Seed idempotency/coverage | Re-run no duplicates; multi-cycle Actions/events/dashboard inclusion-exclusion fixtures exist | `server/tests/lab-04/seed.integration.test.ts` | Planned |
+| MIG-01 | Migration/Integration | FR-18 / AC-16 | Lab 3-shaped DB preservation | Earlier rows/relationships survive; new schema valid | `server/tests/lab-04/migration.integration.test.ts` | Pass (Issue #64) |
+| MIG-02 | Migration/Integration | Data 8.4 / AC-16 | Ticket backfill/cycle legacy semantics | version=0; cycle=1; resolvedAt approximation; no-Action legacy rows preserved | `server/tests/lab-04/migration.integration.test.ts` | Pass (Issue #64) |
+| SEED-01 | Integration | FR-19 / AC-17 | Seed idempotency/coverage | Re-run no duplicates; multi-cycle Actions/events/dashboard inclusion-exclusion fixtures exist | `server/tests/lab-04/seed.integration.test.ts` | Pass (Issue #64) |
 | UI-01 | UI Component | FR-02-FR-07 / AC-01, AC-03-AC-07 | Actions UI | Cycle label, assignee accountability, create/edit/reassign/start/complete/cancel and deterministic errors | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
 | UI-02 | UI Component | FR-12 / AC-11, AC-14 | Requester Dashboard | Owned metrics/recent cards, empty/failure, drill-down | `client/tests/lab-04/RequesterDashboard.test.tsx` | Planned |
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, historical exclusions, Admin reuse, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Planned |
@@ -54,7 +54,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues | `client/tests/lab-04/ui-style.test.tsx` | Planned |
 | RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | No material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx` | Planned |
 | A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Focus visible; controls/dialogs labeled; status non-color-only | `client/tests/lab-04/accessibility.test.tsx` | Planned |
-| REG-01 | Regression | FR-18, BR-48 / AC-21, AC-22 | Server Labs 1-3 representative regression | Actual result recorded; no old-branch rewrite | Existing `server/tests/lab-01`, `lab-02`, `lab-03` suites | Planned |
+| REG-01 | Regression | FR-18, BR-48 / AC-21, AC-22 | Server Labs 1-3 representative regression | Actual result recorded; no old-branch rewrite | Existing `server/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #64) |
 | REG-02 | Regression | BR-48 / AC-21, AC-22 | Client Labs 1-3 representative regression | Existing permitted behavior remains covered | Existing `client/tests/lab-01`, `lab-02`, `lab-03` suites | Planned |
 | PERF-01 | Performance smoke | FR-15 / AC-12 | Dashboard/Action query smoke | Concise bounded payloads over seeded local data | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
 | E2E-01 | E2E | AC-01-AC-07, AC-15, AC-18 | Actions Taken flow | Create/assign/reassign/edit/start/assignee-complete/cancel + Requester read-only | `e2e/lab-04/actions-taken-flow.spec.ts` | Planned |
@@ -125,7 +125,15 @@ For Issues 2-5, planned automated tests for the Issue are introduced before or a
 
 ## 7. Final Results
 
-Not executed for Issue #63 because this Issue establishes the pre-implementation contract. Final statuses will be updated only from actual test output in later reviewed Lab 4 Issues.
+Issue #63 was documentation-only and did not claim implementation passes. Issue #64 now records actual backend-foundation evidence:
+
+- `npm run build` — Pass.
+- `npm run test:lab4:foundation` — Pass: 4 files, 17 tests.
+- Full server regression with `npx vitest run --no-file-parallelism` — Pass: 29 files, 203 tests.
+- Migration evidence covers Lab 3-shaped data preservation, Ticket `version=0`, `workflowCycle=1`, legacy `resolvedAt` backfill, and preservation of legacy no-Action Tickets.
+- Seed evidence runs twice and verifies zero/one/many Action coverage without duplicate `clientRequestId` rows.
+
+`API-10B` remains Planned because the current Staff/Admin accessibility model does not yet create a protected cross-Staff Ticket context that can exercise hidden-resource UUID reuse honestly; no pass is claimed for that case.
 
 ## 8. Known Limitations or Deferred Tests
 

@@ -35,6 +35,12 @@ model User {
   publicComments               PublicComment[]
   internalNotes                InternalNote[]
   sessions                     AuthSession[]
+  createdActions               ActionTaken[]      @relation("ActionCreatedBy")
+  assignedActions              ActionTaken[]      @relation("ActionAssignee")
+  performedActions             ActionTaken[]      @relation("ActionPerformedBy")
+  actionEvents                 ActionTakenEvent[] @relation("ActionEventActor")
+  actionEventsFromAssignee     ActionTakenEvent[] @relation("ActionEventFromAssignee")
+  actionEventsToAssignee       ActionTakenEvent[] @relation("ActionEventToAssignee")
 
   @@index([role, isActive])
 }
@@ -73,8 +79,14 @@ model Ticket {
   attachments                Attachment[]
   publicComments             PublicComment[]
   internalNotes              InternalNote[]
+  actionsTaken               ActionTaken[]
+  actionEvents               ActionTakenEvent[]
+  version                    Int               @default(0)
+  workflowCycle              Int               @default(1)
+  resolvedAt                 DateTime?
 
   @@index([requesterId, updatedAt])
+  @@index([requesterId, resolvedAt])
   @@index([requesterId, ticketNumber])
   @@index([requesterId, categoryId])
   @@index([requesterId, relatedSystemId])
@@ -86,6 +98,63 @@ model Ticket {
   @@index([updatedAt])
   @@index([categoryId, updatedAt])
   @@index([relatedSystemId, updatedAt])
+}
+
+model ActionTaken {
+  id               Int          @id @default(autoincrement())
+  ticketId         Int
+  workflowCycle    Int
+  clientRequestId  String       @unique
+  createFingerprint String
+  createdById      Int
+  actionDescription String
+  result           String?
+  status           ActionStatus @default(PLANNED)
+  assigneeId       Int
+  performedById    Int?
+  followUpRequired Boolean
+  followUpNote     String?
+  attachmentNotes  String?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  version          Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  ticket           Ticket       @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  createdBy        User         @relation("ActionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignee         User         @relation("ActionAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  performedBy      User?        @relation("ActionPerformedBy", fields: [performedById], references: [id], onDelete: Restrict)
+  events           ActionTakenEvent[]
+
+  @@index([ticketId, workflowCycle, createdAt, id])
+  @@index([assigneeId, status, updatedAt])
+  @@index([performedById, updatedAt])
+}
+
+model ActionTakenEvent {
+  id                 Int             @id @default(autoincrement())
+  actionTakenId      Int
+  ticketId           Int
+  workflowCycle      Int
+  eventType          ActionEventType
+  actorId            Int
+  fromStatus         ActionStatus?
+  toStatus           ActionStatus?
+  fromAssigneeId     Int?
+  toAssigneeId       Int?
+  actionVersion      Int
+  ticketVersion      Int
+  changedFields      Json?
+  createdAt          DateTime        @default(now())
+  actionTaken        ActionTaken     @relation(fields: [actionTakenId], references: [id], onDelete: Restrict)
+  ticket             Ticket          @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  actor              User            @relation("ActionEventActor", fields: [actorId], references: [id], onDelete: Restrict)
+  fromAssignee       User?           @relation("ActionEventFromAssignee", fields: [fromAssigneeId], references: [id], onDelete: Restrict)
+  toAssignee         User?           @relation("ActionEventToAssignee", fields: [toAssigneeId], references: [id], onDelete: Restrict)
+
+  @@unique([actionTakenId, actionVersion])
+  @@index([ticketId, workflowCycle, createdAt, id])
+  @@index([actorId, createdAt])
 }
 
 model Attachment {
@@ -167,5 +236,20 @@ enum TicketStatus {
   RESOLVED
   CLOSED
   REOPENED
+  CANCELLED
+}
+
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ActionEventType {
+  CREATED
+  UPDATED
+  STARTED
+  COMPLETED
   CANCELLED
 }
