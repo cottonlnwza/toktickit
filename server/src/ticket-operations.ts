@@ -1,4 +1,4 @@
-import type { TicketStatus } from "@prisma/client";
+import type { ActionStatus, TicketStatus } from "@prisma/client";
 
 export const allowedStatusTransitions: Record<TicketStatus, readonly TicketStatus[]> = {
   NEW: ["OPEN", "CANCELLED"],
@@ -13,6 +13,12 @@ export const allowedStatusTransitions: Record<TicketStatus, readonly TicketStatu
 
 export function canTransitionTicketStatus(from: TicketStatus, to: TicketStatus) {
   return allowedStatusTransitions[from].includes(to);
+}
+
+export function canResolveCurrentCycle(statuses: readonly ActionStatus[]) {
+  const hasCompleted = statuses.includes("COMPLETED");
+  const hasActive = statuses.some((status) => status === "PLANNED" || status === "IN_PROGRESS");
+  return hasCompleted && !hasActive;
 }
 
 export function validateCommunicationContent(value: unknown):
