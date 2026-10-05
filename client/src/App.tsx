@@ -1146,7 +1146,7 @@ function RequesterDashboard() {
   </main>;
 }
 
-function StaffDashboard() {
+function StaffDashboard({ focusSection }: { focusSection?: string }) {
   const [data, setData] = useState<StaffDashboardResponse | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
@@ -1169,6 +1169,13 @@ function StaffDashboard() {
     return () => { current = false; };
   }, [retryToken]);
 
+  useEffect(() => {
+    if (state !== "ready" || focusSection !== "my-actions") return;
+    const target = document.getElementById("my-actions");
+    target?.focus();
+    target?.scrollIntoView?.({ block: "start" });
+  }, [focusSection, state]);
+
   if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Dashboard...</div></main>;
   if (state === "error" || !data) return <main className="container py-4"><div className="alert alert-danger dashboard-failure" role="alert"><span>{error}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
 
@@ -1177,13 +1184,13 @@ function StaffDashboard() {
     <div className="dashboard-metrics">
       <a className="dashboard-metric" href="#ticket-queue?owner=unassigned" aria-label={`Unassigned Tickets ${data.metrics.unassignedTickets}`}><span>Unassigned Tickets</span><strong>{data.metrics.unassignedTickets}</strong></a>
       <a className="dashboard-metric" href={`#ticket-queue?owner=${data.drillDown.myTickets.split("owner=")[1] ?? ""}`} aria-label={`My Tickets ${data.metrics.myTickets}`}><span>My Tickets</span><strong>{data.metrics.myTickets}</strong></a>
-      <a className="dashboard-metric" href="#dashboard-my-actions" aria-label={`My Open Actions ${data.metrics.myOpenActions}`}><span>My Open Actions</span><strong>{data.metrics.myOpenActions}</strong></a>
+      <a className="dashboard-metric" href="#dashboard?section=my-actions" aria-label={`My Open Actions ${data.metrics.myOpenActions}`}><span>My Open Actions</span><strong>{data.metrics.myOpenActions}</strong></a>
       <div className="dashboard-metric" aria-label="Tickets by IT Priority"><span>Tickets by IT Priority</span><strong>{data.metrics.byItPriority.URGENT} urgent</strong><small>H {data.metrics.byItPriority.HIGH} · M {data.metrics.byItPriority.MEDIUM} · L {data.metrics.byItPriority.LOW}</small></div>
     </div>
     <section className="dashboard-panel"><h3>Status Summary</h3><div className="status-summary">{Object.entries(data.metrics.byStatus).map(([status, count]) => <span key={status}><strong>{count}</strong> {queueStatusLabel(status as TicketStatus)}</span>)}</div></section>
     <div className="dashboard-columns">
       <section className="dashboard-panel"><h3>Recent / Urgent Tickets</h3>{data.recentUrgentTickets.length === 0 ? <p className="dashboard-empty">No urgent active Tickets.</p> : <div className="dashboard-list">{data.recentUrgentTickets.map((ticket) => <article className="dashboard-row" key={ticket.id}><div><strong>{ticket.ticketNumber}</strong><span>{ticket.summary}</span><small>{ticket.itPriority} · {queueStatusLabel(ticket.status)} · {ticket.owner?.name ?? "Unassigned"} · {new Date(ticket.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${ticket.id}`; }}>Open</button></article>)}</div>}</section>
-      <section className="dashboard-panel" id="my-actions"><h3>My Recent Actions</h3>{data.myRecentActions.length === 0 ? <p className="dashboard-empty">No current Actions.</p> : <div className="dashboard-list">{data.myRecentActions.map((action) => <article className="dashboard-row" key={action.id}><div><strong>{action.ticketNumber}</strong><span>{action.actionDescription}</span><small>{action.status} · Assignee: {action.assignee.name}{action.performedBy ? ` · Performed by: ${action.performedBy.name}` : ""} · {new Date(action.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${action.ticketId}`; }}>Open</button></article>)}</div>}</section>
+      <section className="dashboard-panel" id="my-actions" tabIndex={-1}><h3>My Recent Actions</h3>{data.myRecentActions.length === 0 ? <p className="dashboard-empty">No current Actions.</p> : <div className="dashboard-list">{data.myRecentActions.map((action) => <article className="dashboard-row" key={action.id}><div><strong>{action.ticketNumber}</strong><span>{action.actionDescription}</span><small>{action.status} · Assignee: {action.assignee.name}{action.performedBy ? ` · Performed by: ${action.performedBy.name}` : ""} · {new Date(action.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${action.ticketId}`; }}>Open</button></article>)}</div>}</section>
     </div>
   </main>;
 }
@@ -1198,7 +1205,8 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
   const staffTicketMatch = routeHash.match(/^#staff-ticket-(\d+)$/);
   const staffTicketId = staffTicketMatch ? Number(staffTicketMatch[1]) : null;
   const userManagementRequested = routeHash === "#user-management";
-  const dashboardRequested = routeHash === "#dashboard" || routeHash === "#dashboard-my-actions";
+  const dashboardRequested = routeHash === "#dashboard" || routeHash.startsWith("#dashboard?");
+  const dashboardSection = dashboardRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("section") ?? undefined : undefined;
   const ticketQueueRequested = routeHash === "#ticket-queue" || routeHash.startsWith("#ticket-queue?");
   const ticketQueueOwner = ticketQueueRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("owner") ?? "" : "";
   const navigation = user.role === "REQUESTER"
@@ -1225,7 +1233,7 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
         </div>
       </header>
       {dashboardRequested ? (
-        user.role === "REQUESTER" ? <RequesterDashboard /> : <StaffDashboard />
+        user.role === "REQUESTER" ? <RequesterDashboard /> : <StaffDashboard focusSection={dashboardSection} />
       ) : ticketQueueRequested && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
         <StaffTicketQueue initialOwner={ticketQueueOwner} />
       ) : userManagementRequested && user.role !== "ADMINISTRATOR" ? (
@@ -1397,6 +1405,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const [ticketSystemFilter, setTicketSystemFilter] = useState("");
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("");
+  const [ticketScopeFilter, setTicketScopeFilter] = useState<"" | "open">("");
   const [ticketSortBy, setTicketSortBy] = useState<MyTicketsQuery["sortBy"]>("updatedAt");
   const [ticketSortDirection, setTicketSortDirection] = useState<MyTicketsQuery["sortDirection"]>("desc");
   const [ticketPage, setTicketPage] = useState(1);
@@ -1418,9 +1427,15 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
       if (window.location.hash.startsWith("#my-tickets")) {
         setActiveView("myTickets");
         const query = window.location.hash.includes("?") ? window.location.hash.split("?", 2)[1] : "";
-        const statusValue = new URLSearchParams(query).get("currentStatus");
+        const parameters = new URLSearchParams(query);
+        const statusValue = parameters.get("currentStatus");
+        const scopeValue = parameters.get("scope");
         if (statusValue && ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"].includes(statusValue)) {
           setTicketStatusFilter(statusValue);
+          setTicketScopeFilter("");
+        } else if (scopeValue === "open") {
+          setTicketScopeFilter("open");
+          setTicketStatusFilter("");
         }
       }
       if (window.location.hash === "#create-ticket") setActiveView("createTicket");
@@ -1448,6 +1463,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
       relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
       requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
       currentStatus: ticketStatusFilter ? ticketStatusFilter as NonNullable<MyTicketsQuery["currentStatus"]> : undefined,
+      scope: ticketScopeFilter || undefined,
       sortBy: ticketSortBy,
       sortDirection: ticketSortDirection,
       page: ticketPage,
@@ -1480,6 +1496,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     ticketSystemFilter,
     ticketPriorityFilter,
     ticketStatusFilter,
+    ticketScopeFilter,
     ticketSortBy,
     ticketSortDirection,
     ticketPage,
@@ -1746,6 +1763,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketSortBy("updatedAt");
     setTicketSortDirection("desc");
     setTicketPage(1);
@@ -1773,6 +1791,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketPage(1);
   }
 
@@ -1885,7 +1904,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const selectedRequester = requesterContext.selectedRequester;
   const showSelector = !selectedRequester;
   const hasMyTicketsQuery = Boolean(
-    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
+    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter || ticketScopeFilter,
   );
   const resolutionIndicationEligible = ticketDetail
     ? ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticketDetail.currentStatus)
@@ -2197,7 +2216,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
               </div>
               <div>
                 <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
-                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
+                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketScopeFilter(""); setTicketPage(1); }}>
                   <option value="">All statuses</option>
                   <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option>
                   <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option>

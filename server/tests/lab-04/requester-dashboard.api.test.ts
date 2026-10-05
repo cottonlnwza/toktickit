@@ -66,4 +66,19 @@ describe("Lab 4 Requester dashboard", () => {
     expect(response.status).toBe(403);
     expect(response.body.error?.code).toBe("FORBIDDEN");
   });
+
+  it("API-22 applies the Requester open-ticket drill-down scope to active statuses", async () => {
+    const prisma = getPrisma();
+    const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
+    const open = await createIssue36Ticket(requester.id, { summary: "Open scoped", status: "OPEN" });
+    const reopened = await createIssue36Ticket(requester.id, { summary: "Reopened scoped", status: "REOPENED" });
+    await createIssue36Ticket(requester.id, { summary: "Resolved excluded", status: "RESOLVED" });
+    await createIssue36Ticket(requester.id, { summary: "Cancelled excluded", status: "CANCELLED" });
+    const { agent } = await loginIssue36(fixtureUsers.requesterA);
+
+    const response = await agent.get("/api/tickets/mine?scope=open&pageSize=20");
+    expect(response.status).toBe(200);
+    expect(response.body.items.map((item: { id: number }) => item.id)).toEqual(expect.arrayContaining([open.id, reopened.id]));
+    expect(response.body.items.every((item: { currentStatus: string }) => ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(item.currentStatus))).toBe(true);
+  });
 });

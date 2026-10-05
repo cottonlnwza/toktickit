@@ -340,6 +340,7 @@ export interface MyTicketsQuery {
   relatedSystemId?: number;
   requestedPriority?: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   currentStatus?: TicketStatus;
+  scope?: "open";
   sortBy?: "createdAt" | "updatedAt" | "requestedPriority" | "ticketNumber";
   sortDirection?: "asc" | "desc";
   page?: number;

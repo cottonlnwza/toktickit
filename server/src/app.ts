@@ -1900,6 +1900,7 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
   const relatedSystemId = parseOptionalId("relatedSystemId");
   const requestedPriority = req.query.requestedPriority;
   const currentStatus = req.query.currentStatus;
+  const scope = req.query.scope;
   const sortBy = req.query.sortBy ?? "updatedAt";
   const sortDirection = req.query.sortDirection ?? "desc";
   const page = req.query.page === undefined ? 1 : toPositiveInteger(req.query.page);
@@ -1915,6 +1916,8 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
       (typeof currentStatus !== "string" || !allowedTicketStatuses.includes(currentStatus as (typeof allowedTicketStatuses)[number]))) {
     queryErrors.currentStatus = "Current Status is invalid.";
   }
+  if (scope !== undefined && scope !== "open") queryErrors.scope = "Scope must be open.";
+  if (scope !== undefined && currentStatus !== undefined) queryErrors.scope = "Use either scope or Current Status, not both.";
   if (typeof sortBy !== "string" || !sortableFields.includes(sortBy)) queryErrors.sortBy = "Sort field must be createdAt, updatedAt, requestedPriority, or ticketNumber.";
   if (sortDirection !== "asc" && sortDirection !== "desc") queryErrors.sortDirection = "Sort direction must be asc or desc.";
   if (!page) queryErrors.page = "Page must be a positive integer.";
@@ -1933,7 +1936,9 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
       ...(typeof requestedPriority === "string" ? { requestedPriority: requestedPriority as RequestedPriorityInput } : {}),
-      ...(typeof currentStatus === "string" ? { currentStatus: currentStatus as (typeof allowedTicketStatuses)[number] } : {}),
+      ...(typeof currentStatus === "string"
+        ? { currentStatus: currentStatus as (typeof allowedTicketStatuses)[number] }
+        : scope === "open" ? { currentStatus: { in: activeDashboardTicketStatuses } } : {}),
       ...(search ? {
         OR: [
           { ticketNumber: { contains: search, mode: "insensitive" } },

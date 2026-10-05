@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import App from "../../src/App.js";
 
 function jsonResponse(status: number, body: unknown) {
@@ -33,15 +34,20 @@ describe("Lab 4 Staff Dashboard", () => {
       return jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } });
     });
 
+    const user = userEvent.setup();
     render(<App />);
     expect(await screen.findByRole("heading", { name: "IT Staff Dashboard" })).toBeInTheDocument();
     expect(screen.getByLabelText("Unassigned Tickets 2")).toBeInTheDocument();
     expect(screen.getByLabelText("My Tickets 4")).toBeInTheDocument();
     expect(screen.getByLabelText("My Open Actions 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("My Open Actions 3")).toHaveAttribute("href", "#dashboard?section=my-actions");
     expect(screen.getByLabelText("Unassigned Tickets 2")).toHaveAttribute("href", "#ticket-queue?owner=unassigned");
     expect(screen.getByText("Urgent VPN")).toBeInTheDocument();
     expect(screen.getByText("Reset VPN profile")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("aria-current", "page");
+
+    await user.click(screen.getByLabelText("My Open Actions 3"));
+    await waitFor(() => expect(document.getElementById("my-actions")).toHaveFocus());
   });
 
   it("UI-03 Administrator reuses the Staff dashboard contract", async () => {
