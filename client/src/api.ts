@@ -2,6 +2,61 @@ const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3000";
 
 export type UserRole = "REQUESTER" | "IT_STAFF" | "ADMINISTRATOR";
 
+export interface RequesterDashboardTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  status: TicketStatus;
+  updatedAt?: string;
+  resolvedAt?: string | null;
+  drillDown: string;
+}
+
+export interface RequesterDashboardResponse {
+  generatedAt: string;
+  metrics: { openTickets: number; waitingForRequester: number };
+  recentlyUpdated: RequesterDashboardTicket[];
+  recentlyResolved: RequesterDashboardTicket[];
+  drillDown: { openTickets: string; waitingForRequester: string };
+}
+
+export interface StaffDashboardTicket {
+  id: number;
+  ticketNumber: string;
+  summary: string;
+  itPriority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+  status: TicketStatus;
+  owner: { id: number; name: string } | null;
+  updatedAt: string;
+  drillDown: string;
+}
+
+export interface StaffDashboardAction {
+  id: number;
+  ticketId: number;
+  ticketNumber: string;
+  actionDescription: string;
+  status: ActionStatus;
+  assignee: { id: number; name: string };
+  performedBy: { id: number; name: string } | null;
+  updatedAt: string;
+  drillDown: string;
+}
+
+export interface StaffDashboardResponse {
+  generatedAt: string;
+  metrics: {
+    unassignedTickets: number;
+    myTickets: number;
+    myOpenActions: number;
+    byStatus: Record<TicketStatus, number>;
+    byItPriority: Record<"LOW" | "MEDIUM" | "HIGH" | "URGENT", number>;
+  };
+  recentUrgentTickets: StaffDashboardTicket[];
+  myRecentActions: StaffDashboardAction[];
+  drillDown: { unassignedTickets: string; myTickets: string; myOpenActions: string };
+}
+
 export interface AuthUser {
   id: number;
   name: string;
@@ -95,6 +150,34 @@ export async function getCurrentUser(): Promise<AuthResponse> {
   const response = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
   if (!response.ok) throw await parseAuthError(response, "Authentication required.");
   return (await response.json()) as AuthResponse;
+}
+
+export class DashboardApiError extends Error {
+  constructor(public readonly status: number, public readonly code: string, message: string) {
+    super(message);
+  }
+}
+
+async function dashboardRequest<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { credentials: "include" });
+  if (!response.ok) {
+    try {
+      const body = (await response.json()) as { error?: { code?: string; message?: string } };
+      throw new DashboardApiError(response.status, body.error?.code ?? "DASHBOARD_ERROR", body.error?.message ?? "Unable to load dashboard.");
+    } catch (caught) {
+      if (caught instanceof DashboardApiError) throw caught;
+      throw new DashboardApiError(response.status, "DASHBOARD_ERROR", "Unable to load dashboard.");
+    }
+  }
+  return (await response.json()) as T;
+}
+
+export function getRequesterDashboard() {
+  return dashboardRequest<RequesterDashboardResponse>("/api/dashboards/requester");
+}
+
+export function getStaffDashboard() {
+  return dashboardRequest<StaffDashboardResponse>("/api/dashboards/staff");
 }
 
 export async function changePassword(
