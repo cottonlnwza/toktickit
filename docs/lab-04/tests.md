@@ -28,7 +28,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-09 | Workflow/API | BR-04 / AC-01, AC-04 | Parent Ticket eligibility | Action create/edit/status blocked with `409 PARENT_TICKET_NOT_ACTIVE` on terminal parent | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-10 | Audit/API | BR-19 / AC-18 | Append-only Action events | Exactly one event per successful create/edit/reassign/start/complete/cancel with actor/revisions | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-10A | Audit/API | BR-19 / AC-18 | Event invariants and failed mutation behavior | Event order/version uniqueness deterministic; combined edit+reassign emits one UPDATED event; replay/stale/failed mutations append none | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
-| API-10B | Authorization/Idempotency | BR-18, BR-44 / AC-02, AC-03 | Protected UUID reuse | UUID collision under inaccessible Ticket returns safe 404; authorized-context fingerprint mismatch returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Planned |
+| API-10B | Authorization/Idempotency | BR-18, BR-44 / AC-02, AC-03 | Protected UUID reuse | UUID collision under a different Ticket resource returns safe 404; authorized same-Ticket fingerprint mismatch returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64 review fix) |
 | API-11 | Authorization | FR-16 / AC-03, AC-13 | Direct role authorization | Requester cannot mutate; Admin has Lab 4 staff behavior; protected data not leaked | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-12 | Workflow/API | BR-25 / AC-08 | Resolve without completed current-cycle evidence | Zero Actions/cancelled-only => 409 RESOLUTION_GATE_BLOCKED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
 | API-13 | Workflow/API | BR-25 / AC-08 | Resolve with active current-cycle Action | Any PLANNED/IN_PROGRESS => 409; no Ticket mutation | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
@@ -128,12 +128,12 @@ For Issues 2-5, planned automated tests for the Issue are introduced before or a
 Issue #63 was documentation-only and did not claim implementation passes. Issue #64 now records actual backend-foundation evidence:
 
 - `npm run build` — Pass.
-- `npm run test:lab4:foundation` — Pass: 4 files, 17 tests.
-- Full server regression with `npx vitest run --no-file-parallelism` — Pass: 29 files, 203 tests.
+- `npm run test:lab4:foundation` — Pass: 4 files, 21 tests.
+- Full server regression with `npx vitest run --no-file-parallelism` — Pass: 29 files, 207 tests.
 - Migration evidence covers Lab 3-shaped data preservation, Ticket `version=0`, `workflowCycle=1`, legacy `resolvedAt` backfill, and preservation of legacy no-Action Tickets.
 - Seed evidence runs twice and verifies zero/one/many Action coverage without duplicate `clientRequestId` rows.
 
-`API-10B` remains Planned because the current Staff/Admin accessibility model does not yet create a protected cross-Staff Ticket context that can exercise hidden-resource UUID reuse honestly; no pass is claimed for that case.
+The PR #72 review fix adds direct regression coverage for safe cross-Ticket UUID collision behavior, concurrent exact replay, concurrent conflicting replay, and authoritative locked-cycle fingerprinting. Replayed/failed paths are verified not to duplicate Action rows, audit events, or Ticket-version increments.
 
 ## 8. Known Limitations or Deferred Tests
 
