@@ -1,4 +1,6 @@
 import { execFileSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PrismaClient } from "@prisma/client";
@@ -16,6 +18,22 @@ function runPrisma(args: string[], databaseUrl: string): void {
     env: { ...process.env, DATABASE_URL: databaseUrl },
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function createLab3MigrationRoot(): { root: string; schema: string } {
+  const root = mkdtempSync(resolve(tmpdir(), "toktickit-lab3-prisma-"));
+  const migrations = resolve(root, "migrations");
+  mkdirSync(migrations, { recursive: true });
+  cpSync(resolve(serverRoot, "prisma/schema.prisma"), resolve(root, "schema.prisma"));
+  cpSync(resolve(serverRoot, "prisma/migrations/migration_lock.toml"), resolve(migrations, "migration_lock.toml"));
+  for (const name of [
+    "20260809225834_init",
+    "20260903144335_lab2_database_seed",
+    LAB3_MIGRATION_NAME,
+  ]) {
+    cpSync(resolve(serverRoot, "prisma/migrations", name), resolve(migrations, name), { recursive: true });
+  }
+  return { root, schema: resolve(root, "schema.prisma") };
 }
 
 async function tableExists(prisma: PrismaClient, tableName: string): Promise<boolean> {
@@ -47,10 +65,11 @@ async function expectedLab3GuardFailureExists(prisma: PrismaClient): Promise<boo
 
 export async function deployLab3Database(databaseUrl: string): Promise<void> {
   const prisma = new PrismaClient({ datasources: { db: { url: databaseUrl } } });
+  const isolated = createLab3MigrationRoot();
 
   try {
     try {
-      runPrisma(["migrate", "deploy", "--schema", "prisma/schema.prisma"], databaseUrl);
+      runPrisma(["migrate", "deploy", "--schema", isolated.schema], databaseUrl);
     } catch (error) {
       const requesterUserExists = await tableExists(prisma, "RequesterUser");
       const userExists = await tableExists(prisma, "User");
@@ -59,7 +78,7 @@ export async function deployLab3Database(databaseUrl: string): Promise<void> {
       if (!requesterUserExists || userExists || !expectedFailure) throw error;
 
       runPrisma(
-        ["migrate", "resolve", "--rolled-back", LAB3_MIGRATION_NAME, "--schema", "prisma/schema.prisma"],
+        ["migrate", "resolve", "--rolled-back", LAB3_MIGRATION_NAME, "--schema", isolated.schema],
         databaseUrl,
       );
     }
@@ -67,12 +86,15 @@ export async function deployLab3Database(databaseUrl: string): Promise<void> {
     await prisma.$disconnect();
   }
 
-  await migrateLab3Database(databaseUrl);
+  try {
+    await migrateLab3Database(databaseUrl);
 
-  // The guarded migration is now safe to record through Prisma's normal
-  // migration history. A second deploy also proves that no migration remains
-  // pending after the custom data-preserving step.
-  runPrisma(["migrate", "deploy", "--schema", "prisma/schema.prisma"], databaseUrl);
+    // Keep this helper semantically pinned to the Lab 3 migration set even
+    // after later sprint migrations are added to the repository.
+    runPrisma(["migrate", "deploy", "--schema", isolated.schema], databaseUrl);
+  } finally {
+    rmSync(isolated.root, { recursive: true, force: true });
+  }
 }
 
 async function main() {

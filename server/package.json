@@ -10,8 +10,10 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:lab3": "tsx prisma/lab3-migrate.ts",
     "prisma:deploy:lab3": "tsx prisma/lab3-deploy.ts",
+    "prisma:deploy:lab4": "tsx prisma/lab4-deploy.ts",
     "prisma:seed": "tsx prisma/seed.ts",
     "test:lab3:migration": "vitest run tests/lab-03/migration.integration.test.ts tests/lab-03/seed.integration.test.ts",
+    "test:lab4:foundation": "vitest run --no-file-parallelism tests/lab-04/actions-taken.unit.test.ts tests/lab-04/actions-taken.api.test.ts tests/lab-04/migration.integration.test.ts tests/lab-04/seed.integration.test.ts",
     "test": "vitest run"
   },
   "prisma": { "seed": "tsx prisma/seed.ts" },

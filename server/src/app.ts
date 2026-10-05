@@ -4,11 +4,23 @@ import { randomUUID } from "crypto";
 import { mkdir, readFile, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Prisma, type RequestedPriority, type TicketStatus, type UserRole } from "@prisma/client";
+import { Prisma, type ActionStatus, type RequestedPriority, type TicketStatus, type UserRole } from "@prisma/client";
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import { normalizeEmail } from "./auth/identity.js";
 import { canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
+import {
+  actionStatusLabel,
+  actionStatuses,
+  activeTicketStatuses,
+  canCompleteAction,
+  canTransitionActionStatus,
+  createActionFingerprint,
+  isNonNegativeInteger,
+  normalizeOptionalText,
+  normalizeRequiredText,
+  validateFollowUp,
+} from "./action-operations.js";
 import {
   clearSessionCookie,
   createSession,
@@ -190,6 +202,108 @@ function ticketStatusLabel(status: string) {
     CANCELLED: "Cancelled",
   };
   return labels[status] ?? status;
+}
+
+function actionResponse(action: {
+  id: number;
+  ticketId: number;
+  workflowCycle: number;
+  clientRequestId: string;
+  actionDescription: string;
+  result: string | null;
+  status: string;
+  assignee: { id: number; name: string };
+  performedBy: { id: number; name: string } | null;
+  followUpRequired: boolean;
+  followUpNote: string | null;
+  attachmentNotes: string | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+}) {
+  return {
+    id: action.id,
+    ticketId: action.ticketId,
+    workflowCycle: action.workflowCycle,
+    clientRequestId: action.clientRequestId,
+    actionDateTime: action.createdAt,
+    actionDescription: action.actionDescription,
+    result: action.result,
+    status: action.status,
+    statusLabel: actionStatusLabel(action.status),
+    assignee: action.assignee,
+    performedBy: action.performedBy,
+    followUpRequired: action.followUpRequired,
+    followUpNote: action.followUpNote,
+    attachmentNotes: action.attachmentNotes,
+    completedAt: action.completedAt,
+    cancelledAt: action.cancelledAt,
+    version: action.version,
+    createdAt: action.createdAt,
+    updatedAt: action.updatedAt,
+  };
+}
+
+const actionInclude = {
+  assignee: { select: { id: true, name: true } },
+  performedBy: { select: { id: true, name: true } },
+} satisfies Prisma.ActionTakenInclude;
+
+function actionValidationInput(body: Record<string, unknown>, partial = false) {
+  const fields: Record<string, string> = {};
+  const output: {
+    actionDescription?: string;
+    assigneeId?: number;
+    result?: string | null;
+    followUpRequired?: boolean;
+    followUpNote?: string | null;
+    attachmentNotes?: string | null;
+  } = {};
+
+  if (!partial || body.actionDescription !== undefined) {
+    const value = normalizeRequiredText(body.actionDescription, 2000);
+    if (!value) fields.actionDescription = "Action Description is required and must be 2000 characters or fewer.";
+    else output.actionDescription = value;
+  }
+  if (body.assigneeId !== undefined) {
+    if (typeof body.assigneeId !== "number" || !Number.isInteger(body.assigneeId) || body.assigneeId <= 0) fields.assigneeId = "Assignee must be a valid User id.";
+    else output.assigneeId = body.assigneeId;
+  }
+  if (body.result !== undefined) {
+    const value = normalizeOptionalText(body.result, 2000);
+    if (value === undefined) fields.result = "Result must be 2000 characters or fewer.";
+    else output.result = value;
+  }
+  if (!partial || body.followUpRequired !== undefined) {
+    if (typeof body.followUpRequired !== "boolean") fields.followUpRequired = "Follow-Up Required must be true or false.";
+    else output.followUpRequired = body.followUpRequired;
+  }
+  if (body.followUpNote !== undefined) {
+    const value = normalizeOptionalText(body.followUpNote, 1000);
+    if (value === undefined) fields.followUpNote = "Follow-up Note must be 1000 characters or fewer.";
+    else output.followUpNote = value;
+  }
+  if (body.attachmentNotes !== undefined) {
+    const value = normalizeOptionalText(body.attachmentNotes, 1000);
+    if (value === undefined) fields.attachmentNotes = "Attachment Notes must be 1000 characters or fewer.";
+    else output.attachmentNotes = value;
+  }
+
+  if (!partial) {
+    const followUp = validateFollowUp(output.followUpRequired, body.followUpNote);
+    if (!followUp.valid) fields.followUpNote = followUp.message;
+    else output.followUpNote = followUp.note;
+  } else if (output.followUpRequired === false) {
+    output.followUpNote = null;
+  } else if (output.followUpRequired === true && body.followUpNote !== undefined) {
+    const followUp = validateFollowUp(true, body.followUpNote);
+    if (!followUp.valid) fields.followUpNote = followUp.message;
+    else output.followUpNote = followUp.note;
+  }
+
+  return { fields, output };
 }
 
 function requesterCreateResponse(ticket: {
@@ -2490,6 +2604,366 @@ app.delete(
       res.status(200).json(attachmentMetadata(removed));
     } catch {
       res.status(500).json(errorResponse("REMOVE_ATTACHMENT_ERROR", "Unable to remove Attachment."));
+    }
+  },
+);
+
+app.get("/api/tickets/:ticketId/actions", requireNormalAccess, async (req: Request, res: Response) => {
+  const ticketId = toPositiveInteger(req.params.ticketId);
+  if (!ticketId) {
+    res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+    return;
+  }
+  try {
+    const prisma = getPrisma();
+    const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, requesterId: true } });
+    if (!ticket) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+    const role = req.auth!.user.role;
+    if (role === "REQUESTER" && ticket.requesterId !== req.auth!.user.id) {
+      res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      return;
+    }
+    if (!["REQUESTER", "IT_STAFF", "ADMINISTRATOR"].includes(role)) {
+      res.status(403).json(errorResponse("FORBIDDEN", "This operation is not permitted for the current role."));
+      return;
+    }
+    const actions = await prisma.actionTaken.findMany({
+      where: { ticketId },
+      include: actionInclude,
+      orderBy: [{ workflowCycle: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      take: 500,
+    });
+    res.status(200).json({ items: actions.map(actionResponse) });
+  } catch {
+    res.status(500).json(errorResponse("ACTIONS_ERROR", "Unable to load Actions Taken."));
+  }
+});
+
+app.post(
+  "/api/staff/tickets/:ticketId/actions",
+  requireNormalAccess,
+  requireStaffDetailRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    if (!ticketId || !isNonNegativeInteger(req.body.expectedTicketVersion) || !isUuid(req.body.clientRequestId)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket, request id, and expected Ticket version are required."));
+      return;
+    }
+    const { fields, output } = actionValidationInput(req.body, false);
+    if (Object.keys(fields).length) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
+      return;
+    }
+
+    const actorId = req.auth!.user.id;
+    const requestedAssigneeId = output.assigneeId ?? actorId;
+    try {
+      const prisma = getPrisma();
+
+      const result = await prisma.$transaction(async (tx) => {
+        const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus; version: number; workflowCycle: number }>>(Prisma.sql`
+          SELECT "id", "currentStatus", "version", "workflowCycle" FROM "Ticket" WHERE "id"=${ticketId} FOR UPDATE
+        `);
+        const ticket = locked[0];
+        if (!ticket) return { kind: "notFound" as const };
+
+        const fingerprint = createActionFingerprint({
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          createdById: actorId,
+          actionDescription: output.actionDescription!,
+          assigneeId: requestedAssigneeId,
+          result: output.result ?? null,
+          followUpRequired: output.followUpRequired!,
+          followUpNote: output.followUpNote ?? null,
+          attachmentNotes: output.attachmentNotes ?? null,
+        });
+
+        const existing = await tx.actionTaken.findUnique({
+          where: { clientRequestId: req.body.clientRequestId },
+          include: actionInclude,
+        });
+        if (existing) {
+          if (existing.ticketId !== ticketId) return { kind: "hiddenReplay" as const };
+          if (
+            existing.createdById !== actorId
+            || existing.workflowCycle !== ticket.workflowCycle
+            || existing.createFingerprint !== fingerprint
+          ) return { kind: "replayConflict" as const };
+          return { kind: "replay" as const, action: existing, ticketVersion: ticket.version };
+        }
+
+        if (!activeTicketStatuses.includes(ticket.currentStatus as (typeof activeTicketStatuses)[number])) return { kind: "parentInactive" as const };
+        if (ticket.version !== req.body.expectedTicketVersion) return { kind: "stale" as const };
+
+        const assignee = await tx.user.findUnique({ where: { id: requestedAssigneeId }, select: { id: true, name: true, role: true, isActive: true } });
+        if (!assignee || !assignee.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role)) return { kind: "inactiveAssignee" as const };
+
+        const newTicketVersion = ticket.version + 1;
+        await tx.ticket.update({ where: { id: ticketId }, data: { version: newTicketVersion } });
+        const action = await tx.actionTaken.create({
+          data: {
+            ticketId,
+            workflowCycle: ticket.workflowCycle,
+            clientRequestId: req.body.clientRequestId,
+            createFingerprint: fingerprint,
+            createdById: actorId,
+            actionDescription: output.actionDescription!,
+            result: output.result ?? null,
+            assigneeId: requestedAssigneeId,
+            followUpRequired: output.followUpRequired!,
+            followUpNote: output.followUpNote ?? null,
+            attachmentNotes: output.attachmentNotes ?? null,
+          },
+          include: actionInclude,
+        });
+        await tx.actionTakenEvent.create({ data: {
+          actionTakenId: action.id,
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          eventType: "CREATED",
+          actorId,
+          toStatus: "PLANNED",
+          toAssigneeId: requestedAssigneeId,
+          actionVersion: 0,
+          ticketVersion: newTicketVersion,
+          changedFields: ["actionDescription", "assigneeId", "result", "followUpRequired", "followUpNote", "attachmentNotes"],
+        } });
+        return { kind: "ok" as const, action, ticketVersion: newTicketVersion };
+      });
+
+      if (result.kind === "notFound") res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      else if (result.kind === "hiddenReplay") res.status(404).json(errorResponse("NOT_FOUND", "Action request was not found."));
+      else if (result.kind === "replayConflict") res.status(409).json(errorResponse("ACTION_REPLAY_CONFLICT", "Action request id conflicts with an existing Action."));
+      else if (result.kind === "replay") res.status(200).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion, replayed: true });
+      else if (result.kind === "parentInactive") res.status(409).json(errorResponse("PARENT_TICKET_NOT_ACTIVE", "Actions can be changed only while the Ticket is active."));
+      else if (result.kind === "stale") res.status(409).json(errorResponse("STALE_UPDATE", "Ticket has changed. Reload the latest data."));
+      else if (result.kind === "inactiveAssignee") res.status(409).json(errorResponse("INACTIVE_ASSIGNEE", "Assignee must be an active IT Staff or Administrator."));
+      else res.status(201).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion, replayed: false });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const prisma = getPrisma();
+        const [ticket, existing] = await Promise.all([
+          prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true, workflowCycle: true } }),
+          prisma.actionTaken.findUnique({ where: { clientRequestId: req.body.clientRequestId }, include: actionInclude }),
+        ]);
+        if (!ticket || !existing || existing.ticketId !== ticketId) {
+          res.status(404).json(errorResponse("NOT_FOUND", "Action request was not found."));
+          return;
+        }
+        const replayFingerprint = createActionFingerprint({
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          createdById: actorId,
+          actionDescription: output.actionDescription!,
+          assigneeId: requestedAssigneeId,
+          result: output.result ?? null,
+          followUpRequired: output.followUpRequired!,
+          followUpNote: output.followUpNote ?? null,
+          attachmentNotes: output.attachmentNotes ?? null,
+        });
+        if (
+          existing.createdById === actorId
+          && existing.workflowCycle === ticket.workflowCycle
+          && existing.createFingerprint === replayFingerprint
+        ) {
+          res.status(200).json({ action: actionResponse(existing), ticketVersion: ticket.version, replayed: true });
+          return;
+        }
+        res.status(409).json(errorResponse("ACTION_REPLAY_CONFLICT", "Action request id conflicts with an existing Action."));
+        return;
+      }
+      res.status(500).json(errorResponse("ACTION_CREATE_ERROR", "Unable to create Action Taken."));
+    }
+  },
+);
+
+app.patch(
+  "/api/staff/tickets/:ticketId/actions/:actionId",
+  requireNormalAccess,
+  requireStaffDetailRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const actionId = toPositiveInteger(req.params.actionId);
+    if (!ticketId || !actionId || !isNonNegativeInteger(req.body.expectedTicketVersion) || !isNonNegativeInteger(req.body.expectedActionVersion)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket, Action, and expected versions are required."));
+      return;
+    }
+    const { fields, output } = actionValidationInput(req.body, true);
+    const editableKeys = ["actionDescription", "assigneeId", "result", "followUpRequired", "followUpNote", "attachmentNotes"];
+    if (!editableKeys.some((key) => Object.prototype.hasOwnProperty.call(req.body, key))) fields.action = "At least one editable Action field is required.";
+    if (Object.keys(fields).length) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", fields));
+      return;
+    }
+
+    try {
+      const actorId = req.auth!.user.id;
+      const prisma = getPrisma();
+      const result = await prisma.$transaction(async (tx) => {
+        const ticketRows = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus; version: number; workflowCycle: number }>>(Prisma.sql`
+          SELECT "id", "currentStatus", "version", "workflowCycle" FROM "Ticket" WHERE "id"=${ticketId} FOR UPDATE
+        `);
+        const ticket = ticketRows[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (!activeTicketStatuses.includes(ticket.currentStatus as (typeof activeTicketStatuses)[number])) return { kind: "parentInactive" as const };
+        if (ticket.version !== req.body.expectedTicketVersion) return { kind: "stale" as const };
+
+        const actionRows = await tx.$queryRaw<Array<{ id: number; ticketId: number; workflowCycle: number; status: ActionStatus; version: number; assigneeId: number; followUpRequired: boolean; followUpNote: string | null }>>(Prisma.sql`
+          SELECT "id", "ticketId", "workflowCycle", "status", "version", "assigneeId", "followUpRequired", "followUpNote" FROM "ActionTaken" WHERE "id"=${actionId} FOR UPDATE
+        `);
+        const current = actionRows[0];
+        if (!current || current.ticketId !== ticketId) return { kind: "notFound" as const };
+        if (current.workflowCycle !== ticket.workflowCycle) return { kind: "parentInactive" as const };
+        if (["COMPLETED", "CANCELLED"].includes(current.status)) return { kind: "terminal" as const };
+        if (current.version !== req.body.expectedActionVersion) return { kind: "stale" as const };
+
+        const assigneeId = output.assigneeId ?? current.assigneeId;
+        if (output.assigneeId !== undefined) {
+          const assignee = await tx.user.findUnique({ where: { id: assigneeId }, select: { role: true, isActive: true } });
+          if (!assignee || !assignee.isActive || !["IT_STAFF", "ADMINISTRATOR"].includes(assignee.role)) return { kind: "inactiveAssignee" as const };
+        }
+
+        const effectiveFollowUpRequired = output.followUpRequired ?? current.followUpRequired;
+        const effectiveFollowUpNote = output.followUpRequired === false ? null : (output.followUpNote !== undefined ? output.followUpNote : current.followUpNote);
+        if (effectiveFollowUpRequired && !effectiveFollowUpNote) return { kind: "followUpValidation" as const };
+
+        const changedFields = editableKeys.filter((key) => Object.prototype.hasOwnProperty.call(req.body, key));
+        const newTicketVersion = ticket.version + 1;
+        const newActionVersion = current.version + 1;
+        await tx.ticket.update({ where: { id: ticketId }, data: { version: newTicketVersion } });
+        const action = await tx.actionTaken.update({
+          where: { id: actionId },
+          data: { ...output, assigneeId, followUpRequired: effectiveFollowUpRequired, followUpNote: effectiveFollowUpNote, version: newActionVersion },
+          include: actionInclude,
+        });
+        await tx.actionTakenEvent.create({ data: {
+          actionTakenId: actionId,
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          eventType: "UPDATED",
+          actorId,
+          fromAssigneeId: current.assigneeId,
+          toAssigneeId: assigneeId,
+          fromStatus: current.status,
+          toStatus: current.status,
+          actionVersion: newActionVersion,
+          ticketVersion: newTicketVersion,
+          changedFields,
+        } });
+        return { kind: "ok" as const, action, ticketVersion: newTicketVersion };
+      });
+
+      if (result.kind === "notFound") res.status(404).json(errorResponse("NOT_FOUND", "Action Taken was not found."));
+      else if (result.kind === "parentInactive") res.status(409).json(errorResponse("PARENT_TICKET_NOT_ACTIVE", "Actions can be changed only in the current active Ticket cycle."));
+      else if (result.kind === "terminal") res.status(409).json(errorResponse("ACTION_TERMINAL", "Completed or cancelled Actions cannot be edited."));
+      else if (result.kind === "stale") res.status(409).json(errorResponse("STALE_UPDATE", "Ticket or Action has changed. Reload the latest data."));
+      else if (result.kind === "inactiveAssignee") res.status(409).json(errorResponse("INACTIVE_ASSIGNEE", "Assignee must be an active IT Staff or Administrator."));
+      else if (result.kind === "followUpValidation") res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", { followUpNote: "Follow-up Note is required when follow-up is needed." }));
+      else res.status(200).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion });
+    } catch {
+      res.status(500).json(errorResponse("ACTION_UPDATE_ERROR", "Unable to update Action Taken."));
+    }
+  },
+);
+
+app.post(
+  "/api/staff/tickets/:ticketId/actions/:actionId/status",
+  requireNormalAccess,
+  requireStaffDetailRole,
+  requireApprovedOrigin,
+  requireCsrf,
+  async (req: Request, res: Response) => {
+    const ticketId = toPositiveInteger(req.params.ticketId);
+    const actionId = toPositiveInteger(req.params.actionId);
+    const toStatus = typeof req.body.toStatus === "string" ? req.body.toStatus : "";
+    if (!ticketId || !actionId || !actionStatuses.includes(toStatus as (typeof actionStatuses)[number]) || !isNonNegativeInteger(req.body.expectedTicketVersion) || !isNonNegativeInteger(req.body.expectedActionVersion)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Valid Action status and expected versions are required."));
+      return;
+    }
+    const resultText = req.body.result === undefined ? undefined : normalizeRequiredText(req.body.result, 2000);
+    if (toStatus === "COMPLETED" && !resultText) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "Please correct the highlighted fields.", { result: "Result is required when completing an Action." }));
+      return;
+    }
+
+    try {
+      const actorId = req.auth!.user.id;
+      const prisma = getPrisma();
+      const result = await prisma.$transaction(async (tx) => {
+        const ticketRows = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus; version: number; workflowCycle: number }>>(Prisma.sql`
+          SELECT "id", "currentStatus", "version", "workflowCycle" FROM "Ticket" WHERE "id"=${ticketId} FOR UPDATE
+        `);
+        const ticket = ticketRows[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (!activeTicketStatuses.includes(ticket.currentStatus as (typeof activeTicketStatuses)[number])) return { kind: "parentInactive" as const };
+        if (ticket.version !== req.body.expectedTicketVersion) return { kind: "stale" as const };
+
+        const actionRows = await tx.$queryRaw<Array<{ id: number; ticketId: number; workflowCycle: number; status: ActionStatus; version: number; assigneeId: number }>>(Prisma.sql`
+          SELECT "id", "ticketId", "workflowCycle", "status", "version", "assigneeId" FROM "ActionTaken" WHERE "id"=${actionId} FOR UPDATE
+        `);
+        const current = actionRows[0];
+        if (!current || current.ticketId !== ticketId) return { kind: "notFound" as const };
+        if (current.workflowCycle !== ticket.workflowCycle) return { kind: "parentInactive" as const };
+        if (["COMPLETED", "CANCELLED"].includes(current.status)) return { kind: "terminal" as const };
+        if (current.version !== req.body.expectedActionVersion) return { kind: "stale" as const };
+        if (!canTransitionActionStatus(current.status, toStatus as ActionStatus)) return { kind: "transition" as const };
+        if (toStatus === "COMPLETED" && !canCompleteAction(current.assigneeId, actorId)) return { kind: "assigneeMismatch" as const };
+
+        const newTicketVersion = ticket.version + 1;
+        const newActionVersion = current.version + 1;
+        const now = new Date();
+        const data: Prisma.ActionTakenUpdateInput = { status: toStatus as ActionStatus, version: newActionVersion };
+        let eventType: "STARTED" | "COMPLETED" | "CANCELLED";
+        if (toStatus === "IN_PROGRESS") eventType = "STARTED";
+        else if (toStatus === "COMPLETED") {
+          eventType = "COMPLETED";
+          data.result = resultText!;
+          data.performedBy = { connect: { id: actorId } };
+          data.completedAt = now;
+        } else {
+          eventType = "CANCELLED";
+          data.cancelledAt = now;
+        }
+        await tx.ticket.update({ where: { id: ticketId }, data: { version: newTicketVersion } });
+        const action = await tx.actionTaken.update({ where: { id: actionId }, data, include: actionInclude });
+        await tx.actionTakenEvent.create({ data: {
+          actionTakenId: actionId,
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          eventType,
+          actorId,
+          fromStatus: current.status,
+          toStatus: toStatus as ActionStatus,
+          fromAssigneeId: current.assigneeId,
+          toAssigneeId: current.assigneeId,
+          actionVersion: newActionVersion,
+          ticketVersion: newTicketVersion,
+          changedFields: toStatus === "COMPLETED"
+            ? ["status", "result", "performedById", "completedAt"]
+            : toStatus === "CANCELLED"
+              ? ["status", "cancelledAt"]
+              : ["status"],
+        } });
+        return { kind: "ok" as const, action, ticketVersion: newTicketVersion };
+      });
+
+      if (result.kind === "notFound") res.status(404).json(errorResponse("NOT_FOUND", "Action Taken was not found."));
+      else if (result.kind === "parentInactive") res.status(409).json(errorResponse("PARENT_TICKET_NOT_ACTIVE", "Actions can be changed only in the current active Ticket cycle."));
+      else if (result.kind === "terminal") res.status(409).json(errorResponse("ACTION_TERMINAL", "Completed or cancelled Actions cannot transition."));
+      else if (result.kind === "stale") res.status(409).json(errorResponse("STALE_UPDATE", "Ticket or Action has changed. Reload the latest data."));
+      else if (result.kind === "transition") res.status(409).json(errorResponse("ACTION_TRANSITION_NOT_ALLOWED", "The requested Action status transition is not allowed."));
+      else if (result.kind === "assigneeMismatch") res.status(409).json(errorResponse("ACTION_ASSIGNEE_MISMATCH", "Only the current assignee may complete this Action."));
+      else res.status(200).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion });
+    } catch {
+      res.status(500).json(errorResponse("ACTION_STATUS_ERROR", "Unable to change Action status."));
     }
   },
 );
