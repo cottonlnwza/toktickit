@@ -47,7 +47,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | MIG-01 | Migration/Integration | FR-18 / AC-16 | Lab 3-shaped DB preservation | Earlier rows/relationships survive; new schema valid | `server/tests/lab-04/migration.integration.test.ts` | Pass (Issue #64) |
 | MIG-02 | Migration/Integration | Data 8.4 / AC-16 | Ticket backfill/cycle legacy semantics | version=0; cycle=1; resolvedAt approximation; no-Action legacy rows preserved | `server/tests/lab-04/migration.integration.test.ts` | Pass (Issue #64) |
 | SEED-01 | Integration | FR-19 / AC-17 | Seed idempotency/coverage | Re-run no duplicates; multi-cycle Actions/events/dashboard inclusion-exclusion fixtures exist | `server/tests/lab-04/seed.integration.test.ts` | Pass (Issue #64) |
-| UI-01 | UI Component | FR-02-FR-07 / AC-01, AC-03-AC-07 | Actions UI | Cycle label, assignee accountability, create/edit/reassign/start/complete/cancel and deterministic errors | `client/tests/lab-04/ActionsTaken.test.tsx` | Planned |
+| UI-01 | UI Component | FR-02-FR-07 / AC-01, AC-03-AC-07 | Actions UI | Cycle label, assignee accountability, create/edit/reassign/start/complete/cancel and deterministic errors | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass (Issue #65) |
 | UI-02 | UI Component | FR-12 / AC-11, AC-14 | Requester Dashboard | Owned metrics/recent cards, empty/failure, drill-down | `client/tests/lab-04/RequesterDashboard.test.tsx` | Planned |
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, historical exclusions, Admin reuse, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Planned |
 | UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Planned |
@@ -134,6 +134,14 @@ Issue #63 was documentation-only and did not claim implementation passes. Issue 
 - Seed evidence runs twice and verifies zero/one/many Action coverage without duplicate `clientRequestId` rows.
 
 The PR #72 review fix adds direct regression coverage for safe cross-Ticket UUID collision behavior, concurrent exact replay, concurrent conflicting replay, and authoritative locked-cycle fingerprinting. Replayed/failed paths are verified not to duplicate Action rows, audit events, or Ticket-version increments.
+
+Issue #65 Actions Taken Ticket Detail UI evidence:
+
+- `cd client && npm run build` — Pass.
+- Focused Lab 4 + affected Lab 3 UI regression — Pass: 3 files, 11 tests (`ActionsTaken`, Staff Ticket Detail, Requester Ticket Detail).
+- `cd server && npm run build` — Pass.
+- Affected server regression — Pass: 2 files, 47 tests (`staff-ticket-detail.api` and `actions-taken.api`).
+- A full client Vitest run was attempted under local Node.js 25.8.0, but the legacy Lab 1-3 test environment failed broadly because `localStorage` was exposed without working `getItem`/`setItem`/`clear` functions and Node emitted an invalid `--localstorage-file` warning. Therefore `REG-02` remains Planned and no full-client regression pass is claimed from that run.
 
 ## 8. Known Limitations or Deferred Tests
 
