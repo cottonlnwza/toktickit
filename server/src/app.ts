@@ -1510,8 +1510,13 @@ app.post(
   requireCsrf,
   async (req: Request, res: Response) => {
     const ticketId = toPositiveInteger(req.params.ticketId);
+    const expectedTicketVersion = req.body.expectedTicketVersion;
     if (!ticketId) {
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    if (!isNonNegativeInteger(expectedTicketVersion)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "expectedTicketVersion must be a non-negative integer."));
       return;
     }
     try {
@@ -1528,20 +1533,22 @@ app.post(
           return { kind: "forbidden" as const };
         }
 
-        const tickets = await tx.$queryRaw<Array<{ id: number; ownerId: number | null }>>(Prisma.sql`
-          SELECT "id", "ownerId"
+        const tickets = await tx.$queryRaw<Array<{ id: number; ownerId: number | null; version: number }>>(Prisma.sql`
+          SELECT "id", "ownerId", "version"
           FROM "Ticket"
           WHERE "id" = ${ticketId}
           FOR UPDATE
         `);
         const ticket = tickets[0];
         if (!ticket) return { kind: "notFound" as const };
+        if (ticket.version !== expectedTicketVersion) return { kind: "stale" as const };
         if (ticket.ownerId !== null) return { kind: "conflict" as const };
 
-        await tx.ticket.update({ where: { id: ticketId }, data: { ownerId: claimant.id } });
+        const updated = await tx.ticket.update({ where: { id: ticketId }, data: { ownerId: claimant.id, version: { increment: 1 } }, select: { version: true } });
         return {
           kind: "success" as const,
           owner: { id: claimant.id, name: claimant.name, role: claimant.role },
+          version: updated.version,
         };
       });
 
@@ -1557,7 +1564,11 @@ app.post(
         res.status(409).json(errorResponse("OWNER_CONFLICT", "Ticket is already assigned."));
         return;
       }
-      res.status(200).json({ owner: outcome.owner });
+      if (outcome.kind === "stale") {
+        res.status(409).json(errorResponse("STALE_UPDATE", "Ticket changed before the owner update."));
+        return;
+      }
+      res.status(200).json({ owner: outcome.owner, version: outcome.version });
     } catch {
       res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to claim Ticket."));
     }
@@ -1572,8 +1583,13 @@ app.patch(
   requireCsrf,
   async (req: Request, res: Response) => {
     const ticketId = toPositiveInteger(req.params.ticketId);
+    const expectedTicketVersion = req.body.expectedTicketVersion;
     if (!ticketId) {
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
+      return;
+    }
+    if (!isNonNegativeInteger(expectedTicketVersion)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "expectedTicketVersion must be a non-negative integer."));
       return;
     }
     const ownerId = req.body.ownerId === null ? null : toPositiveInteger(req.body.ownerId);
@@ -1599,16 +1615,18 @@ app.patch(
           owner = { id: candidate.id, name: candidate.name, role: candidate.role };
         }
 
-        const tickets = await tx.$queryRaw<Array<{ id: number }>>(Prisma.sql`
-          SELECT "id"
+        const tickets = await tx.$queryRaw<Array<{ id: number; version: number }>>(Prisma.sql`
+          SELECT "id", "version"
           FROM "Ticket"
           WHERE "id" = ${ticketId}
           FOR UPDATE
         `);
-        if (!tickets[0]) return { kind: "notFound" as const };
+        const ticket = tickets[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (ticket.version !== expectedTicketVersion) return { kind: "stale" as const };
 
-        await tx.ticket.update({ where: { id: ticketId }, data: { ownerId } });
-        return { kind: "success" as const, owner };
+        const updated = await tx.ticket.update({ where: { id: ticketId }, data: { ownerId, version: { increment: 1 } }, select: { version: true } });
+        return { kind: "success" as const, owner, version: updated.version };
       });
 
       if (outcome.kind === "notFound") {
@@ -1619,7 +1637,11 @@ app.patch(
         res.status(400).json(errorResponse("INVALID_OWNER", "Owner must be an active IT Staff or Administrator."));
         return;
       }
-      res.status(200).json({ owner: outcome.owner });
+      if (outcome.kind === "stale") {
+        res.status(409).json(errorResponse("STALE_UPDATE", "Ticket changed before the owner update."));
+        return;
+      }
+      res.status(200).json({ owner: outcome.owner, version: outcome.version });
     } catch {
       res.status(500).json(errorResponse("OWNER_UPDATE_ERROR", "Unable to update Ticket owner."));
     }
@@ -1635,6 +1657,7 @@ app.patch(
   async (req: Request, res: Response) => {
     const ticketId = toPositiveInteger(req.params.ticketId);
     const itPriority = typeof req.body.itPriority === "string" ? req.body.itPriority : "";
+    const expectedTicketVersion = req.body.expectedTicketVersion;
     if (!ticketId) {
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
       return;
@@ -1643,15 +1666,38 @@ app.patch(
       res.status(400).json(errorResponse("VALIDATION_ERROR", "IT Priority is invalid."));
       return;
     }
+    if (!isNonNegativeInteger(expectedTicketVersion)) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "expectedTicketVersion must be a non-negative integer."));
+      return;
+    }
     try {
       const prisma = getPrisma();
-      const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, requestedPriority: true } });
-      if (!ticket) {
+      const outcome = await prisma.$transaction(async (tx) => {
+        const tickets = await tx.$queryRaw<Array<{ id: number; requestedPriority: RequestedPriority; version: number }>>(Prisma.sql`
+          SELECT "id", "requestedPriority", "version"
+          FROM "Ticket"
+          WHERE "id" = ${ticketId}
+          FOR UPDATE
+        `);
+        const ticket = tickets[0];
+        if (!ticket) return { kind: "notFound" as const };
+        if (ticket.version !== expectedTicketVersion) return { kind: "stale" as const };
+        const updated = await tx.ticket.update({
+          where: { id: ticketId },
+          data: { itPriority: itPriority as RequestedPriority, version: { increment: 1 } },
+          select: { itPriority: true, requestedPriority: true, version: true },
+        });
+        return { kind: "success" as const, updated };
+      });
+      if (outcome.kind === "notFound") {
         res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
         return;
       }
-      const updated = await prisma.ticket.update({ where: { id: ticketId }, data: { itPriority: itPriority as RequestedPriority }, select: { itPriority: true, requestedPriority: true } });
-      res.status(200).json(updated);
+      if (outcome.kind === "stale") {
+        res.status(409).json(errorResponse("STALE_UPDATE", "Ticket changed before the IT Priority update."));
+        return;
+      }
+      res.status(200).json(outcome.updated);
     } catch {
       res.status(500).json(errorResponse("IT_PRIORITY_ERROR", "Unable to update IT Priority."));
     }

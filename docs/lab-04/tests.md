@@ -38,6 +38,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-16 | Workflow/API | BR-21-BR-23 / AC-09, AC-13 | Final Ticket matrix + Admin parity | IT Staff/Admin same Lab 4 final transition authority; invalid state edge deterministic 409 | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66; all 20 permitted edges + Admin parity) |
 | API-17 | Regression/API | BR-26 / AC-08, AC-09 | Requester appears-resolved | Advisory only; never changes formal status/gate | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass (Issue #66 focused regression: 9 tests) |
 | API-18 | Concurrency/API | BR-42-BR-44 / AC-15 | Aggregate stale Ticket workflow | Stale expectedTicketVersion => 409, no status/cycle change | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-18A | Concurrency/API | BR-42-BR-44 / AC-15 | Owner/claim/IT Priority aggregate revision | Fresh mutation increments Ticket version once; stale revision returns 409 with no partial owner/priority/version write | `server/tests/lab-04/ticket-aggregate-version.api.test.ts` | Pass (Issue #76 hardening) |
 | API-19 | Dashboard/API | BR-29-BR-32 / AC-11 | Requester dashboard ownership + exact windows | Owned only; inclusive UTC cutoffs; stable bounded recent lists; zero/empty explicit | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pass (Issue #67) |
 | API-19A | Dashboard/API | BR-31-BR-32 / AC-11 | Exact time-window boundaries | Exact lower bound included, exact generatedAt captured, future timestamp excluded | `server/tests/lab-04/requester-dashboard.api.test.ts` | Pass (Issue #67) |
 | API-20 | Dashboard/API | BR-33-BR-39 / AC-12 | Staff dashboard current-work scope | Active-parent/current-cycle Actions only; historical/terminal-parent Actions excluded; selected counts checked against direct DB queries | `server/tests/lab-04/staff-dashboard.api.test.ts` | Pass (Issue #67) |
@@ -51,6 +52,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | UI-02 | UI Component | FR-12 / AC-11, AC-14 | Requester Dashboard | Owned metrics/recent cards, empty state, role navigation, drill-down | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pass (Issue #67) |
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, Admin reuse, empty state, role navigation, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass (Issue #67) |
 | UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass (Issue #66: 3 tests) |
+| UI-04A | UI Component | BR-42-BR-44 / AC-15 | Owner/priority revision chaining | Client sends current Ticket version and refreshes it from each successful owner/priority response | `client/tests/lab-04/TicketAggregateVersion.test.tsx` | Pass (Issue #76 hardening) |
 | UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues | `client/tests/lab-04/ui-style.test.tsx` | Planned |
 | RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | No material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx` | Planned |
 | A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Focus visible; controls/dialogs labeled; status non-color-only | `client/tests/lab-04/accessibility.test.tsx` | Planned |
@@ -80,7 +82,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | AC-12 | UNIT-04, API-20, API-20A, PERF-01, UI-03, E2E-03 |
 | AC-13 | API-11, API-16, API-21, UI-03, UI-04, E2E-02, E2E-03 |
 | AC-14 | API-22, UI-02, UI-03, E2E-03 |
-| AC-15 | API-05, API-18, UI-04, E2E-01, E2E-02 |
+| AC-15 | API-05, API-18, API-18A, UI-04, UI-04A, E2E-01, E2E-02 |
 | AC-16 | MIG-01, MIG-02, REG-01 |
 | AC-17 | SEED-01 |
 | AC-18 | API-10, E2E-01 |
