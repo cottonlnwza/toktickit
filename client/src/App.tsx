@@ -521,6 +521,7 @@ function ActionsTakenPanel({
   currentWorkflowCycle,
   assigneeOptions,
   readOnly = false,
+  onTicketVersionChange,
 }: {
   ticketId: number;
   currentUser: AuthUser;
@@ -529,6 +530,7 @@ function ActionsTakenPanel({
   currentWorkflowCycle?: number;
   assigneeOptions?: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
   readOnly?: boolean;
+  onTicketVersionChange?: (version: number) => void;
 }) {
   const [actions, setActions] = useState<ActionTaken[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -625,6 +627,7 @@ function ActionsTakenPanel({
           attachmentNotes: form.attachmentNotes.trim() || null,
         });
         setTicketVersion(response.ticketVersion);
+        onTicketVersionChange?.(response.ticketVersion);
         setActions((current) => {
           const withoutDuplicate = current.filter((item) => item.id !== response.action.id);
           return [...withoutDuplicate, response.action].sort((a, b) => a.workflowCycle - b.workflowCycle || a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
@@ -644,6 +647,7 @@ function ActionsTakenPanel({
           attachmentNotes: form.attachmentNotes.trim() || null,
         });
         setTicketVersion(response.ticketVersion);
+        onTicketVersionChange?.(response.ticketVersion);
         setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
         setMessage("Action updated.");
       }
@@ -685,6 +689,7 @@ function ActionsTakenPanel({
         ...(toStatus === "COMPLETED" ? { result } : {}),
       });
       setTicketVersion(response.ticketVersion);
+      onTicketVersionChange?.(response.ticketVersion);
       setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
       setMessage(`Action ${response.action.statusLabel.toLowerCase()}.`);
       if (editingId === action.id) resetForm();
@@ -751,6 +756,7 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
   const [internalContent, setInternalContent] = useState("");
   const [retryToken, setRetryToken] = useState(0);
   const staffMode = user.role === "IT_STAFF";
+  const workflowMode = user.role === "IT_STAFF" || user.role === "ADMINISTRATOR";
 
   useEffect(() => {
     let current = true;
@@ -799,6 +805,12 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
       } else if (caught instanceof StaffTicketApiError && caught.status === 409) {
         if (caught.code === "OWNER_CONFLICT") {
           setError("This Ticket is already assigned. Refresh the Ticket Detail before changing the owner.");
+        } else if (caught.code === "RESOLUTION_GATE_BLOCKED") {
+          setError("Resolve is blocked until the current workflow cycle has at least one completed Action and no planned or in-progress Actions.");
+        } else if (caught.code === "TICKET_TRANSITION_NOT_ALLOWED") {
+          setError("This status transition is no longer allowed. Refresh the Ticket Detail and try again.");
+        } else if (caught.code === "STALE_UPDATE") {
+          setError("The Ticket changed before this status update. Refresh the Ticket Detail and try again.");
         } else {
           setError("The Ticket changed before this action completed. Refresh the Ticket Detail and try again.");
         }
@@ -833,7 +845,7 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
           <div><label className="form-label" htmlFor="staff-requested-priority">Requested Priority</label><input id="staff-requested-priority" aria-label="Requested Priority" className="form-control readonly-control" value={detail.requestedPriority} disabled readOnly /></div>
           <div><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" aria-label="IT Priority" className="form-select" value={detail.itPriority} disabled={saving} onChange={(event) => void runMutation(async () => { const response = await updateStaffTicketItPriority(csrfToken, detail.id, event.target.value as Priority); setDetail((current) => current ? { ...current, itPriority: response.itPriority } : current); }, "IT Priority updated.")}><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option></select></div>
           {staffMode && <div><label className="form-label" htmlFor="staff-owner">Owner</label><select id="staff-owner" aria-label="Owner" className="form-select" value={detail.owner?.id ?? ""} disabled={saving} onChange={(event) => { const nextOwnerId = event.target.value ? Number(event.target.value) : null; if (detail.owner && nextOwnerId !== detail.owner.id && !window.confirm("Reassign this Ticket owner?")) return; void runMutation(async () => { const response = await updateStaffTicketOwner(csrfToken, detail.id, nextOwnerId); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Owner updated."); }}><option value="">Unassigned</option>{detail.ownerOptions.map((option) => <option value={option.id} key={option.id}>{option.name} ({option.role === "IT_STAFF" ? "IT Staff" : "Administrator"})</option>)}</select>{!detail.owner && <button className="btn btn-sm btn-success mt-2" type="button" disabled={saving} onClick={() => void runMutation(async () => { const response = await claimStaffTicket(csrfToken, detail.id); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Ticket claimed.")}>Claim Ticket</button>}</div>}
-          {staffMode && <div><label className="form-label" htmlFor="staff-status-transition">Status Transition</label><select id="staff-status-transition" aria-label="Status Transition" className="form-select" value={statusTarget} disabled={saving} onChange={(event) => setStatusTarget(event.target.value)}><option value="">Select next status</option>{nextStatuses.map((status) => <option value={status} key={status}>{queueStatusLabel(status)}</option>)}</select><button className="btn btn-sm btn-success mt-2" type="button" disabled={saving || !statusTarget} onClick={() => { const target = statusTarget as TicketStatus; if (requiresConfirmation(target) && !window.confirm(`Confirm transition to ${queueStatusLabel(target)}?`)) return; void runMutation(async () => { const response = await updateStaffTicketStatus(csrfToken, detail.id, target); setDetail((current) => current ? { ...current, currentStatus: response.currentStatus, currentStatusLabel: response.currentStatusLabel } : current); setStatusTarget(""); }, "Status updated."); }}>Apply Status</button></div>}
+          {workflowMode && <div><label className="form-label" htmlFor="staff-status-transition">Status Transition</label><select id="staff-status-transition" aria-label="Status Transition" className="form-select" value={statusTarget} disabled={saving} onChange={(event) => setStatusTarget(event.target.value)}><option value="">Select next status</option>{nextStatuses.map((status) => <option value={status} key={status}>{queueStatusLabel(status)}</option>)}</select><button className="btn btn-sm btn-success mt-2" type="button" disabled={saving || !statusTarget} onClick={() => { const target = statusTarget as TicketStatus; if (requiresConfirmation(target) && !window.confirm(`Confirm transition to ${queueStatusLabel(target)}?`)) return; void runMutation(async () => { const response = await updateStaffTicketStatus(csrfToken, detail.id, target, detail.version); setDetail((current) => current ? { ...current, currentStatus: response.currentStatus, currentStatusLabel: response.currentStatusLabel, version: response.version, workflowCycle: response.workflowCycle } : current); setStatusTarget(""); }, "Status updated."); }}>Apply Status</button></div>}
         </div></section>
 
         {detail.problemAppearsResolvedAt && <div className="alert alert-info" role="status"><strong>Problem Appears Resolved</strong> indicated by the Requester on {new Date(detail.problemAppearsResolvedAt).toLocaleString()}. This does not change formal Ticket status.</div>}
@@ -845,6 +857,7 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
           initialTicketVersion={detail.version}
           currentWorkflowCycle={detail.workflowCycle}
           assigneeOptions={detail.ownerOptions}
+          onTicketVersionChange={(version) => setDetail((current) => current ? { ...current, version } : current)}
         />
 
         <section className="staff-detail-section public-communication"><h3>Public Comments <span className="communication-label">Public</span></h3><p>Visible to the Requester, IT Staff, and Administrator.</p>{detail.publicComments.length === 0 ? <p>No Public Comments yet.</p> : <div className="communication-list">{detail.publicComments.map((comment) => <article key={comment.id}><strong>{comment.author.name}</strong><small>{new Date(comment.createdAt).toLocaleString()}</small><p>{comment.content}</p></article>)}</div>}{staffMode && <><label className="form-label" htmlFor="staff-public-comment">Public Comment</label><textarea id="staff-public-comment" aria-label="Public Comment" className="form-control" maxLength={2000} value={publicContent} disabled={saving} onChange={(event) => setPublicContent(event.target.value)} /><button className="btn btn-success mt-2" type="button" disabled={saving || !publicContent.trim()} onClick={() => void runMutation(async () => { const comment = await postPublicComment(csrfToken, detail.id, publicContent); setDetail((current) => current ? { ...current, publicComments: [...current.publicComments, comment] } : current); setPublicContent(""); }, "Public Comment posted.")}>Post Public Comment</button></>}</section>

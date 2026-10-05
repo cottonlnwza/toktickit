@@ -14,7 +14,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 |---|---|---|---|---|---|---|
 | UNIT-01 | Unit | BR-12-BR-16 / AC-05, AC-06 | Action lifecycle + assignee completion rule | Only approved transitions; only current assignee may complete | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
 | UNIT-02 | Unit | BR-06-BR-09 / AC-06, AC-07 | Action text/follow-up validation | Deterministic required/length/null behavior | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
-| UNIT-03 | Unit | BR-24-BR-27 / AC-08-AC-10 | Cycle-aware Ticket resolution helper | Current cycle requires >=1 completed and zero active Actions; reopen increments cycle | `server/tests/lab-04/ticket-workflow.unit.test.ts` | Planned |
+| UNIT-03 | Unit | BR-24-BR-27 / AC-08-AC-10 | Cycle-aware Ticket resolution helper | Current cycle requires >=1 completed and zero active Actions; reopen increments cycle | `server/tests/lab-04/ticket-workflow.unit.test.ts` | Pass (Issue #66) |
 | UNIT-04 | Unit | BR-28-BR-41 / AC-11, AC-12 | Dashboard calculations/boundaries | UTC snapshot, inclusive 7/30-day cutoffs, active-parent/current-cycle filters, tie-breaks | `server/tests/lab-04/dashboard.unit.test.ts` | Planned |
 | UNIT-05 | Unit | BR-18 / AC-02 | Immutable create fingerprint | Later Action edit does not alter replay fingerprint | `server/tests/lab-04/actions-taken.unit.test.ts` | Pass (Issue #64) |
 | API-01 | API | FR-01-FR-06 / AC-01 | Create valid current-cycle Action | 201; creator/cycle/create time/version/event persisted; Ticket version increments | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
@@ -30,14 +30,14 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-10A | Audit/API | BR-19 / AC-18 | Event invariants and failed mutation behavior | Event order/version uniqueness deterministic; combined edit+reassign emits one UPDATED event; replay/stale/failed mutations append none | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-10B | Authorization/Idempotency | BR-18, BR-44 / AC-02, AC-03 | Protected UUID reuse | UUID collision under a different Ticket resource returns safe 404; authorized same-Ticket fingerprint mismatch returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64 review fix) |
 | API-11 | Authorization | FR-16 / AC-03, AC-13 | Direct role authorization | Requester cannot mutate; Admin has Lab 4 staff behavior; protected data not leaked | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
-| API-12 | Workflow/API | BR-25 / AC-08 | Resolve without completed current-cycle evidence | Zero Actions/cancelled-only => 409 RESOLUTION_GATE_BLOCKED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-13 | Workflow/API | BR-25 / AC-08 | Resolve with active current-cycle Action | Any PLANNED/IN_PROGRESS => 409; no Ticket mutation | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-14 | Workflow/API | BR-25 / AC-09 | Resolve with valid completed evidence | >=1 COMPLETED and no active current-cycle Action succeeds, sets resolvedAt | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-14A | Workflow/API | BR-08, BR-25 / AC-07, AC-09 | Follow-up metadata vs resolution gate | Completed Action with followUpRequired=true does not block by metadata alone; separate non-terminal follow-up Action does block | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-15 | Workflow/API | BR-24 / AC-10 | Reopen workflow cycle | REOPENED increments cycle; old Actions remain history and cannot satisfy new resolution | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-16 | Workflow/API | BR-21-BR-23 / AC-09, AC-13 | Final Ticket matrix + Admin parity | IT Staff/Admin same Lab 4 final transition authority; invalid state edge deterministic 409 | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-17 | Regression/API | BR-26 / AC-08, AC-09 | Requester appears-resolved | Advisory only; never changes formal status/gate | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
-| API-18 | Concurrency/API | BR-42-BR-44 / AC-15 | Aggregate stale Ticket workflow | Stale expectedTicketVersion => 409, no status/cycle change | `server/tests/lab-04/ticket-workflow.api.test.ts` | Planned |
+| API-12 | Workflow/API | BR-25 / AC-08 | Resolve without completed current-cycle evidence | Zero Actions/cancelled-only => 409 RESOLUTION_GATE_BLOCKED | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-13 | Workflow/API | BR-25 / AC-08 | Resolve with active current-cycle Action | Any PLANNED/IN_PROGRESS => 409; no Ticket mutation | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-14 | Workflow/API | BR-25 / AC-09 | Resolve with valid completed evidence | >=1 COMPLETED and no active current-cycle Action succeeds, sets resolvedAt | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-14A | Workflow/API | BR-08, BR-25 / AC-07, AC-09 | Follow-up metadata vs resolution gate | Completed Action with followUpRequired=true does not block by metadata alone; separate non-terminal follow-up Action does block | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-15 | Workflow/API | BR-24 / AC-10 | Reopen workflow cycle | REOPENED increments cycle; old Actions remain history and cannot satisfy new resolution | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
+| API-16 | Workflow/API | BR-21-BR-23 / AC-09, AC-13 | Final Ticket matrix + Admin parity | IT Staff/Admin same Lab 4 final transition authority; invalid state edge deterministic 409 | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66; all 20 permitted edges + Admin parity) |
+| API-17 | Regression/API | BR-26 / AC-08, AC-09 | Requester appears-resolved | Advisory only; never changes formal status/gate | `server/tests/lab-03/staff-ticket-detail.api.test.ts` | Pass (Issue #66 focused regression: 9 tests) |
+| API-18 | Concurrency/API | BR-42-BR-44 / AC-15 | Aggregate stale Ticket workflow | Stale expectedTicketVersion => 409, no status/cycle change | `server/tests/lab-04/ticket-workflow.api.test.ts` | Pass (Issue #66) |
 | API-19 | Dashboard/API | BR-29-BR-32 / AC-11 | Requester dashboard ownership + exact windows | Owned only; inclusive UTC cutoffs; stable id tie-break; zero/empty explicit | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
 | API-19A | Dashboard/API | BR-31-BR-32 / AC-11 | Exact time-window boundaries | Exact lower bound included, exact generatedAt included, future timestamp excluded, equal-time rows ordered by id desc | `server/tests/lab-04/requester-dashboard.api.test.ts` | Planned |
 | API-20 | Dashboard/API | BR-33-BR-39 / AC-12 | Staff dashboard current-work scope | Active-parent/current-cycle Actions only; historical/terminal-parent Actions excluded | `server/tests/lab-04/staff-dashboard.api.test.ts` | Planned |
@@ -50,7 +50,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | UI-01 | UI Component | FR-02-FR-07 / AC-01, AC-03-AC-07 | Actions UI | Cycle label, assignee accountability, create/edit/reassign/start/complete/cancel and deterministic errors | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass (Issue #65) |
 | UI-02 | UI Component | FR-12 / AC-11, AC-14 | Requester Dashboard | Owned metrics/recent cards, empty/failure, drill-down | `client/tests/lab-04/RequesterDashboard.test.tsx` | Planned |
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, historical exclusions, Admin reuse, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Planned |
-| UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Planned |
+| UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass (Issue #66: 3 tests) |
 | UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues | `client/tests/lab-04/ui-style.test.tsx` | Planned |
 | RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | No material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx` | Planned |
 | A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Focus visible; controls/dialogs labeled; status non-color-only | `client/tests/lab-04/accessibility.test.tsx` | Planned |
@@ -142,6 +142,15 @@ Issue #65 Actions Taken Ticket Detail UI evidence:
 - `cd server && npm run build` — Pass.
 - Affected server regression — Pass: 2 files, 47 tests (`staff-ticket-detail.api` and `actions-taken.api`).
 - A full client Vitest run was attempted under local Node.js 25.8.0, but the legacy Lab 1-3 test environment failed broadly because `localStorage` was exposed without working `getItem`/`setItem`/`clear` functions and Node emitted an invalid `--localstorage-file` warning. Therefore `REG-02` remains Planned and no full-client regression pass is claimed from that run.
+
+Issue #66 final Ticket workflow evidence:
+
+- `ticket-workflow.unit.test.ts` + `ticket-workflow.api.test.ts` — Pass: 2 files / 26 tests, including every permitted final matrix edge, current-cycle resolution gate, follow-up metadata semantics, Administrator parity, reopen cycle increment, and stale aggregate rejection.
+- `TicketWorkflow.test.tsx` + `ActionsTaken.test.tsx` — Pass: 2 files / 6 tests.
+- Focused Requester advisory regression from `staff-ticket-detail.api.test.ts` — Pass: 9 tests; `Problem Appears Resolved` remains advisory only.
+- Server and client production builds — Pass.
+- A broad `server/tests/lab-04` invocation was also attempted; ordinary Lab 4 unit/API files passed, while migration/seed integration suites correctly refused to run because `TEST_DATABASE_URL` was not supplied in that command. No pass is claimed for those two integration files from this run.
+- The older Lab 3 UI assertion that Administrator status controls must remain hidden is superseded by the approved Lab 4 BR-21/FR-14 Administrator support/testing authority. The historical Lab 3 test file is not rewritten retroactively.
 
 ## 8. Known Limitations or Deferred Tests
 

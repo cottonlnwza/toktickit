@@ -8,7 +8,7 @@ import { Prisma, type ActionStatus, type RequestedPriority, type TicketStatus, t
 import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import { normalizeEmail } from "./auth/identity.js";
-import { canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
+import { canResolveCurrentCycle, canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
 import {
   actionStatusLabel,
   actionStatuses,
@@ -1504,12 +1504,15 @@ app.patch(
 app.patch(
   "/api/staff/tickets/:ticketId/status",
   requireNormalAccess,
-  requireItStaffRole,
+  requireStaffDetailRole,
   requireApprovedOrigin,
   requireCsrf,
   async (req: Request, res: Response) => {
     const ticketId = toPositiveInteger(req.params.ticketId);
     const status = typeof req.body.status === "string" ? req.body.status : "";
+    const expectedTicketVersion = Number.isInteger(req.body.expectedTicketVersion) && req.body.expectedTicketVersion >= 0
+      ? req.body.expectedTicketVersion as number
+      : null;
     if (!ticketId) {
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket ID must be a positive integer."));
       return;
@@ -1518,29 +1521,60 @@ app.patch(
       res.status(400).json(errorResponse("VALIDATION_ERROR", "Ticket status is invalid."));
       return;
     }
+    if (expectedTicketVersion === null) {
+      res.status(400).json(errorResponse("VALIDATION_ERROR", "expectedTicketVersion must be a non-negative integer."));
+      return;
+    }
     try {
       const prisma = getPrisma();
       const outcome = await prisma.$transaction(async (tx) => {
-        const rows = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus }>>(Prisma.sql`
-          SELECT "id", "currentStatus" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE
+        const rows = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus; version: number; workflowCycle: number }>>(Prisma.sql`
+          SELECT "id", "currentStatus", "version", "workflowCycle" FROM "Ticket" WHERE "id" = ${ticketId} FOR UPDATE
         `);
         const ticket = rows[0];
         if (!ticket) return { kind: "notFound" as const };
+        if (ticket.version !== expectedTicketVersion) return { kind: "stale" as const };
         if (!canTransitionTicketStatus(ticket.currentStatus, status as TicketStatus)) {
           return { kind: "invalid" as const };
         }
-        const updated = await tx.ticket.update({ where: { id: ticketId }, data: { currentStatus: status as TicketStatus }, select: { currentStatus: true } });
-        return { kind: "success" as const, currentStatus: updated.currentStatus };
+        if (status === "RESOLVED") {
+          const currentCycleActions = await tx.actionTaken.findMany({
+            where: { ticketId, workflowCycle: ticket.workflowCycle },
+            select: { status: true },
+          });
+          if (!canResolveCurrentCycle(currentCycleActions.map((action) => action.status))) {
+            return { kind: "resolutionGate" as const };
+          }
+        }
+        const updated = await tx.ticket.update({
+          where: { id: ticketId },
+          data: {
+            currentStatus: status as TicketStatus,
+            version: { increment: 1 },
+            ...(status === "RESOLVED" ? { resolvedAt: new Date() } : {}),
+            ...(status === "REOPENED" ? { workflowCycle: { increment: 1 }, resolvedAt: null } : {}),
+          },
+          select: { currentStatus: true, version: true, workflowCycle: true, resolvedAt: true },
+        });
+        return { kind: "success" as const, ticket: updated };
       });
       if (outcome.kind === "notFound") {
         res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
         return;
       }
       if (outcome.kind === "invalid") {
-        res.status(400).json(errorResponse("INVALID_TRANSITION", "Ticket status transition is not allowed."));
+        res.status(409).json(errorResponse("TICKET_TRANSITION_NOT_ALLOWED", "Ticket status transition is not allowed."));
         return;
       }
-      res.status(200).json({ currentStatus: outcome.currentStatus, currentStatusLabel: ticketStatusLabel(outcome.currentStatus) });
+      if (outcome.kind === "stale") {
+        res.status(409).json(errorResponse("STALE_UPDATE", "The Ticket changed before this status update."));
+        return;
+      }
+      if (outcome.kind === "resolutionGate") {
+        res.status(409).json(errorResponse("RESOLUTION_GATE_BLOCKED", "Resolve requires at least one completed Action and no planned or in-progress Actions in the current workflow cycle."));
+        return;
+      }
+      res.status(200).json({ ...outcome.ticket, currentStatusLabel: ticketStatusLabel(outcome.ticket.currentStatus) });
     } catch {
       res.status(500).json(errorResponse("STATUS_UPDATE_ERROR", "Unable to update Ticket status."));
     }

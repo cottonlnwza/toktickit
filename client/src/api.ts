@@ -760,8 +760,8 @@ export function updateStaffTicketItPriority(csrfToken: string, ticketId: number,
   return staffMutation<{ itPriority: StaffTicketDetail["itPriority"]; requestedPriority: StaffTicketDetail["requestedPriority"] }>(csrfToken, `/api/staff/tickets/${ticketId}/it-priority`, "PATCH", { itPriority });
 }
 
-export function updateStaffTicketStatus(csrfToken: string, ticketId: number, status: TicketStatus) {
-  return staffMutation<{ currentStatus: TicketStatus; currentStatusLabel: string }>(csrfToken, `/api/staff/tickets/${ticketId}/status`, "PATCH", { status });
+export function updateStaffTicketStatus(csrfToken: string, ticketId: number, status: TicketStatus, expectedTicketVersion: number) {
+  return staffMutation<{ currentStatus: TicketStatus; currentStatusLabel: string; version: number; workflowCycle: number; resolvedAt: string | null }>(csrfToken, `/api/staff/tickets/${ticketId}/status`, "PATCH", { status, expectedTicketVersion });
 }
 
 export function postInternalNote(csrfToken: string, ticketId: number, content: string) {
