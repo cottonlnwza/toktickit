@@ -9,6 +9,7 @@ import { getPrisma } from "./prisma.js";
 import { hashPassword, validateNewPassword, verifyPassword } from "./auth/password.js";
 import { normalizeEmail } from "./auth/identity.js";
 import { canResolveCurrentCycle, canTransitionTicketStatus, validateCommunicationContent } from "./ticket-operations.js";
+import { activeDashboardTicketStatuses, dashboardPriorityKeys, dashboardTicketStatusKeys, dashboardWindowSnapshot } from "./dashboard-operations.js";
 import {
   actionStatusLabel,
   actionStatuses,
@@ -1120,7 +1121,163 @@ app.get("/api/related-systems", requireNormalAccess, async (_req: Request, res: 
   }
 });
 
-app.get("/api/staff/tickets", requireNormalAccess, requireItStaffRole, async (req: Request, res: Response) => {
+app.get("/api/dashboards/requester", requireNormalAccess, requireRequesterRole, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const requesterId = req.auth!.user.id;
+    const { generatedAt, updatedCutoff, resolvedCutoff } = dashboardWindowSnapshot();
+
+    const [openTickets, waitingForRequester, recentlyUpdated, recentlyResolved] = await Promise.all([
+      prisma.ticket.count({ where: { requesterId, currentStatus: { in: activeDashboardTicketStatuses } } }),
+      prisma.ticket.count({ where: { requesterId, currentStatus: "WAITING_FOR_REQUESTER" } }),
+      prisma.ticket.findMany({
+        where: { requesterId, updatedAt: { gte: updatedCutoff, lte: generatedAt } },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: 5,
+        select: { id: true, ticketNumber: true, summary: true, currentStatus: true, updatedAt: true },
+      }),
+      prisma.ticket.findMany({
+        where: { requesterId, resolvedAt: { gte: resolvedCutoff, lte: generatedAt } },
+        orderBy: [{ resolvedAt: "desc" }, { id: "desc" }],
+        take: 5,
+        select: { id: true, ticketNumber: true, summary: true, currentStatus: true, resolvedAt: true },
+      }),
+    ]);
+
+    res.status(200).json({
+      generatedAt: generatedAt.toISOString(),
+      metrics: { openTickets, waitingForRequester },
+      recentlyUpdated: recentlyUpdated.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.summary,
+        status: ticket.currentStatus,
+        updatedAt: ticket.updatedAt,
+        drillDown: `/tickets/${ticket.id}`,
+      })),
+      recentlyResolved: recentlyResolved.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.summary,
+        status: ticket.currentStatus,
+        resolvedAt: ticket.resolvedAt,
+        drillDown: `/tickets/${ticket.id}`,
+      })),
+      drillDown: {
+        openTickets: "/tickets?scope=open",
+        waitingForRequester: "/tickets?currentStatus=WAITING_FOR_REQUESTER",
+      },
+    });
+  } catch {
+    res.status(500).json(errorResponse("DASHBOARD_ERROR", "Unable to load Requester dashboard."));
+  }
+});
+
+app.get("/api/dashboards/staff", requireNormalAccess, requireStaffDetailRole, async (req: Request, res: Response) => {
+  try {
+    const prisma = getPrisma();
+    const userId = req.auth!.user.id;
+    const { generatedAt } = dashboardWindowSnapshot();
+
+    const [unassignedTickets, myTickets, statusGroups, priorityGroups, recentUrgentTickets, openActionRows, recentActionIds] = await Promise.all([
+      prisma.ticket.count({ where: { currentStatus: { in: activeDashboardTicketStatuses }, ownerId: null } }),
+      prisma.ticket.count({ where: { currentStatus: { in: activeDashboardTicketStatuses }, ownerId: userId } }),
+      prisma.ticket.groupBy({ by: ["currentStatus"], _count: { _all: true } }),
+      prisma.ticket.groupBy({ by: ["itPriority"], where: { currentStatus: { in: activeDashboardTicketStatuses } }, _count: { _all: true } }),
+      prisma.ticket.findMany({
+        where: { currentStatus: { in: activeDashboardTicketStatuses }, itPriority: "URGENT" },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: 5,
+        select: { id: true, ticketNumber: true, summary: true, itPriority: true, currentStatus: true, updatedAt: true, owner: { select: { id: true, name: true } } },
+      }),
+      prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "count"
+        FROM "ActionTaken" a
+        JOIN "Ticket" t ON t."id" = a."ticketId"
+        WHERE a."assigneeId" = ${userId}
+          AND a."status" IN ('PLANNED', 'IN_PROGRESS')
+          AND a."workflowCycle" = t."workflowCycle"
+          AND t."currentStatus" IN ('NEW', 'OPEN', 'IN_PROGRESS', 'WAITING_FOR_REQUESTER', 'REOPENED')
+      `),
+      prisma.$queryRaw<Array<{ id: number }>>(Prisma.sql`
+        SELECT a."id"
+        FROM "ActionTaken" a
+        JOIN "Ticket" t ON t."id" = a."ticketId"
+        WHERE a."workflowCycle" = t."workflowCycle"
+          AND t."currentStatus" IN ('NEW', 'OPEN', 'IN_PROGRESS', 'WAITING_FOR_REQUESTER', 'REOPENED')
+          AND (a."assigneeId" = ${userId} OR a."performedById" = ${userId})
+        ORDER BY a."updatedAt" DESC, a."id" DESC
+        LIMIT 5
+      `),
+    ]);
+
+    const byStatus = Object.fromEntries(dashboardTicketStatusKeys.map((key) => [key, 0])) as Record<TicketStatus, number>;
+    for (const group of statusGroups) byStatus[group.currentStatus] = group._count._all;
+    const byItPriority = Object.fromEntries(dashboardPriorityKeys.map((key) => [key, 0])) as Record<RequestedPriority, number>;
+    for (const group of priorityGroups) byItPriority[group.itPriority] = group._count._all;
+
+    const orderedRecentActionIds = recentActionIds.map((row) => row.id);
+    const recentActions = orderedRecentActionIds.length === 0 ? [] : await prisma.actionTaken.findMany({
+      where: { id: { in: orderedRecentActionIds } },
+      select: {
+        id: true,
+        ticketId: true,
+        actionDescription: true,
+        status: true,
+        updatedAt: true,
+        assignee: { select: { id: true, name: true } },
+        performedBy: { select: { id: true, name: true } },
+        ticket: { select: { ticketNumber: true } },
+      },
+    });
+    const recentActionById = new Map(recentActions.map((action) => [action.id, action]));
+
+    res.status(200).json({
+      generatedAt: generatedAt.toISOString(),
+      metrics: {
+        unassignedTickets,
+        myTickets,
+        myOpenActions: Number(openActionRows[0]?.count ?? 0),
+        byStatus,
+        byItPriority,
+      },
+      recentUrgentTickets: recentUrgentTickets.map((ticket) => ({
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.summary,
+        itPriority: ticket.itPriority,
+        status: ticket.currentStatus,
+        owner: ticket.owner,
+        updatedAt: ticket.updatedAt,
+        drillDown: `/staff/tickets/${ticket.id}`,
+      })),
+      myRecentActions: orderedRecentActionIds.flatMap((id) => {
+        const action = recentActionById.get(id);
+        if (!action) return [];
+        return [{
+          id: action.id,
+          ticketId: action.ticketId,
+          ticketNumber: action.ticket.ticketNumber,
+          actionDescription: action.actionDescription,
+          status: action.status,
+          assignee: action.assignee,
+          performedBy: action.performedBy,
+          updatedAt: action.updatedAt,
+          drillDown: `/staff/tickets/${action.ticketId}`,
+        }];
+      }),
+      drillDown: {
+        unassignedTickets: "/staff/tickets?owner=unassigned",
+        myTickets: `/staff/tickets?owner=${userId}`,
+        myOpenActions: "/dashboard#my-actions",
+      },
+    });
+  } catch {
+    res.status(500).json(errorResponse("DASHBOARD_ERROR", "Unable to load Staff dashboard."));
+  }
+});
+
+app.get("/api/staff/tickets", requireNormalAccess, requireStaffDetailRole, async (req: Request, res: Response) => {
   if (Object.keys(req.query).some((key) => !staffQueueQueryKeys.has(key))) {
     res.status(400).json(errorResponse("INVALID_QUERY", "One or more queue query parameters are invalid."));
     return;
@@ -1743,6 +1900,7 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
   const relatedSystemId = parseOptionalId("relatedSystemId");
   const requestedPriority = req.query.requestedPriority;
   const currentStatus = req.query.currentStatus;
+  const scope = req.query.scope;
   const sortBy = req.query.sortBy ?? "updatedAt";
   const sortDirection = req.query.sortDirection ?? "desc";
   const page = req.query.page === undefined ? 1 : toPositiveInteger(req.query.page);
@@ -1758,6 +1916,8 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
       (typeof currentStatus !== "string" || !allowedTicketStatuses.includes(currentStatus as (typeof allowedTicketStatuses)[number]))) {
     queryErrors.currentStatus = "Current Status is invalid.";
   }
+  if (scope !== undefined && scope !== "open") queryErrors.scope = "Scope must be open.";
+  if (scope !== undefined && currentStatus !== undefined) queryErrors.scope = "Use either scope or Current Status, not both.";
   if (typeof sortBy !== "string" || !sortableFields.includes(sortBy)) queryErrors.sortBy = "Sort field must be createdAt, updatedAt, requestedPriority, or ticketNumber.";
   if (sortDirection !== "asc" && sortDirection !== "desc") queryErrors.sortDirection = "Sort direction must be asc or desc.";
   if (!page) queryErrors.page = "Page must be a positive integer.";
@@ -1776,7 +1936,9 @@ app.get("/api/tickets/mine", requireNormalAccess, requireRequesterRole, async (r
       ...(categoryId ? { categoryId } : {}),
       ...(relatedSystemId ? { relatedSystemId } : {}),
       ...(typeof requestedPriority === "string" ? { requestedPriority: requestedPriority as RequestedPriorityInput } : {}),
-      ...(typeof currentStatus === "string" ? { currentStatus: currentStatus as (typeof allowedTicketStatuses)[number] } : {}),
+      ...(typeof currentStatus === "string"
+        ? { currentStatus: currentStatus as (typeof allowedTicketStatuses)[number] }
+        : scope === "open" ? { currentStatus: { in: activeDashboardTicketStatuses } } : {}),
       ...(search ? {
         OR: [
           { ticketNumber: { contains: search, mode: "insensitive" } },

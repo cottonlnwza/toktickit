@@ -6,6 +6,7 @@ import {
   ActionTaken,
   AuthApiError,
   AuthUser,
+  DashboardApiError,
   addAuthenticatedTicketAttachment,
   changePassword as changeOwnPassword,
   claimStaffTicket,
@@ -18,6 +19,8 @@ import {
   CreatedTicket,
   getAuthenticatedMyTickets,
   getAuthenticatedTicketDetail,
+  getRequesterDashboard,
+  getStaffDashboard,
   getTicketActions,
   getAdminUsers,
   getCurrentUser,
@@ -37,6 +40,7 @@ import {
   postInternalNote,
   PublicComment,
   Requester,
+  RequesterDashboardResponse,
   removeAuthenticatedTicketAttachment,
   removeTicketAttachment,
   RelatedSystem,
@@ -45,6 +49,7 @@ import {
   StaffQueueTicket,
   StaffTicketApiError,
   StaffTicketDetail,
+  StaffDashboardResponse,
   setAdminInitialPassword,
   TicketAttachment,
   TicketDetail,
@@ -241,12 +246,12 @@ function queueStatusLabel(status: TicketStatus) {
   }[status];
 }
 
-function StaffTicketQueue() {
+function StaffTicketQueue({ initialOwner = "" }: { initialOwner?: string }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | TicketStatus>("");
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState(initialOwner);
   const [categoryId, setCategoryId] = useState("");
   const [relatedSystemId, setRelatedSystemId] = useState("");
   const [sortBy, setSortBy] = useState<"updatedAt" | "createdAt" | "ticketNumber" | "requestedPriority" | "itPriority" | "status">("updatedAt");
@@ -258,6 +263,11 @@ function StaffTicketQueue() {
   const [retryToken, setRetryToken] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+
+  useEffect(() => {
+    setOwner(initialOwner);
+    setPage(1);
+  }, [initialOwner]);
 
   useEffect(() => {
     let current = true;
@@ -1087,6 +1097,104 @@ function ForbiddenUserManagement() {
   return <main className="container py-5"><div className="alert alert-danger" role="alert"><strong>Forbidden.</strong> Your role is not permitted to access User Management.</div></main>;
 }
 
+function RequesterDashboard() {
+  const [data, setData] = useState<RequesterDashboardResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    setState("loading");
+    setError("");
+    void getRequesterDashboard().then((response) => {
+      if (!current) return;
+      setData(response);
+      setState("ready");
+    }).catch((caught) => {
+      if (!current) return;
+      setState("error");
+      setData(null);
+      setError(caught instanceof DashboardApiError && caught.status === 403 ? "Forbidden. Your role is not permitted to view this dashboard." : "Unable to load Dashboard. Please try again.");
+    });
+    return () => { current = false; };
+  }, [retryToken]);
+
+  if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Dashboard...</div></main>;
+  if (state === "error" || !data) return <main className="container py-4"><div className="alert alert-danger dashboard-failure" role="alert"><span>{error}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
+
+  const recentSection = (title: string, items: RequesterDashboardResponse["recentlyUpdated"], timestampKey: "updatedAt" | "resolvedAt") => (
+    <section className="dashboard-panel" aria-labelledby={`requester-${timestampKey}`}>
+      <h3 id={`requester-${timestampKey}`}>{title}</h3>
+      {items.length === 0 ? <p className="dashboard-empty">No Tickets to show.</p> : <div className="dashboard-list">{items.map((ticket) => <article className="dashboard-row" key={ticket.id}>
+        <div><strong>{ticket.ticketNumber}</strong><span>{ticket.summary}</span><small>{queueStatusLabel(ticket.status)} · {new Date(ticket[timestampKey] ?? "").toLocaleString()}</small></div>
+        <button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `requester-ticket-${ticket.id}`; }}>Open Ticket</button>
+      </article>)}</div>}
+    </section>
+  );
+
+  return <main className="container py-4 dashboard-page">
+    <div className="dashboard-heading"><div><h2>Requester Dashboard</h2><p>Owned Ticket activity and work that needs your attention.</p></div><a className="btn btn-outline-success" href="#my-tickets">View My Tickets</a></div>
+    <div className="dashboard-metrics">
+      <a className="dashboard-metric" href="#my-tickets?scope=open" aria-label={`Open Tickets ${data.metrics.openTickets}`}><span>Open Tickets</span><strong>{data.metrics.openTickets}</strong></a>
+      <a className="dashboard-metric" href="#my-tickets?currentStatus=WAITING_FOR_REQUESTER" aria-label={`Waiting for You ${data.metrics.waitingForRequester}`}><span>Waiting for You</span><strong>{data.metrics.waitingForRequester}</strong></a>
+    </div>
+    <div className="dashboard-columns">
+      {recentSection("Recently Updated", data.recentlyUpdated, "updatedAt")}
+      {recentSection("Recently Resolved", data.recentlyResolved, "resolvedAt")}
+    </div>
+  </main>;
+}
+
+function StaffDashboard({ focusSection }: { focusSection?: string }) {
+  const [data, setData] = useState<StaffDashboardResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    setState("loading");
+    setError("");
+    void getStaffDashboard().then((response) => {
+      if (!current) return;
+      setData(response);
+      setState("ready");
+    }).catch((caught) => {
+      if (!current) return;
+      setState("error");
+      setData(null);
+      setError(caught instanceof DashboardApiError && caught.status === 403 ? "Forbidden. Your role is not permitted to view this dashboard." : "Unable to load Dashboard. Please try again.");
+    });
+    return () => { current = false; };
+  }, [retryToken]);
+
+  useEffect(() => {
+    if (state !== "ready" || focusSection !== "my-actions") return;
+    const target = document.getElementById("my-actions");
+    target?.focus();
+    target?.scrollIntoView?.({ block: "start" });
+  }, [focusSection, state]);
+
+  if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Dashboard...</div></main>;
+  if (state === "error" || !data) return <main className="container py-4"><div className="alert alert-danger dashboard-failure" role="alert"><span>{error}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
+
+  return <main className="container py-4 dashboard-page">
+    <div className="dashboard-heading"><div><h2>IT Staff Dashboard</h2><p>Current operational workload from authoritative Ticket and Action data.</p></div><a className="btn btn-outline-success" href="#ticket-queue">Open Ticket Queue</a></div>
+    <div className="dashboard-metrics">
+      <a className="dashboard-metric" href="#ticket-queue?owner=unassigned" aria-label={`Unassigned Tickets ${data.metrics.unassignedTickets}`}><span>Unassigned Tickets</span><strong>{data.metrics.unassignedTickets}</strong></a>
+      <a className="dashboard-metric" href={`#ticket-queue?owner=${data.drillDown.myTickets.split("owner=")[1] ?? ""}`} aria-label={`My Tickets ${data.metrics.myTickets}`}><span>My Tickets</span><strong>{data.metrics.myTickets}</strong></a>
+      <a className="dashboard-metric" href="#dashboard?section=my-actions" aria-label={`My Open Actions ${data.metrics.myOpenActions}`}><span>My Open Actions</span><strong>{data.metrics.myOpenActions}</strong></a>
+      <div className="dashboard-metric" aria-label="Tickets by IT Priority"><span>Tickets by IT Priority</span><strong>{data.metrics.byItPriority.URGENT} urgent</strong><small>H {data.metrics.byItPriority.HIGH} · M {data.metrics.byItPriority.MEDIUM} · L {data.metrics.byItPriority.LOW}</small></div>
+    </div>
+    <section className="dashboard-panel"><h3>Status Summary</h3><div className="status-summary">{Object.entries(data.metrics.byStatus).map(([status, count]) => <span key={status}><strong>{count}</strong> {queueStatusLabel(status as TicketStatus)}</span>)}</div></section>
+    <div className="dashboard-columns">
+      <section className="dashboard-panel"><h3>Recent / Urgent Tickets</h3>{data.recentUrgentTickets.length === 0 ? <p className="dashboard-empty">No urgent active Tickets.</p> : <div className="dashboard-list">{data.recentUrgentTickets.map((ticket) => <article className="dashboard-row" key={ticket.id}><div><strong>{ticket.ticketNumber}</strong><span>{ticket.summary}</span><small>{ticket.itPriority} · {queueStatusLabel(ticket.status)} · {ticket.owner?.name ?? "Unassigned"} · {new Date(ticket.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${ticket.id}`; }}>Open</button></article>)}</div>}</section>
+      <section className="dashboard-panel" id="my-actions" tabIndex={-1}><h3>My Recent Actions</h3>{data.myRecentActions.length === 0 ? <p className="dashboard-empty">No current Actions.</p> : <div className="dashboard-list">{data.myRecentActions.map((action) => <article className="dashboard-row" key={action.id}><div><strong>{action.ticketNumber}</strong><span>{action.actionDescription}</span><small>{action.status} · Assignee: {action.assignee.name}{action.performedBy ? ` · Performed by: ${action.performedBy.name}` : ""} · {new Date(action.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${action.ticketId}`; }}>Open</button></article>)}</div>}</section>
+    </div>
+  </main>;
+}
+
 function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
   const [routeHash, setRouteHash] = useState(() => window.location.hash);
   useEffect(() => {
@@ -1097,11 +1205,15 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
   const staffTicketMatch = routeHash.match(/^#staff-ticket-(\d+)$/);
   const staffTicketId = staffTicketMatch ? Number(staffTicketMatch[1]) : null;
   const userManagementRequested = routeHash === "#user-management";
+  const dashboardRequested = routeHash === "#dashboard" || routeHash.startsWith("#dashboard?");
+  const dashboardSection = dashboardRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("section") ?? undefined : undefined;
+  const ticketQueueRequested = routeHash === "#ticket-queue" || routeHash.startsWith("#ticket-queue?");
+  const ticketQueueOwner = ticketQueueRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("owner") ?? "" : "";
   const navigation = user.role === "REQUESTER"
-    ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
+    ? [{ label: "Dashboard", href: "#dashboard" }, { label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
     : user.role === "IT_STAFF"
-      ? [{ label: "Ticket Queue", href: "#ticket-queue" }]
-      : [{ label: "User Management", href: "#user-management" }];
+      ? [{ label: "Dashboard", href: "#dashboard" }, { label: "Ticket Queue", href: "#ticket-queue" }]
+      : [{ label: "Dashboard", href: "#dashboard" }, { label: "User Management", href: "#user-management" }];
 
   return (
     <div className="toktickit-app">
@@ -1109,7 +1221,7 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
         <div>
           <h1>TokTickIT IT Service Desk</h1>
           <nav aria-label="Primary navigation">
-            {navigation.map((item) => <a className="auth-nav-item" href={item.href} key={item.href}>{item.label}</a>)}
+            {navigation.map((item) => <a className="auth-nav-item" href={item.href} aria-current={routeHash === item.href || (item.href === "#dashboard" && dashboardRequested) || (item.href === "#ticket-queue" && ticketQueueRequested) ? "page" : undefined} key={item.href}>{item.label}</a>)}
           </nav>
         </div>
         <div className="auth-identity">
@@ -1120,7 +1232,11 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
           </div>
         </div>
       </header>
-      {userManagementRequested && user.role !== "ADMINISTRATOR" ? (
+      {dashboardRequested ? (
+        user.role === "REQUESTER" ? <RequesterDashboard /> : <StaffDashboard focusSection={dashboardSection} />
+      ) : ticketQueueRequested && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
+        <StaffTicketQueue initialOwner={ticketQueueOwner} />
+      ) : userManagementRequested && user.role !== "ADMINISTRATOR" ? (
         <ForbiddenUserManagement />
       ) : staffTicketId && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
         <StaffTicketDetailView ticketId={staffTicketId} user={user} csrfToken={csrfToken} />
@@ -1289,6 +1405,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const [ticketSystemFilter, setTicketSystemFilter] = useState("");
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("");
+  const [ticketScopeFilter, setTicketScopeFilter] = useState<"" | "open">("");
   const [ticketSortBy, setTicketSortBy] = useState<MyTicketsQuery["sortBy"]>("updatedAt");
   const [ticketSortDirection, setTicketSortDirection] = useState<MyTicketsQuery["sortDirection"]>("desc");
   const [ticketPage, setTicketPage] = useState(1);
@@ -1307,8 +1424,26 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   useEffect(() => {
     if (!embedded) return;
     const syncViewFromHash = () => {
-      if (window.location.hash === "#my-tickets") setActiveView("myTickets");
+      if (window.location.hash.startsWith("#my-tickets")) {
+        setActiveView("myTickets");
+        const query = window.location.hash.includes("?") ? window.location.hash.split("?", 2)[1] : "";
+        const parameters = new URLSearchParams(query);
+        const statusValue = parameters.get("currentStatus");
+        const scopeValue = parameters.get("scope");
+        if (statusValue && ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"].includes(statusValue)) {
+          setTicketStatusFilter(statusValue);
+          setTicketScopeFilter("");
+        } else if (scopeValue === "open") {
+          setTicketScopeFilter("open");
+          setTicketStatusFilter("");
+        }
+      }
       if (window.location.hash === "#create-ticket") setActiveView("createTicket");
+      const ticketMatch = window.location.hash.match(/^#requester-ticket-(\d+)$/);
+      if (ticketMatch) {
+        setSelectedTicketId(Number(ticketMatch[1]));
+        setActiveView("ticketDetail");
+      }
     };
     syncViewFromHash();
     window.addEventListener("hashchange", syncViewFromHash);
@@ -1328,6 +1463,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
       relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
       requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
       currentStatus: ticketStatusFilter ? ticketStatusFilter as NonNullable<MyTicketsQuery["currentStatus"]> : undefined,
+      scope: ticketScopeFilter || undefined,
       sortBy: ticketSortBy,
       sortDirection: ticketSortDirection,
       page: ticketPage,
@@ -1360,6 +1496,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     ticketSystemFilter,
     ticketPriorityFilter,
     ticketStatusFilter,
+    ticketScopeFilter,
     ticketSortBy,
     ticketSortDirection,
     ticketPage,
@@ -1626,6 +1763,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketSortBy("updatedAt");
     setTicketSortDirection("desc");
     setTicketPage(1);
@@ -1653,6 +1791,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketPage(1);
   }
 
@@ -1765,7 +1904,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const selectedRequester = requesterContext.selectedRequester;
   const showSelector = !selectedRequester;
   const hasMyTicketsQuery = Boolean(
-    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
+    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter || ticketScopeFilter,
   );
   const resolutionIndicationEligible = ticketDetail
     ? ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticketDetail.currentStatus)
@@ -2077,7 +2216,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
               </div>
               <div>
                 <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
-                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
+                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketScopeFilter(""); setTicketPage(1); }}>
                   <option value="">All statuses</option>
                   <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option>
                   <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option>
