@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { getPrisma } from "../../src/prisma.js";
+import { createActionFingerprint } from "../../src/action-operations.js";
 import {
   FRONTEND_ORIGIN,
   fixtureUsers,
@@ -109,6 +110,113 @@ describe("Lab 4 Actions Taken API foundation", () => {
     const conflict = await agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ ...body, actionDescription: "Different original intent" });
     expect(conflict.status).toBe(409);
     expect(conflict.body.error?.code).toBe("ACTION_REPLAY_CONFLICT");
+  });
+
+  it("API-10B hides a UUID collision that belongs to a different Ticket resource", async () => {
+    const prisma = getPrisma();
+    const firstTicket = await createTicket();
+    const secondTicket = await createTicket();
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+    const clientRequestId = randomUUID();
+
+    const first = await agent.post(`/api/staff/tickets/${firstTicket.id}/actions`)
+      .set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken)
+      .send({ expectedTicketVersion: 0, clientRequestId, actionDescription: "First Ticket work", followUpRequired: false });
+    expect(first.status).toBe(201);
+
+    const hiddenCollision = await agent.post(`/api/staff/tickets/${secondTicket.id}/actions`)
+      .set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken)
+      .send({ expectedTicketVersion: 0, clientRequestId, actionDescription: "Second Ticket work", followUpRequired: false });
+
+    expect(hiddenCollision.status).toBe(404);
+    expect(hiddenCollision.body.error?.code).toBe("NOT_FOUND");
+    expect(await prisma.actionTaken.count({ where: { clientRequestId } })).toBe(1);
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: secondTicket.id } })).version).toBe(0);
+  });
+
+  it("API-02 concurrently replays identical create intent without duplicate Action, event, or Ticket increment", async () => {
+    const prisma = getPrisma();
+    const ticket = await createTicket();
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+    const clientRequestId = randomUUID();
+    const body = { expectedTicketVersion: 0, clientRequestId, actionDescription: "Concurrent exact intent", followUpRequired: false };
+
+    const [left, right] = await Promise.all([
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send(body),
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send(body),
+    ]);
+
+    expect([left.status, right.status].sort()).toEqual([200, 201]);
+    expect([left.body.replayed, right.body.replayed].sort()).toEqual([false, true]);
+    const actions = await prisma.actionTaken.findMany({ where: { clientRequestId } });
+    expect(actions).toHaveLength(1);
+    expect(await prisma.actionTakenEvent.count({ where: { actionTakenId: actions[0].id } })).toBe(1);
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).version).toBe(1);
+  });
+
+  it("API-02 resolves concurrent conflicting create intent to one create plus one deterministic conflict", async () => {
+    const prisma = getPrisma();
+    const ticket = await createTicket();
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+    const clientRequestId = randomUUID();
+
+    const [left, right] = await Promise.all([
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ expectedTicketVersion: 0, clientRequestId, actionDescription: "Concurrent intent A", followUpRequired: false }),
+      agent.post(`/api/staff/tickets/${ticket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ expectedTicketVersion: 0, clientRequestId, actionDescription: "Concurrent intent B", followUpRequired: false }),
+    ]);
+
+    expect([left.status, right.status].sort()).toEqual([201, 409]);
+    const conflict = left.status === 409 ? left : right;
+    expect(conflict.body.error?.code).toBe("ACTION_REPLAY_CONFLICT");
+    const actions = await prisma.actionTaken.findMany({ where: { clientRequestId } });
+    expect(actions).toHaveLength(1);
+    expect(await prisma.actionTakenEvent.count({ where: { actionTakenId: actions[0].id } })).toBe(1);
+    expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).version).toBe(1);
+  });
+
+  it("API-02 fingerprints the authoritative locked workflow cycle when Ticket state changes before commit", async () => {
+    const prisma = getPrisma();
+    const ticket = await createTicket();
+    const staff = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.staff.email } });
+    const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
+    const clientRequestId = randomUUID();
+
+    let signalLocked!: () => void;
+    let releaseCommit!: () => void;
+    const locked = new Promise<void>((resolve) => { signalLocked = resolve; });
+    const allowCommit = new Promise<void>((resolve) => { releaseCommit = resolve; });
+
+    const workflowChange = prisma.$transaction(async (tx) => {
+      await tx.ticket.update({ where: { id: ticket.id }, data: { workflowCycle: 2, version: 1 } });
+      signalLocked();
+      await allowCommit;
+    });
+
+    await locked;
+    const requestPromise = agent.post(`/api/staff/tickets/${ticket.id}/actions`)
+      .set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken)
+      .send({ expectedTicketVersion: 1, clientRequestId, actionDescription: "Cycle two work", followUpRequired: false })
+      .then((response) => response);
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    releaseCommit();
+    await workflowChange;
+    const response = await requestPromise;
+
+    expect(response.status).toBe(201);
+    const stored = await prisma.actionTaken.findUniqueOrThrow({ where: { clientRequestId } });
+    expect(stored.workflowCycle).toBe(2);
+    expect(stored.createFingerprint).toBe(createActionFingerprint({
+      ticketId: ticket.id,
+      workflowCycle: 2,
+      createdById: staff.id,
+      actionDescription: "Cycle two work",
+      assigneeId: staff.id,
+      result: null,
+      followUpRequired: false,
+      followUpNote: null,
+      attachmentNotes: null,
+    }));
   });
 
   it("API-04 rejects inactive assignee and leaves aggregate unchanged", async () => {

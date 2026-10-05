@@ -2660,37 +2660,10 @@ app.post(
       return;
     }
 
+    const actorId = req.auth!.user.id;
+    const requestedAssigneeId = output.assigneeId ?? actorId;
     try {
       const prisma = getPrisma();
-      const actorId = req.auth!.user.id;
-      const requestedAssigneeId = output.assigneeId ?? actorId;
-      const currentTicket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { id: true, version: true, workflowCycle: true, currentStatus: true } });
-      if (!currentTicket) {
-        res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
-        return;
-      }
-
-      const fingerprint = createActionFingerprint({
-        ticketId,
-        workflowCycle: currentTicket.workflowCycle,
-        createdById: actorId,
-        actionDescription: output.actionDescription!,
-        assigneeId: requestedAssigneeId,
-        result: output.result ?? null,
-        followUpRequired: output.followUpRequired!,
-        followUpNote: output.followUpNote ?? null,
-        attachmentNotes: output.attachmentNotes ?? null,
-      });
-
-      const existing = await prisma.actionTaken.findUnique({ where: { clientRequestId: req.body.clientRequestId }, include: actionInclude });
-      if (existing) {
-        if (existing.ticketId !== ticketId || existing.createdById !== actorId || existing.workflowCycle !== currentTicket.workflowCycle || existing.createFingerprint !== fingerprint) {
-          res.status(409).json(errorResponse("ACTION_REPLAY_CONFLICT", "Action request id conflicts with an existing Action."));
-          return;
-        }
-        res.status(200).json({ action: actionResponse(existing), ticketVersion: currentTicket.version, replayed: true });
-        return;
-      }
 
       const result = await prisma.$transaction(async (tx) => {
         const locked = await tx.$queryRaw<Array<{ id: number; currentStatus: TicketStatus; version: number; workflowCycle: number }>>(Prisma.sql`
@@ -2698,6 +2671,33 @@ app.post(
         `);
         const ticket = locked[0];
         if (!ticket) return { kind: "notFound" as const };
+
+        const fingerprint = createActionFingerprint({
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          createdById: actorId,
+          actionDescription: output.actionDescription!,
+          assigneeId: requestedAssigneeId,
+          result: output.result ?? null,
+          followUpRequired: output.followUpRequired!,
+          followUpNote: output.followUpNote ?? null,
+          attachmentNotes: output.attachmentNotes ?? null,
+        });
+
+        const existing = await tx.actionTaken.findUnique({
+          where: { clientRequestId: req.body.clientRequestId },
+          include: actionInclude,
+        });
+        if (existing) {
+          if (existing.ticketId !== ticketId) return { kind: "hiddenReplay" as const };
+          if (
+            existing.createdById !== actorId
+            || existing.workflowCycle !== ticket.workflowCycle
+            || existing.createFingerprint !== fingerprint
+          ) return { kind: "replayConflict" as const };
+          return { kind: "replay" as const, action: existing, ticketVersion: ticket.version };
+        }
+
         if (!activeTicketStatuses.includes(ticket.currentStatus as (typeof activeTicketStatuses)[number])) return { kind: "parentInactive" as const };
         if (ticket.version !== req.body.expectedTicketVersion) return { kind: "stale" as const };
 
@@ -2738,12 +2738,43 @@ app.post(
       });
 
       if (result.kind === "notFound") res.status(404).json(errorResponse("NOT_FOUND", "Ticket was not found."));
+      else if (result.kind === "hiddenReplay") res.status(404).json(errorResponse("NOT_FOUND", "Action request was not found."));
+      else if (result.kind === "replayConflict") res.status(409).json(errorResponse("ACTION_REPLAY_CONFLICT", "Action request id conflicts with an existing Action."));
+      else if (result.kind === "replay") res.status(200).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion, replayed: true });
       else if (result.kind === "parentInactive") res.status(409).json(errorResponse("PARENT_TICKET_NOT_ACTIVE", "Actions can be changed only while the Ticket is active."));
       else if (result.kind === "stale") res.status(409).json(errorResponse("STALE_UPDATE", "Ticket has changed. Reload the latest data."));
       else if (result.kind === "inactiveAssignee") res.status(409).json(errorResponse("INACTIVE_ASSIGNEE", "Assignee must be an active IT Staff or Administrator."));
       else res.status(201).json({ action: actionResponse(result.action), ticketVersion: result.ticketVersion, replayed: false });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        const prisma = getPrisma();
+        const [ticket, existing] = await Promise.all([
+          prisma.ticket.findUnique({ where: { id: ticketId }, select: { version: true, workflowCycle: true } }),
+          prisma.actionTaken.findUnique({ where: { clientRequestId: req.body.clientRequestId }, include: actionInclude }),
+        ]);
+        if (!ticket || !existing || existing.ticketId !== ticketId) {
+          res.status(404).json(errorResponse("NOT_FOUND", "Action request was not found."));
+          return;
+        }
+        const replayFingerprint = createActionFingerprint({
+          ticketId,
+          workflowCycle: ticket.workflowCycle,
+          createdById: actorId,
+          actionDescription: output.actionDescription!,
+          assigneeId: requestedAssigneeId,
+          result: output.result ?? null,
+          followUpRequired: output.followUpRequired!,
+          followUpNote: output.followUpNote ?? null,
+          attachmentNotes: output.attachmentNotes ?? null,
+        });
+        if (
+          existing.createdById === actorId
+          && existing.workflowCycle === ticket.workflowCycle
+          && existing.createFingerprint === replayFingerprint
+        ) {
+          res.status(200).json({ action: actionResponse(existing), ticketVersion: ticket.version, replayed: true });
+          return;
+        }
         res.status(409).json(errorResponse("ACTION_REPLAY_CONFLICT", "Action request id conflicts with an existing Action."));
         return;
       }
