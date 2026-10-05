@@ -1271,6 +1271,8 @@ app.get("/api/staff/tickets/:ticketId", requireNormalAccess, requireStaffDetailR
           requestedPriority: true,
           itPriority: true,
           currentStatus: true,
+          version: true,
+          workflowCycle: true,
           problemAppearsResolvedAt: true,
           createdAt: true,
           updatedAt: true,

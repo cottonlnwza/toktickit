@@ -1,6 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AdminUser,
+  ActionApiError,
+  ActionStatus,
+  ActionTaken,
   AuthApiError,
   AuthUser,
   addAuthenticatedTicketAttachment,
@@ -9,11 +12,13 @@ import {
   checkSystem,
   Category,
   createAuthenticatedTicket,
+  createTicketAction,
   createAdminUser,
   createTicket,
   CreatedTicket,
   getAuthenticatedMyTickets,
   getAuthenticatedTicketDetail,
+  getTicketActions,
   getAdminUsers,
   getCurrentUser,
   getCategories,
@@ -44,6 +49,8 @@ import {
   TicketAttachment,
   TicketDetail,
   TicketStatus,
+  transitionTicketAction,
+  updateTicketAction,
   updateStaffTicketItPriority,
   updateStaffTicketOwner,
   updateStaffTicketStatus,
@@ -488,6 +495,251 @@ const staffStatusTransitions: Record<TicketStatus, TicketStatus[]> = {
   CANCELLED: ["REOPENED"],
 };
 
+type ActionFormState = {
+  actionDescription: string;
+  assigneeId: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string;
+  attachmentNotes: string;
+};
+
+const emptyActionForm: ActionFormState = {
+  actionDescription: "",
+  assigneeId: "",
+  result: "",
+  followUpRequired: false,
+  followUpNote: "",
+  attachmentNotes: "",
+};
+
+function ActionsTakenPanel({
+  ticketId,
+  currentUser,
+  csrfToken,
+  initialTicketVersion,
+  currentWorkflowCycle,
+  assigneeOptions,
+  readOnly = false,
+}: {
+  ticketId: number;
+  currentUser: AuthUser;
+  csrfToken: string;
+  initialTicketVersion?: number;
+  currentWorkflowCycle?: number;
+  assigneeOptions?: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
+  readOnly?: boolean;
+}) {
+  const [actions, setActions] = useState<ActionTaken[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [ticketVersion, setTicketVersion] = useState(initialTicketVersion ?? 0);
+  const [form, setForm] = useState<ActionFormState>(emptyActionForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const canWrite = !readOnly && ["IT_STAFF", "ADMINISTRATOR"].includes(currentUser.role);
+
+  useEffect(() => {
+    let current = true;
+    setLoadState("loading");
+    setError("");
+    void getTicketActions(ticketId)
+      .then((response) => {
+        if (!current) return;
+        setActions(response.items);
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!current) return;
+        setLoadState("error");
+        setError("Unable to load Actions Taken. Please try again.");
+      });
+    return () => { current = false; };
+  }, [ticketId, reloadToken]);
+
+  useEffect(() => {
+    if (initialTicketVersion !== undefined) setTicketVersion(initialTicketVersion);
+  }, [initialTicketVersion]);
+
+  function beginEdit(action: ActionTaken) {
+    setEditingId(action.id);
+    setForm({
+      actionDescription: action.actionDescription,
+      assigneeId: String(action.assignee.id),
+      result: action.result ?? "",
+      followUpRequired: action.followUpRequired,
+      followUpNote: action.followUpNote ?? "",
+      attachmentNotes: action.attachmentNotes ?? "",
+    });
+    setFieldErrors({});
+    setError("");
+    setMessage("");
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(emptyActionForm);
+    setFieldErrors({});
+  }
+
+  function validateForm() {
+    const fields: Record<string, string> = {};
+    if (!form.actionDescription.trim()) fields.actionDescription = "Action Description is required.";
+    if (!form.assigneeId) fields.assigneeId = "Assignee is required.";
+    if (form.followUpRequired && !form.followUpNote.trim()) fields.followUpNote = "Follow-up Note is required when follow-up is needed.";
+    setFieldErrors(fields);
+    return Object.keys(fields).length === 0;
+  }
+
+  function explainActionError(caught: unknown) {
+    if (!(caught instanceof ActionApiError)) return "Unable to save Action Taken. Please try again.";
+    if (caught.code === "STALE_UPDATE") return "This Ticket or Action changed. Reload latest data before trying again.";
+    if (caught.code === "INACTIVE_ASSIGNEE") return "The selected assignee is no longer active. Choose another IT Staff or Administrator.";
+    if (caught.code === "ACTION_ASSIGNEE_MISMATCH") return "Only the current assignee can complete this Action. Reassign it first if needed.";
+    if (caught.code === "PARENT_TICKET_NOT_ACTIVE") return "This Action cannot be changed because the Ticket is not in an active work state.";
+    if (caught.code === "ACTION_TERMINAL") return "Completed or cancelled Actions cannot be edited.";
+    if (caught.code === "ACTION_REPLAY_CONFLICT") return "This create request conflicts with an existing Action. Reload the latest Actions.";
+    if (caught.status === 404) return "The Ticket or Action is unavailable. Reload the latest data.";
+    return caught.message || "Unable to save Action Taken. Please try again.";
+  }
+
+  async function submitAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !validateForm()) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      if (editingId === null) {
+        const response = await createTicketAction(csrfToken, ticketId, {
+          expectedTicketVersion: ticketVersion,
+          clientRequestId: crypto.randomUUID(),
+          actionDescription: form.actionDescription,
+          assigneeId: Number(form.assigneeId),
+          result: form.result.trim() || null,
+          followUpRequired: form.followUpRequired,
+          followUpNote: form.followUpRequired ? form.followUpNote : null,
+          attachmentNotes: form.attachmentNotes.trim() || null,
+        });
+        setTicketVersion(response.ticketVersion);
+        setActions((current) => {
+          const withoutDuplicate = current.filter((item) => item.id !== response.action.id);
+          return [...withoutDuplicate, response.action].sort((a, b) => a.workflowCycle - b.workflowCycle || a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+        });
+        setMessage(response.replayed ? "Action request safely replayed without creating a duplicate." : "Action created.");
+      } else {
+        const action = actions.find((item) => item.id === editingId);
+        if (!action) throw new Error("Action not found.");
+        const response = await updateTicketAction(csrfToken, ticketId, editingId, {
+          expectedTicketVersion: ticketVersion,
+          expectedActionVersion: action.version,
+          actionDescription: form.actionDescription,
+          assigneeId: Number(form.assigneeId),
+          result: form.result.trim() || null,
+          followUpRequired: form.followUpRequired,
+          followUpNote: form.followUpRequired ? form.followUpNote : null,
+          attachmentNotes: form.attachmentNotes.trim() || null,
+        });
+        setTicketVersion(response.ticketVersion);
+        setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
+        setMessage("Action updated.");
+      }
+      resetForm();
+    } catch (caught) {
+      if (caught instanceof ActionApiError) setFieldErrors(caught.fields);
+      setError(explainActionError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeStatus(action: ActionTaken, toStatus: ActionStatus) {
+    if (saving) return;
+    let result = action.result ?? "";
+    if (toStatus === "COMPLETED" && !result.trim()) {
+      const entered = window.prompt("Result is required to complete this Action.", "");
+      if (entered === null) return;
+      result = entered.trim();
+      if (!result) {
+        setError("Result is required to complete an Action.");
+        return;
+      }
+    }
+    if (["COMPLETED", "CANCELLED"].includes(toStatus)) {
+      const text = toStatus === "COMPLETED"
+        ? "Complete this Action? This is a terminal Action state."
+        : "Cancel this Action? Cancelled Actions do not count as completed-work evidence.";
+      if (!window.confirm(text)) return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await transitionTicketAction(csrfToken, ticketId, action.id, {
+        toStatus,
+        expectedTicketVersion: ticketVersion,
+        expectedActionVersion: action.version,
+        ...(toStatus === "COMPLETED" ? { result } : {}),
+      });
+      setTicketVersion(response.ticketVersion);
+      setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
+      setMessage(`Action ${response.action.statusLabel.toLowerCase()}.`);
+      if (editingId === action.id) resetForm();
+    } catch (caught) {
+      setError(explainActionError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="staff-detail-section actions-taken-section" aria-labelledby={`actions-taken-${ticketId}`}>
+    <div className="actions-heading">
+      <div><h3 id={`actions-taken-${ticketId}`}>Actions Taken</h3><p>{readOnly ? "Recorded service-desk work for this Ticket. This information is read-only." : `Current workflow cycle: ${currentWorkflowCycle ?? "-"}`}</p></div>
+      {loadState === "error" && <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setReloadToken((value) => value + 1)}>Retry</button>}
+    </div>
+    {loadState === "loading" && <div className="queue-state" role="status">Loading Actions Taken...</div>}
+    {error && <div className="alert alert-danger" role={loadState === "error" ? "status" : "alert"}>{error}{error.includes("Reload") && <button className="btn btn-sm btn-outline-danger ms-2" type="button" onClick={() => setReloadToken((value) => value + 1)}>Reload latest</button>}</div>}
+    {message && <div className="alert alert-success" role="status">{message}</div>}
+    {loadState === "ready" && actions.length === 0 && <div className="queue-state">No Actions Taken yet.</div>}
+    {actions.length > 0 && <div className="actions-list">{actions.map((action) => <article className={`action-card ${currentWorkflowCycle && action.workflowCycle !== currentWorkflowCycle ? "historical" : ""}`} key={action.id}>
+      <div className="action-card-heading"><strong>{action.statusLabel}</strong><span>Cycle {action.workflowCycle}{currentWorkflowCycle && action.workflowCycle !== currentWorkflowCycle ? " - Historical" : ""}</span></div>
+      <dl className="action-detail-grid">
+        <div><dt>Action Date/Time</dt><dd>{new Date(action.actionDateTime).toLocaleString()}</dd></div>
+        <div><dt>Assignee</dt><dd>{action.assignee.name}</dd></div>
+        <div className="detail-wide"><dt>Action Description</dt><dd>{action.actionDescription}</dd></div>
+        <div className="detail-wide"><dt>Result</dt><dd>{action.result ?? "Not completed yet"}</dd></div>
+        <div><dt>Performed by</dt><dd>{action.performedBy?.name ?? "Not completed yet"}</dd></div>
+        <div><dt>Follow-Up Required</dt><dd>{action.followUpRequired ? "Yes" : "No"}</dd></div>
+        {action.followUpNote && <div className="detail-wide"><dt>Follow-up Note</dt><dd>{action.followUpNote}</dd></div>}
+        {action.attachmentNotes && <div className="detail-wide"><dt>Attachment Notes</dt><dd>{action.attachmentNotes}</dd></div>}
+        <div><dt>Last Updated</dt><dd>{new Date(action.updatedAt).toLocaleString()}</dd></div>
+      </dl>
+      {canWrite && ["PLANNED", "IN_PROGRESS"].includes(action.status) && <div className="action-buttons">
+        <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => beginEdit(action)}>Edit / Reassign</button>
+        {action.status === "PLANNED" && <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "IN_PROGRESS")}>Start</button>}
+        {action.assignee.id === currentUser.id && <button className="btn btn-sm btn-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "COMPLETED")}>Complete</button>}
+        <button className="btn btn-sm btn-outline-danger" type="button" disabled={saving} onClick={() => void changeStatus(action, "CANCELLED")}>Cancel</button>
+      </div>}
+    </article>)}</div>}
+
+    {canWrite && <form className="action-form" onSubmit={(event) => void submitAction(event)} noValidate>
+      <div className="actions-heading"><h4>{editingId === null ? "Create Action" : "Edit Action"}</h4>{editingId !== null && <button className="btn btn-sm btn-outline-secondary" type="button" disabled={saving} onClick={resetForm}>Cancel Edit</button>}</div>
+      <div className="action-form-grid">
+        <div className="detail-wide"><label className="form-label" htmlFor={`action-description-${ticketId}`}>Action Description <span className="required-marker">*</span></label><textarea id={`action-description-${ticketId}`} className={`form-control ${fieldErrors.actionDescription ? "is-invalid" : ""}`} maxLength={2000} value={form.actionDescription} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, actionDescription: event.target.value }))} />{fieldErrors.actionDescription && <div className="invalid-feedback d-block">{fieldErrors.actionDescription}</div>}</div>
+        <div><label className="form-label" htmlFor={`action-assignee-${ticketId}`}>Assignee <span className="required-marker">*</span></label><select id={`action-assignee-${ticketId}`} className={`form-select ${fieldErrors.assigneeId ? "is-invalid" : ""}`} value={form.assigneeId} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, assigneeId: event.target.value }))}><option value="">Select assignee</option>{(assigneeOptions ?? []).map((option) => <option key={option.id} value={option.id}>{option.name} ({roleLabel(option.role)})</option>)}</select>{fieldErrors.assigneeId && <div className="invalid-feedback d-block">{fieldErrors.assigneeId}</div>}</div>
+        <div><label className="form-label" htmlFor={`action-result-${ticketId}`}>Result</label><input id={`action-result-${ticketId}`} className="form-control" maxLength={2000} value={form.result} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, result: event.target.value }))} /></div>
+        <div><label className="form-label" htmlFor={`action-followup-${ticketId}`}>Follow-Up Required? <span className="required-marker">*</span></label><select id={`action-followup-${ticketId}`} className="form-select" value={form.followUpRequired ? "yes" : "no"} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, followUpRequired: event.target.value === "yes", followUpNote: event.target.value === "yes" ? current.followUpNote : "" }))}><option value="no">No</option><option value="yes">Yes</option></select></div>
+        {form.followUpRequired && <div><label className="form-label" htmlFor={`action-followup-note-${ticketId}`}>Follow-up Note <span className="required-marker">*</span></label><textarea id={`action-followup-note-${ticketId}`} className={`form-control ${fieldErrors.followUpNote ? "is-invalid" : ""}`} maxLength={1000} value={form.followUpNote} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, followUpNote: event.target.value }))} />{fieldErrors.followUpNote && <div className="invalid-feedback d-block">{fieldErrors.followUpNote}</div>}</div>}
+        <div className="detail-wide"><label className="form-label" htmlFor={`action-attachment-notes-${ticketId}`}>Attachment Notes</label><textarea id={`action-attachment-notes-${ticketId}`} className="form-control" maxLength={1000} value={form.attachmentNotes} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, attachmentNotes: event.target.value }))} /></div>
+      </div>
+      <button className="btn btn-success" type="submit" disabled={saving}>{saving ? "Saving..." : editingId === null ? "Create Action" : "Save Action"}</button>
+    </form>}
+  </section>;
+}
+
 function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number; user: AuthUser; csrfToken: string }) {
   const [detail, setDetail] = useState<StaffTicketDetail | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -585,6 +837,15 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
         </div></section>
 
         {detail.problemAppearsResolvedAt && <div className="alert alert-info" role="status"><strong>Problem Appears Resolved</strong> indicated by the Requester on {new Date(detail.problemAppearsResolvedAt).toLocaleString()}. This does not change formal Ticket status.</div>}
+
+        <ActionsTakenPanel
+          ticketId={detail.id}
+          currentUser={user}
+          csrfToken={csrfToken}
+          initialTicketVersion={detail.version}
+          currentWorkflowCycle={detail.workflowCycle}
+          assigneeOptions={detail.ownerOptions}
+        />
 
         <section className="staff-detail-section public-communication"><h3>Public Comments <span className="communication-label">Public</span></h3><p>Visible to the Requester, IT Staff, and Administrator.</p>{detail.publicComments.length === 0 ? <p>No Public Comments yet.</p> : <div className="communication-list">{detail.publicComments.map((comment) => <article key={comment.id}><strong>{comment.author.name}</strong><small>{new Date(comment.createdAt).toLocaleString()}</small><p>{comment.content}</p></article>)}</div>}{staffMode && <><label className="form-label" htmlFor="staff-public-comment">Public Comment</label><textarea id="staff-public-comment" aria-label="Public Comment" className="form-control" maxLength={2000} value={publicContent} disabled={saving} onChange={(event) => setPublicContent(event.target.value)} /><button className="btn btn-success mt-2" type="button" disabled={saving || !publicContent.trim()} onClick={() => void runMutation(async () => { const comment = await postPublicComment(csrfToken, detail.id, publicContent); setDetail((current) => current ? { ...current, publicComments: [...current.publicComments, comment] } : current); setPublicContent(""); }, "Public Comment posted.")}>Post Public Comment</button></>}</section>
 
@@ -1630,6 +1891,15 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
                   <div><dt>Created</dt><dd>{ticketDetail.createdAt.slice(0, 10)}</dd></div>
                   <div><dt>Last Updated</dt><dd>{ticketDetail.updatedAt.slice(0, 10)}</dd></div>
                 </dl>
+
+                {authenticatedMode && authenticatedRequester && (
+                  <ActionsTakenPanel
+                    ticketId={ticketDetail.id}
+                    currentUser={{ ...authenticatedRequester, role: "REQUESTER", mustChangePassword: false }}
+                    csrfToken={csrfToken}
+                    readOnly
+                  />
+                )}
 
                 <section className="detail-attachments" aria-labelledby="detail-attachments-heading">
                   <div className="detail-attachments-heading">
