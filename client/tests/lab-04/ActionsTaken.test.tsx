@@ -123,6 +123,91 @@ describe("Lab 4 Actions Taken Ticket Detail UI", () => {
     expect(card.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
   });
 
+  it("UI-01 keeps completed, cancelled, and historical-cycle Actions read-only", async () => {
+    const completed = { ...action, id: 20, actionDescription: "Completed work", status: "COMPLETED", statusLabel: "Completed", result: "Done", version: 1 };
+    const cancelled = { ...action, id: 21, actionDescription: "Cancelled work", status: "CANCELLED", statusLabel: "Cancelled", version: 1 };
+    const historical = { ...action, id: 22, workflowCycle: 1, actionDescription: "Historical planned work" };
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return jsonResponse(200, { user: staff, csrfToken: "l4-csrf" });
+      if (url.endsWith(`/api/staff/tickets/${detail.id}`) && method === "GET") return jsonResponse(200, detail);
+      if (url.endsWith(`/api/tickets/${detail.id}/actions`) && method === "GET") return jsonResponse(200, { items: [completed, cancelled, historical] });
+      return jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+    });
+    window.location.hash = `#staff-ticket-${detail.id}`;
+    render(<App />);
+
+    for (const description of ["Completed work", "Cancelled work", "Historical planned work"]) {
+      const article = (await screen.findByText(description)).closest("article");
+      expect(article).not.toBeNull();
+      const card = within(article!);
+      expect(card.queryByRole("button", { name: /Edit \/ Reassign/ })).not.toBeInTheDocument();
+      expect(card.queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
+      expect(card.queryByRole("button", { name: "Complete" })).not.toBeInTheDocument();
+      expect(card.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+    }
+    expect(screen.getByText(/Cycle 1 - Historical/)).toBeInTheDocument();
+  });
+
+  it("UI-01 immediately rerenders a successfully completed Action without mutation controls", async () => {
+    vi.spyOn(window, "prompt").mockReturnValue("Resolved by profile reset");
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return jsonResponse(200, { user: staff, csrfToken: "l4-csrf" });
+      if (url.endsWith(`/api/staff/tickets/${detail.id}`) && method === "GET") return jsonResponse(200, detail);
+      if (url.endsWith(`/api/tickets/${detail.id}/actions`) && method === "GET") return jsonResponse(200, { items: [action] });
+      if (url.endsWith(`/api/staff/tickets/${detail.id}/actions/${action.id}/status`) && method === "POST") {
+        return jsonResponse(200, {
+          action: { ...action, status: "COMPLETED", statusLabel: "Completed", result: "Resolved by profile reset", version: 1 },
+          ticketVersion: 5,
+        });
+      }
+      return jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+    });
+    const user = userEvent.setup();
+    window.location.hash = `#staff-ticket-${detail.id}`;
+    render(<App />);
+    const article = (await screen.findByText("Inspect VPN client logs")).closest("article");
+    expect(article).not.toBeNull();
+    await user.click(within(article!).getByRole("button", { name: "Complete" }));
+    await waitFor(() => expect(within(article!).getByText("Completed")).toBeInTheDocument());
+    expect(within(article!).queryByRole("button", { name: /Edit \/ Reassign/ })).not.toBeInTheDocument();
+    expect(within(article!).queryByRole("button", { name: "Complete" })).not.toBeInTheDocument();
+    expect(within(article!).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
+  it("UI-01 immediately rerenders a successfully cancelled Action without mutation controls", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
+      const url = urlOf(input);
+      const method = init?.method ?? "GET";
+      if (url.endsWith("/api/auth/me")) return jsonResponse(200, { user: staff, csrfToken: "l4-csrf" });
+      if (url.endsWith(`/api/staff/tickets/${detail.id}`) && method === "GET") return jsonResponse(200, detail);
+      if (url.endsWith(`/api/tickets/${detail.id}/actions`) && method === "GET") return jsonResponse(200, { items: [action] });
+      if (url.endsWith(`/api/staff/tickets/${detail.id}/actions/${action.id}/status`) && method === "POST") {
+        return jsonResponse(200, {
+          action: { ...action, status: "CANCELLED", statusLabel: "Cancelled", version: 1 },
+          ticketVersion: 5,
+        });
+      }
+      return jsonResponse(404, { error: { code: "NOT_FOUND", message: "Not found." } });
+    });
+    const user = userEvent.setup();
+    window.location.hash = `#staff-ticket-${detail.id}`;
+    render(<App />);
+    const article = (await screen.findByText("Inspect VPN client logs")).closest("article");
+    expect(article).not.toBeNull();
+    await user.click(within(article!).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(within(article!).getByText("Cancelled")).toBeInTheDocument());
+    expect(within(article!).queryByRole("button", { name: /Edit \/ Reassign/ })).not.toBeInTheDocument();
+    expect(within(article!).queryByRole("button", { name: "Start" })).not.toBeInTheDocument();
+    expect(within(article!).queryByRole("button", { name: "Complete" })).not.toBeInTheDocument();
+    expect(within(article!).queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
+  });
+
   it("UI-01 renders Requester Actions as read-only on an owned Ticket", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((input, init) => {
       const url = urlOf(input);

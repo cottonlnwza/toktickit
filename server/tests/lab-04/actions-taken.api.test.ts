@@ -377,6 +377,16 @@ describe("Lab 4 Actions Taken API foundation", () => {
     expect(terminalAttempt.status).toBe(409);
     expect(terminalAttempt.body.error?.code).toBe("ACTION_TERMINAL");
 
+    const terminalEdit = await agent.patch(`/api/staff/tickets/${directCancelTicket.id}/actions/${directCancelAction.body.action.id}`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({
+      expectedTicketVersion: 2,
+      expectedActionVersion: 1,
+      actionDescription: "Attempt to rewrite terminal Action",
+      assigneeId: staff.id,
+      followUpRequired: false,
+    });
+    expect(terminalEdit.status).toBe(409);
+    expect(terminalEdit.body.error?.code).toBe("ACTION_TERMINAL");
+
     const startThenCompleteTicket = await createTicket();
     const startThenCompleteAction = await agent.post(`/api/staff/tickets/${startThenCompleteTicket.id}/actions`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ expectedTicketVersion: 0, clientRequestId: randomUUID(), actionDescription: "Start then complete", assigneeId: staff.id, followUpRequired: false });
     const started = await agent.post(`/api/staff/tickets/${startThenCompleteTicket.id}/actions/${startThenCompleteAction.body.action.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ toStatus: "IN_PROGRESS", expectedTicketVersion: 1, expectedActionVersion: 0 });

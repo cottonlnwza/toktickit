@@ -23,6 +23,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | API-04 | API | BR-10, BR-11 / AC-01, AC-04 | Assignee validation | Active IT Staff/Admin accepted; inactive/Requester rejected `409 INACTIVE_ASSIGNEE` | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-05 | Concurrency/API | BR-42-BR-44 / AC-04, AC-15 | Edit with parent+child CAS | Both revisions must match; stale parent or Action causes 409 and zero partial writes | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-06 | Workflow/API | BR-13 / AC-05 | Action transitions | PLANNED -> IN_PROGRESS/COMPLETED/CANCELLED and IN_PROGRESS -> COMPLETED/CANCELLED succeed; disallowed state edge returns 409 | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
+| API-06A | Workflow/API | BR-14 / AC-04, AC-05 | Terminal Action mutation guard | Edit and status mutation attempts on COMPLETED/CANCELLED Actions return 409 ACTION_TERMINAL with no rewrite | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #77 hardening) |
 | API-07 | Workflow/API | BR-15 / AC-06 | Assignee-only completion | Current assignee may complete from PLANNED or IN_PROGRESS; non-assignee gets 409 until reassigned; performer=assignee | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-08 | Validation/API | BR-07, BR-08, BR-44 / AC-06, AC-07 | Completion/follow-up validation taxonomy | Missing Result/follow-up Note => deterministic 400 VALIDATION_ERROR | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
 | API-09 | Workflow/API | BR-04 / AC-01, AC-04 | Parent Ticket eligibility | Action create/edit/status blocked with `409 PARENT_TICKET_NOT_ACTIVE` on terminal parent | `server/tests/lab-04/actions-taken.api.test.ts` | Pass (Issue #64) |
@@ -49,6 +50,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | MIG-02 | Migration/Integration | Data 8.4 / AC-16 | Ticket backfill/cycle legacy semantics | version=0; cycle=1; resolvedAt approximation; no-Action legacy rows preserved | `server/tests/lab-04/migration.integration.test.ts` | Pass (Issue #64) |
 | SEED-01 | Integration | FR-19 / AC-17 | Seed idempotency/coverage | Re-run no duplicates; multi-cycle Actions/events/dashboard inclusion-exclusion fixtures exist | `server/tests/lab-04/seed.integration.test.ts` | Pass (Issue #64) |
 | UI-01 | UI Component | FR-02-FR-07 / AC-01, AC-03-AC-07 | Actions UI | Cycle label, assignee accountability, create/edit/reassign/start/complete/cancel and deterministic errors | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass (Issue #65) |
+| UI-01A | UI Component | BR-04, BR-14 / AC-04, AC-05, AC-10 | Terminal/historical Action read-only guard | COMPLETED/CANCELLED/historical-cycle Actions expose no mutation controls; successful complete/cancel immediately rerenders read-only | `client/tests/lab-04/ActionsTaken.test.tsx` | Pass (Issue #77 hardening) |
 | UI-02 | UI Component | FR-12 / AC-11, AC-14 | Requester Dashboard | Owned metrics/recent cards, empty state, role navigation, drill-down | `client/tests/lab-04/RequesterDashboard.test.tsx` | Pass (Issue #67) |
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, Admin reuse, empty state, role navigation, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass (Issue #67) |
 | UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass (Issue #66: 3 tests) |
@@ -71,13 +73,13 @@ Required levels from the handout are represented below: unit, API/integration, U
 | AC-01 | API-01, API-04, API-09, UI-01, E2E-01 |
 | AC-02 | UNIT-05, API-02, E2E-01 |
 | AC-03 | API-03, API-11, UI-01, E2E-01 |
-| AC-04 | API-04, API-05, API-10, UI-01, E2E-01 |
-| AC-05 | UNIT-01, API-06, API-10, UI-01, E2E-01 |
+| AC-04 | API-04, API-05, API-06A, API-10, UI-01, UI-01A, E2E-01 |
+| AC-05 | UNIT-01, API-06, API-06A, API-10, UI-01, UI-01A, E2E-01 |
 | AC-06 | UNIT-01, UNIT-02, API-07, API-08, API-10, UI-01, E2E-01 |
 | AC-07 | UNIT-02, API-08, API-14A, UI-01, E2E-01 |
 | AC-08 | UNIT-03, API-12, API-13, API-17, UI-04, E2E-02 |
 | AC-09 | UNIT-03, API-14, API-14A, API-16, API-17, UI-04, E2E-02 |
-| AC-10 | UNIT-03, API-15, UI-04, E2E-02 |
+| AC-10 | UNIT-03, API-15, UI-01A, UI-04, E2E-02 |
 | AC-11 | UNIT-04, API-19, API-19A, UI-02, E2E-03 |
 | AC-12 | UNIT-04, API-20, API-20A, PERF-01, UI-03, E2E-03 |
 | AC-13 | API-11, API-16, API-21, UI-03, UI-04, E2E-02, E2E-03 |
