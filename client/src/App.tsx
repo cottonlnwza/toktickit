@@ -732,7 +732,7 @@ function ActionsTakenPanel({
         {action.attachmentNotes && <div className="detail-wide"><dt>Attachment Notes</dt><dd>{action.attachmentNotes}</dd></div>}
         <div><dt>Last Updated</dt><dd>{new Date(action.updatedAt).toLocaleString()}</dd></div>
       </dl>
-      {canWrite && ["PLANNED", "IN_PROGRESS"].includes(action.status) && <div className="action-buttons">
+      {canWrite && (!currentWorkflowCycle || action.workflowCycle === currentWorkflowCycle) && ["PLANNED", "IN_PROGRESS"].includes(action.status) && <div className="action-buttons">
         <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => beginEdit(action)}>Edit / Reassign</button>
         {action.status === "PLANNED" && <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "IN_PROGRESS")}>Start</button>}
         {action.assignee.id === currentUser.id && <button className="btn btn-sm btn-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "COMPLETED")}>Complete</button>}
