@@ -832,16 +832,16 @@ async function staffMutation<T>(csrfToken: string, path: string, method: "POST" 
   return (await response.json()) as T;
 }
 
-export function claimStaffTicket(csrfToken: string, ticketId: number) {
-  return staffMutation<{ owner: StaffTicketDetail["owner"] }>(csrfToken, `/api/staff/tickets/${ticketId}/claim`, "POST", {});
+export function claimStaffTicket(csrfToken: string, ticketId: number, expectedTicketVersion: number) {
+  return staffMutation<{ owner: StaffTicketDetail["owner"]; version: number }>(csrfToken, `/api/staff/tickets/${ticketId}/claim`, "POST", { expectedTicketVersion });
 }
 
-export function updateStaffTicketOwner(csrfToken: string, ticketId: number, ownerId: number | null) {
-  return staffMutation<{ owner: StaffTicketDetail["owner"] }>(csrfToken, `/api/staff/tickets/${ticketId}/owner`, "PATCH", { ownerId });
+export function updateStaffTicketOwner(csrfToken: string, ticketId: number, ownerId: number | null, expectedTicketVersion: number) {
+  return staffMutation<{ owner: StaffTicketDetail["owner"]; version: number }>(csrfToken, `/api/staff/tickets/${ticketId}/owner`, "PATCH", { ownerId, expectedTicketVersion });
 }
 
-export function updateStaffTicketItPriority(csrfToken: string, ticketId: number, itPriority: StaffTicketDetail["itPriority"]) {
-  return staffMutation<{ itPriority: StaffTicketDetail["itPriority"]; requestedPriority: StaffTicketDetail["requestedPriority"] }>(csrfToken, `/api/staff/tickets/${ticketId}/it-priority`, "PATCH", { itPriority });
+export function updateStaffTicketItPriority(csrfToken: string, ticketId: number, itPriority: StaffTicketDetail["itPriority"], expectedTicketVersion: number) {
+  return staffMutation<{ itPriority: StaffTicketDetail["itPriority"]; requestedPriority: StaffTicketDetail["requestedPriority"]; version: number }>(csrfToken, `/api/staff/tickets/${ticketId}/it-priority`, "PATCH", { itPriority, expectedTicketVersion });
 }
 
 export function updateStaffTicketStatus(csrfToken: string, ticketId: number, status: TicketStatus, expectedTicketVersion: number) {
