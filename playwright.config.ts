@@ -5,7 +5,7 @@ const e2eDatabaseUrl = getLab3E2EDatabaseUrl();
 
 export default defineConfig({
   testDir: "./e2e",
-  globalSetup: "./e2e/lab-03/global-setup.ts",
+  globalSetup: "./e2e/lab-04/global-setup.ts",
   outputDir: "test-results",
   fullyParallel: false,
   workers: 1,
