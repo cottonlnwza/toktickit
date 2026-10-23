@@ -69,3 +69,49 @@ test("E2E-02 enforces current-cycle resolution evidence and reopen isolation", a
   await expect(page.getByText("Resolved", { exact: true }).first()).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
+
+test("E2E-02 rejects a stale Ticket revision without overwriting newer state", async ({ page }, testInfo) => {
+  const suffix = `${testInfo.project.name}-${Date.now()}`;
+  const summary = `Lab4 stale E2E ${suffix}`;
+
+  await loginAndNormalizePassword(page, "anong.student@example.test", REQUESTER_PASSWORD);
+  const ticketNumber = await createRequesterTicket(page, summary);
+  await logout(page);
+
+  await loginAndNormalizePassword(page, "it.staff.one@example.test", STAFF_PASSWORD);
+  await openStaffTicketBySummary(page, summary, ticketNumber);
+  const ticketId = Number(page.url().match(/#staff-ticket-(\d+)/)?.[1]);
+  expect(ticketId).toBeGreaterThan(0);
+
+  const claimRequestPromise = page.waitForRequest((request) => request.url().endsWith(`/api/staff/tickets/${ticketId}/claim`) && request.method() === "POST");
+  const claimResponsePromise = page.waitForResponse((response) => response.url().endsWith(`/api/staff/tickets/${ticketId}/claim`) && response.status() === 200);
+  await page.getByRole("button", { name: "Claim Ticket" }).click();
+  const claimRequest = await claimRequestPromise;
+  const claimResponse = await claimResponsePromise;
+  const csrfToken = claimRequest.headers()["x-csrf-token"];
+  const claimed = await claimResponse.json() as { version: number };
+  expect(csrfToken).toBeTruthy();
+
+  const externalMutation = await page.evaluate(async ({ id, csrf, expectedTicketVersion }) => {
+    const response = await fetch(`http://localhost:3000/api/staff/tickets/${id}/it-priority`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+      body: JSON.stringify({ itPriority: "URGENT", expectedTicketVersion }),
+    });
+    return { status: response.status, body: await response.json() as { version?: number } };
+  }, { id: ticketId, csrf: csrfToken, expectedTicketVersion: claimed.version });
+  expect(externalMutation.status).toBe(200);
+
+  await page.getByLabel("Status Transition").selectOption("OPEN");
+  await page.getByRole("button", { name: "Apply Status" }).click();
+  await expect(page.getByRole("alert")).toContainText(/Ticket changed before this update.*Refresh the Ticket Detail/i);
+
+  const authoritative = await page.evaluate(async (id) => {
+    const response = await fetch(`http://localhost:3000/api/staff/tickets/${id}`, { credentials: "include" });
+    return response.json() as Promise<{ currentStatus: string; itPriority: string; version: number }>;
+  }, ticketId);
+  expect(authoritative.currentStatus).toBe("NEW");
+  expect(authoritative.itPriority).toBe("URGENT");
+  expect(authoritative.version).toBe(externalMutation.body.version);
+});

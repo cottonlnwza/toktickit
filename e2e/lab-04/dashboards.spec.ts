@@ -3,6 +3,7 @@ import {
   ADMIN_PASSWORD,
   REQUESTER_PASSWORD,
   STAFF_PASSWORD,
+  createRequesterTicket,
   expectNoHorizontalOverflow,
   loginAndNormalizePassword,
   logout,
@@ -70,4 +71,33 @@ test("E2E-03 renders retryable dashboard safe failure", async ({ page }) => {
   failDashboard = false;
   await page.getByRole("button", { name: "Retry" }).click();
   await expect(page.getByRole("heading", { name: "Requester Dashboard" })).toBeVisible();
+});
+
+test("E2E-03 isolates Requester dashboard metrics and recent lists from another Requester's Ticket", async ({ page }, testInfo) => {
+  await loginAndNormalizePassword(page, "anong.student@example.test", REQUESTER_PASSWORD);
+  const baselinePromise = page.waitForResponse((response) => response.url().endsWith("/api/dashboards/requester") && response.status() === 200);
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  const baseline = await (await baselinePromise).json() as {
+    metrics: { openTickets: number; waitingForRequester: number };
+  };
+  await logout(page);
+
+  const otherSummary = `Burin isolation ${testInfo.project.name}-${Date.now()}`;
+  await loginAndNormalizePassword(page, "burin.lecturer@example.test", REQUESTER_PASSWORD);
+  await createRequesterTicket(page, otherSummary);
+  await logout(page);
+
+  await loginAndNormalizePassword(page, "anong.student@example.test", REQUESTER_PASSWORD);
+  const isolatedPromise = page.waitForResponse((response) => response.url().endsWith("/api/dashboards/requester") && response.status() === 200);
+  await page.getByRole("link", { name: "Dashboard" }).click();
+  const isolated = await (await isolatedPromise).json() as {
+    metrics: { openTickets: number; waitingForRequester: number };
+    recentlyUpdated: Array<{ summary: string }>;
+    recentlyResolved: Array<{ summary: string }>;
+  };
+
+  expect(isolated.metrics).toEqual(baseline.metrics);
+  expect(isolated.recentlyUpdated.map((ticket) => ticket.summary)).not.toContain(otherSummary);
+  expect(isolated.recentlyResolved.map((ticket) => ticket.summary)).not.toContain(otherSummary);
+  await expect(page.getByText(otherSummary)).toHaveCount(0);
 });
