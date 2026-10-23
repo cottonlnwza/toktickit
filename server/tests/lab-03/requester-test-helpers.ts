@@ -91,6 +91,8 @@ export async function cleanupIssue36Fixtures() {
     const ticketIds = (await prisma.ticket.findMany({ where: { requesterId: { in: ids } }, select: { id: true } })).map((ticket) => ticket.id);
     if (ticketIds.length > 0) {
       const attachmentFiles = await prisma.attachment.findMany({ where: { ticketId: { in: ticketIds } }, select: { storagePath: true } });
+      await prisma.actionTakenEvent.deleteMany({ where: { ticketId: { in: ticketIds } } });
+      await prisma.actionTaken.deleteMany({ where: { ticketId: { in: ticketIds } } });
       await prisma.internalNote.deleteMany({ where: { ticketId: { in: ticketIds } } });
       await prisma.publicComment.deleteMany({ where: { ticketId: { in: ticketIds } } });
       await prisma.attachment.deleteMany({ where: { ticketId: { in: ticketIds } } });

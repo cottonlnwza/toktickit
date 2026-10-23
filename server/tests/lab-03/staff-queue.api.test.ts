@@ -260,9 +260,9 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue API", () => {
     expect(response.body).not.toHaveProperty("items");
   });
 
-  it.each([fixtureUsers.requesterA, fixtureUsers.admin])("API-17 denies $role from the normal Staff Queue", async (fixture) => {
+  it("API-17 denies Requester from the normal Staff Queue", async () => {
     await seedQueueFixtures();
-    const { agent, response: login } = await loginIssue36(fixture);
+    const { agent, response: login } = await loginIssue36(fixtureUsers.requesterA);
     expect(login.status).toBe(200);
 
     const response = await agent.get("/api/staff/tickets").set("Origin", FRONTEND_ORIGIN);
@@ -270,6 +270,17 @@ describe("Lab 3 Issue 5 IT Staff Ticket Queue API", () => {
     expect(response.status).toBe(403);
     expect(response.body.error?.code).toBe("FORBIDDEN");
     expect(response.body).not.toHaveProperty("items");
+  });
+
+  it("API-17 allows Administrator to reuse the Staff Queue under the Lab 4 support/testing role contract", async () => {
+    await seedQueueFixtures();
+    const { agent, response: login } = await loginIssue36(fixtureUsers.admin);
+    expect(login.status).toBe(200);
+
+    const response = await agent.get("/api/staff/tickets").set("Origin", FRONTEND_ORIGIN);
+
+    expect(response.status).toBe(200);
+    expect(response.body.items).toEqual(expect.any(Array));
   });
 
   it("API-17 requires authentication before exposing Queue data", async () => {

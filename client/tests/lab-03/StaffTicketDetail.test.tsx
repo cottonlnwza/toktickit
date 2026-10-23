@@ -155,14 +155,14 @@ describe("Lab 3 Issue 6 Staff Ticket Detail UI", () => {
     expect(alert).not.toHaveTextContent(/Unable to save the Ticket change/i);
   });
 
-  it("UI-07 renders Administrator direct-detail oversight read-only except IT Priority", async () => {
+  it("UI-07 renders Administrator direct-detail oversight with Lab 4 status workflow and IT Priority", async () => {
     mockDetailFetch("ADMINISTRATOR");
     window.location.hash = `#staff-ticket-${detail.id}`;
     render(<App />);
     await screen.findByRole("heading", { name: /Ticket Detail/i });
     expect(screen.queryByRole("button", { name: /Claim Ticket/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/^Owner$/i)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/Status Transition/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/Status Transition/i)).toBeEnabled();
     expect(screen.queryByLabelText(/Public Comment/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/Internal Note/i)).not.toBeInTheDocument();
     expect(screen.getByLabelText(/IT Priority/i)).toBeEnabled();

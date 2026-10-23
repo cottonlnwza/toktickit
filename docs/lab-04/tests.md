@@ -58,13 +58,13 @@ Required levels from the handout are represented below: unit, API/integration, U
 | UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues | `client/tests/lab-04/ui-style.test.tsx` | Planned |
 | RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | No material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx` | Planned |
 | A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Focus visible; controls/dialogs labeled; status non-color-only | `client/tests/lab-04/accessibility.test.tsx` | Planned |
-| REG-01 | Regression | FR-18, BR-48 / AC-21, AC-22 | Server Labs 1-3 representative regression | Actual result recorded; no old-branch rewrite | Existing `server/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #64) |
-| REG-02 | Regression | BR-48 / AC-21, AC-22 | Client Labs 1-3 representative regression | Existing permitted behavior remains covered | Existing `client/tests/lab-01`, `lab-02`, `lab-03` suites | Planned |
-| PERF-01 | Performance smoke | FR-15 / AC-12 | Dashboard/Action query smoke | Concise bounded payloads over seeded local data | `server/tests/lab-04/performance-smoke.test.ts` | Planned |
-| E2E-01 | E2E | AC-01-AC-07, AC-15, AC-18 | Actions Taken flow | Create/assign/reassign/edit/start/assignee-complete/cancel + Requester read-only | `e2e/lab-04/actions-taken-flow.spec.ts` | Planned |
-| E2E-02 | E2E | AC-08-AC-10, AC-13, AC-15 | Ticket resolution cycles | Gate, Admin/Staff transitions, reopen new cycle, stale feedback | `e2e/lab-04/ticket-resolution.spec.ts` | Planned |
-| E2E-03 | E2E | AC-11-AC-14 | Dashboards | Requester isolation, exact windows, active/current-cycle staff metrics, drill-down | `e2e/lab-04/dashboards.spec.ts` | Planned |
-| E2E-04 | E2E/Regression | AC-21, AC-22 | Complete-product regression | Authentication, My Tickets, Detail, Attachments, Comments, Staff, Notes, Admin remain usable | Existing Lab 3 E2E plus Lab 4 release verification command | Planned |
+| REG-01 | Regression | FR-18, BR-48 / AC-21, AC-22 | Server Labs 1-3 representative regression | Existing behavior remains covered under the Lab 4 concurrency/Administrator contract; migration/seed use an isolated `_test` database | Existing `server/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #68) |
+| REG-02 | Regression | BR-48 / AC-21, AC-22 | Client Labs 1-3 regression | Existing permitted behavior remains covered; deterministic test `localStorage` avoids Node 25 host leakage | Existing `client/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #68; full client 24 files / 110 tests incl. Lab 4) |
+| PERF-01 | Performance smoke | FR-15 / AC-12 | Dashboard/Action query smoke | Concise bounded payloads over seeded local data | `server/tests/lab-04/performance-smoke.test.ts` | Pass (Issue #68) |
+| E2E-01 | E2E | AC-01-AC-07, AC-15, AC-18 | Actions Taken flow | Create/assign/reassign/edit/start/assignee-complete/cancel + Requester read-only | `e2e/lab-04/actions-taken-flow.spec.ts` | Pass (Issue #68; desktop/tablet/mobile) |
+| E2E-02 | E2E | AC-08-AC-10, AC-13, AC-15 | Ticket resolution cycles | Gate, Admin/Staff transitions, reopen new cycle, stale feedback | `e2e/lab-04/ticket-resolution.spec.ts` | Pass (Issue #68; desktop/tablet/mobile) |
+| E2E-03 | E2E | AC-11-AC-14 | Dashboards | Requester isolation, authoritative metrics, current-user drill-down, safe failure/retry | `e2e/lab-04/dashboards.spec.ts` | Pass (Issue #68; desktop/tablet/mobile) |
+| E2E-04 | E2E/Regression | AC-21, AC-22 | Complete-product regression | Authentication, Requester flow, Staff APIs/Detail, Comments/Notes, Administrator management and responsive evidence remain usable | Existing `e2e/lab-03` under the final Lab 4 schema | Pass (Issue #68; desktop 7/7) |
 
 ## 3. Acceptance-Criterion Traceability
 
@@ -145,7 +145,7 @@ Issue #65 Actions Taken Ticket Detail UI evidence:
 - Focused Lab 4 + affected Lab 3 UI regression — Pass: 3 files, 11 tests (`ActionsTaken`, Staff Ticket Detail, Requester Ticket Detail).
 - `cd server && npm run build` — Pass.
 - Affected server regression — Pass: 2 files, 47 tests (`staff-ticket-detail.api` and `actions-taken.api`).
-- A full client Vitest run was attempted under local Node.js 25.8.0, but the legacy Lab 1-3 test environment failed broadly because `localStorage` was exposed without working `getItem`/`setItem`/`clear` functions and Node emitted an invalid `--localstorage-file` warning. Therefore `REG-02` remains Planned and no full-client regression pass is claimed from that run.
+- An earlier full-client attempt under Node.js 25.8.0 exposed a host `localStorage` object without working Storage methods. Issue #68 corrected the test harness only (not product behavior) with deterministic in-memory Storage; the final full client run then passed 24 files / 110 tests.
 
 Issue #66 final Ticket workflow evidence:
 
@@ -155,6 +155,17 @@ Issue #66 final Ticket workflow evidence:
 - Server and client production builds — Pass.
 - A broad `server/tests/lab-04` invocation was also attempted; ordinary Lab 4 unit/API files passed, while migration/seed integration suites correctly refused to run because `TEST_DATABASE_URL` was not supplied in that command. No pass is claimed for those two integration files from this run.
 - The older Lab 3 UI assertion that Administrator status controls must remain hidden is superseded by the approved Lab 4 BR-21/FR-14 Administrator support/testing authority. The historical Lab 3 test file is not rewritten retroactively.
+
+Issue #68 final E2E and Labs 1-3 regression evidence:
+
+- Client full Vitest suite — Pass: 24 files / 110 tests.
+- Server Labs 1-2 — Pass: 10 files / 42 tests.
+- Server Lab 3 affected/full regression was run serially to preserve shared database-fixture isolation: Staff Detail 31/31; Staff Queue/comments/authz/requester/regression group 56/56; attachment/guard/status unit group 8/8; Lab 3 migration/seed integration 8/8 on isolated `toktickit_lab3_suite_test`; authentication and Administrator suites also passed during the final regression sequence.
+- Server Lab 4 non-migration suite — Pass: 9 files / 55 tests, including `PERF-01`; Lab 4 migration/seed integration — Pass: 2/2 on the isolated `_test` database.
+- Lab 4 Playwright E2E — Pass: desktop 6/6, tablet 6/6, mobile 6/6. The E2E setup resets the isolated database, deploys the Lab 4 schema, and seeds Lab 4 data before each project run.
+- Existing Lab 3 Playwright E2E under the final Lab 4 schema — Pass: desktop 7/7, covering authentication/password change, Requester continuity, Staff Queue/Detail/API protection, Administrator user management, accessibility focus, and responsive visual evidence.
+- Server build, client production build, and `git diff --check` — Pass.
+- Lab 3 regression tests were updated only on the Lab 4 branch where the approved Lab 4 contract intentionally changes required `expectedTicketVersion`, Administrator status/Queue authority, and cleanup dependencies introduced by `ActionTaken`; no completed Lab 3 branch/history was rewritten.
 
 ## 8. Known Limitations or Deferred Tests
 
