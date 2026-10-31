@@ -176,7 +176,7 @@ All commands below were run on `feature/lab4-8-release-evidence`, which branches
 
 **Committed raw command output:** `artifacts/lab-04/verification/` contains `client-all.log`, `server-lab1-lab2.log`, `server-lab3.log`, `server-lab4.log`, `migration-seed.log`, `playwright-lab4.log`, `playwright-lab3.log`, and `builds.log`. Reviewers can compare the numeric summaries above against these local execution logs. They are source-run evidence, not hosted GitHub Actions artifacts.
 
-**Remaining release checks:** A reviewed `lab4-staging → main` PR must be peer-merged. Rerun and record required tests/builds against that exact final `main` commit, then close Issue #70 and replace any draft submission placeholders with real merge/evidence links.
+**Release-candidate checkpoint (historical):** At that stage the reviewed `lab4-staging → main` merge and final-main verification were pending. Both subsequently completed; the exact post-merge evidence is recorded in the final `main` section below. Issue #70 closure follows the separate evidence review.
 
 ### Server
 
@@ -250,6 +250,24 @@ Issue #69 responsive/accessibility/visual-hardening evidence:
 - Final visual inspection of generated evidence found no material clipping, overlap, hidden required action, or page-level horizontal scrolling. Long Action values wrap inside labeled read-only blocks; mobile forms/actions stack or wrap without leaving the viewport.
 - Actions Taken field validation now sets `aria-invalid` and `aria-describedby` for Action Description, Assignee, and conditional Follow-up Note. Read-only Action values use the approved read-only surface treatment; the programmatically focusable dashboard Actions section has an explicit visible focus outline.
 - README is updated from Lab 3-current wording to the Lab 4 migration/seed/test/evidence workflow.
+
+## Verified Results on Final `main` (Issue #70 post-release, 2026-10-31)
+
+**Exact checkout:** `main` at merge commit `64dd4f012af2f99b6a4c1f460599beeb9f712821`, produced by the independently approved and peer-merged [release PR #83](https://github.com/cottonlnwza/toktickit/pull/83). All results below were rerun **after** merge. They are locally executed tests with raw logs under `artifacts/lab-04/verification/final-main/`, not hosted CI. Destructive migrations, seed and browser setup used the isolated PostgreSQL `_test` database, not the development database.
+
+| Final `main` verification scope | Actual result |
+|---|---|
+| Client full Vitest regression | **27 files / 116 tests PASS** |
+| Server Labs 1–2 | **10 files / 42 tests PASS** |
+| Server Lab 3 (nonmigration) | **13 files / 136 tests PASS** |
+| Server Lab 4 (nonmigration) | **9 files / 55 tests PASS** |
+| Lab 3 and Lab 4 migrations/seed (isolated `_test` DB) | **4 files / 10 tests PASS** |
+| **Server total, nonoverlapping groups** | **36 files / 243 tests PASS** |
+| Lab 4 Chromium Playwright — desktop/tablet/mobile | **33/33 PASS (11 per project)** |
+| Lab 3 Chromium Playwright — desktop | **7/7 PASS** |
+| Server and client production builds | **Both PASS** |
+
+The Server groups were executed **sequentially**, rather than as one unrestricted command, to preserve shared database-fixture isolation. Existing React `act(...)` warnings in earlier UI tests did not fail any test. Nine final-main screenshot captures were refreshed by the Lab 4 browser suite, and no Lab 1–3 tracked screenshots were intentionally changed. This section verifies the released product code before the separate documentation/evidence update is peer-reviewed; it does not claim future approvals.
 
 ## Known Limitations or Deferred Tests
 

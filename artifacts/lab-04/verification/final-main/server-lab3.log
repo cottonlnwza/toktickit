@@ -1,0 +1,36 @@
+
+ RUN  v2.1.9 /Users/cotton/Downloads/CPE334_SE/toktickit/server
+
+ ✓ tests/lab-03/staff-ticket-detail.api.test.ts (31 tests) 8091ms
+   ✓ Lab 3 Issue 4 Requester resolution indication > API-14 keeps eligibility atomic when Staff changes an eligible Ticket to an ineligible status before the indication write 309ms
+   ✓ Lab 3 Issue 6 IT Staff Ticket Detail operations > API-18 serializes claim against concurrent claimant deactivation and never persists an ineligible owner 358ms
+   ✓ Lab 3 Issue 6 IT Staff Ticket Detail operations > API-18 serializes claim against concurrent claimant demotion and never persists an ineligible owner 375ms
+   ✓ Lab 3 Issue 6 IT Staff Ticket Detail operations > API-19 serializes owner assignment against concurrent target deactivation and never persists an ineligible owner 353ms
+   ✓ Lab 3 Issue 6 IT Staff Ticket Detail operations > API-19 serializes owner assignment against concurrent target demotion and never persists an ineligible owner 371ms
+   ✓ Lab 3 Issue 6 IT Staff Ticket Detail operations > API-20 lets IT Staff and Administrator change IT Priority while Requested Priority stays immutable 321ms
+ ✓ tests/lab-03/auth.api.test.ts (18 tests) 5477ms
+   ✓ Lab 3 authentication API > API-04 throttles the sixth failed login for the same normalized email/client address after five failures 339ms
+   ✓ Lab 3 authentication API > API-04 keeps failures inside the 15-minute window even when a successful login occurs between failures 365ms
+   ✓ Lab 3 authentication API > API-07 changes the password, clears the gate, rotates the current session/CSRF, and revokes other sessions 366ms
+   ✓ Lab 3 authentication API > API-07 serializes concurrent password changes so only one request wins and its fresh session remains valid 452ms
+   ✓ Lab 3 authentication API > API-07 rejects an incorrect exact current password without changing credentials or the first-login gate 336ms
+   ✓ Lab 3 authentication API > API-07 rejects too short password-change input without changing credentials 318ms
+   ✓ Lab 3 authentication API > API-07 rejects all whitespace password-change input without changing credentials 313ms
+   ✓ Lab 3 authentication API > API-07 rejects same as current password-change input without changing credentials 314ms
+   ✓ Lab 3 authentication API > API-07 rejects confirmation mismatch password-change input without changing credentials 313ms
+ ✓ tests/lab-03/users-admin.api.test.ts (14 tests) 2662ms
+ ✓ tests/lab-03/staff-queue.api.test.ts (23 tests) 5911ms
+ ✓ tests/lab-03/comments-notes.api.test.ts (13 tests) 3416ms
+ ✓ tests/lab-03/authorization.api.test.ts (7 tests) 1522ms
+ ✓ tests/lab-03/requester-regression.api.test.ts (5 tests) 711ms
+ ✓ tests/lab-03/regression.api.test.ts (2 tests) 308ms
+ ✓ tests/lab-03/attachments-regression.api.test.ts (2 tests) 203ms
+ ✓ tests/lab-03/auth.unit.test.ts (9 tests) 70ms
+ ✓ tests/lab-03/e2e-database-guard.unit.test.ts (5 tests) 2ms
+ ✓ tests/lab-03/ticket-status.unit.test.ts (1 test) 2ms
+ ✓ tests/lab-03/comments-notes.unit.test.ts (6 tests) 2ms
+
+ Test Files  13 passed (13)
+      Tests  136 passed (136)
+   Start at  21:00:01
+   Duration  30.65s (transform 122ms, setup 0ms, collect 602ms, tests 28.37s, environment 1ms, prepare 282ms)
