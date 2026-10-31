@@ -55,9 +55,9 @@ Required levels from the handout are represented below: unit, API/integration, U
 | UI-03 | UI Component | FR-13, FR-14 / AC-12-AC-14 | Staff/Admin Dashboard | Current-work metrics, Admin reuse, empty state, role navigation, drill-down | `client/tests/lab-04/StaffDashboard.test.tsx` | Pass (Issue #67) |
 | UI-04 | UI Component | FR-09-FR-11 / AC-08-AC-10, AC-13, AC-15 | Ticket workflow controls | Current-cycle gate, Admin parity, reopen cycle, stale feedback | `client/tests/lab-04/TicketWorkflow.test.tsx` | Pass (Issue #66: 3 tests) |
 | UI-04A | UI Component | BR-42-BR-44 / AC-15 | Owner/priority revision chaining | Client sends current Ticket version and refreshes it from each successful owner/priority response | `client/tests/lab-04/TicketAggregateVersion.test.tsx` | Pass (Issue #76 hardening) |
-| UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues | `client/tests/lab-04/ui-style.test.tsx` | Planned |
-| RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | No material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx` | Planned |
-| A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Focus visible; controls/dialogs labeled; status non-color-only | `client/tests/lab-04/accessibility.test.tsx` | Planned |
+| UI-05 | UI Style | FR-20 / AC-20 | Zen Green/field-state/status styling | Required labels/states/non-color cues; current/historical/read-only Action presentation remains distinct | `client/tests/lab-04/ui-style.test.tsx` | Pass (Issue #69) |
+| RESP-01 | Responsive | FR-20 / AC-20 | Dashboard/Actions layouts | Responsive component structure plus real-browser desktop/tablet/mobile overflow checks show no material clipping/overlap/page overflow | `client/tests/lab-04/responsive.test.tsx`, `e2e/lab-04/visual-hardening.spec.ts` | Pass (Issue #69) |
+| A11Y-01 | Accessibility | FR-20 / AC-20 | Keyboard/focus/labels | Semantic navigation, labels, active-page state, field-linked validation, visible dashboard focus, non-color cues | `client/tests/lab-04/accessibility.test.tsx`, `e2e/lab-04/visual-hardening.spec.ts` | Pass (Issue #69) |
 | REG-01 | Regression | FR-18, BR-48 / AC-21, AC-22 | Server Labs 1-3 representative regression | Existing behavior remains covered under the Lab 4 concurrency/Administrator contract; migration/seed use an isolated `_test` database | Existing `server/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #68) |
 | REG-02 | Regression | BR-48 / AC-21, AC-22 | Client Labs 1-3 regression | Existing permitted behavior remains covered; deterministic test `localStorage` avoids Node 25 host leakage | Existing `client/tests/lab-01`, `lab-02`, `lab-03` suites | Pass (Issue #68; full client 24 files / 110 tests incl. Lab 4) |
 | PERF-01 | Performance smoke | FR-15 / AC-12 | Dashboard/Action query smoke | Concise bounded payloads over seeded local data | `server/tests/lab-04/performance-smoke.test.ts` | Pass (Issue #68) |
@@ -166,6 +166,15 @@ Issue #68 final E2E and Labs 1-3 regression evidence:
 - Existing Lab 3 Playwright E2E under the final Lab 4 schema — Pass: desktop 7/7, covering authentication/password change, Requester continuity, Staff Queue/Detail/API protection, Administrator user management, accessibility focus, and responsive visual evidence.
 - Server build, client production build, and `git diff --check` — Pass.
 - Lab 3 regression tests were updated only on the Lab 4 branch where the approved Lab 4 contract intentionally changes required `expectedTicketVersion`, Administrator status/Queue authority, and cleanup dependencies introduced by `ActionTaken`; no completed Lab 3 branch/history was rewritten.
+
+Issue #69 responsive/accessibility/visual-hardening evidence:
+
+- Lab 4 UI style/responsive/accessibility + affected dashboard/Actions component tests — Pass: 6 files / 15 tests during the focused hardening run; complete `client/tests/lab-04` rerun — Pass: 8 files / 19 tests.
+- `visual-hardening.spec.ts` — Pass: 9/9 across the three required viewport projects when run standalone; it verifies active navigation, visible metric focus, no horizontal overflow, Actions validation association, runtime console/page errors after successful authentication, and captures actual screenshots.
+- Required screenshot evidence exists for Staff Dashboard, Requester Dashboard, and Actions Taken at desktop 1440×900, tablet 820×1180, and mobile 390×844 under `artifacts/lab-04/screenshots/`.
+- Final visual inspection of generated evidence found no material clipping, overlap, hidden required action, or page-level horizontal scrolling. Long Action values wrap inside labeled read-only blocks; mobile forms/actions stack or wrap without leaving the viewport.
+- Actions Taken field validation now sets `aria-invalid` and `aria-describedby` for Action Description, Assignee, and conditional Follow-up Note. Read-only Action values use the approved read-only surface treatment; the programmatically focusable dashboard Actions section has an explicit visible focus outline.
+- README is updated from Lab 3-current wording to the Lab 4 migration/seed/test/evidence workflow.
 
 ## 8. Known Limitations or Deferred Tests
 
