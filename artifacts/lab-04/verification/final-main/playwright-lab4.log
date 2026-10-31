@@ -1,0 +1,67 @@
+[WebServer] (node:3169) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:3170) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+[WebServer] (node:3194) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+> toktickit-server@1.0.0 prisma:deploy:lab4
+> tsx prisma/lab4-deploy.ts
+
+
+> toktickit-server@1.0.0 prisma:seed
+> tsx prisma/seed.ts
+
+Seeded Lab 4 reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, 8 Tickets, and 5 Actions Taken.
+
+Running 33 tests using 1 worker
+
+(node:3294) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/33] [desktop] › e2e/lab-04/actions-taken-flow.spec.ts:14:5 › E2E-01 completes Actions Taken create/edit/reassign/start/complete/cancel and Requester read-only flow
+[2/33] [desktop] › e2e/lab-04/actions-taken-flow.spec.ts:75:5 › E2E-01 rejects an inactive Action assignee and protects Staff Action APIs from Requesters
+[3/33] [desktop] › e2e/lab-04/dashboards.spec.ts:12:5 › E2E-03 matches Requester dashboard UI to authoritative metrics and protects role boundaries
+[4/33] [desktop] › e2e/lab-04/dashboards.spec.ts:33:5 › E2E-03 matches Staff/Admin dashboard metrics and current-user drill-down
+[5/33] [desktop] › e2e/lab-04/dashboards.spec.ts:55:5 › E2E-03 renders retryable dashboard safe failure
+[6/33] [desktop] › e2e/lab-04/dashboards.spec.ts:76:5 › E2E-03 isolates Requester dashboard metrics and recent lists from another Requester's Ticket
+[7/33] [desktop] › e2e/lab-04/ticket-resolution.spec.ts:13:5 › E2E-02 enforces current-cycle resolution evidence and reopen isolation
+[8/33] [desktop] › e2e/lab-04/ticket-resolution.spec.ts:73:5 › E2E-02 rejects a stale Ticket revision without overwriting newer state
+[9/33] [desktop] › e2e/lab-04/visual-hardening.spec.ts:19:5 › VIS-01 captures and verifies the Staff Dashboard
+[10/33] [desktop] › e2e/lab-04/visual-hardening.spec.ts:39:5 › VIS-02 captures and verifies the Requester Dashboard
+[11/33] [desktop] › e2e/lab-04/visual-hardening.spec.ts:52:5 › VIS-03 captures Actions Taken plus conditional validation and long-form responsive content
+(node:3320) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[12/33] [tablet] › e2e/lab-04/actions-taken-flow.spec.ts:14:5 › E2E-01 completes Actions Taken create/edit/reassign/start/complete/cancel and Requester read-only flow
+[13/33] [tablet] › e2e/lab-04/actions-taken-flow.spec.ts:75:5 › E2E-01 rejects an inactive Action assignee and protects Staff Action APIs from Requesters
+[14/33] [tablet] › e2e/lab-04/dashboards.spec.ts:12:5 › E2E-03 matches Requester dashboard UI to authoritative metrics and protects role boundaries
+[15/33] [tablet] › e2e/lab-04/dashboards.spec.ts:33:5 › E2E-03 matches Staff/Admin dashboard metrics and current-user drill-down
+[16/33] [tablet] › e2e/lab-04/dashboards.spec.ts:55:5 › E2E-03 renders retryable dashboard safe failure
+[17/33] [tablet] › e2e/lab-04/dashboards.spec.ts:76:5 › E2E-03 isolates Requester dashboard metrics and recent lists from another Requester's Ticket
+[18/33] [tablet] › e2e/lab-04/ticket-resolution.spec.ts:13:5 › E2E-02 enforces current-cycle resolution evidence and reopen isolation
+[19/33] [tablet] › e2e/lab-04/ticket-resolution.spec.ts:73:5 › E2E-02 rejects a stale Ticket revision without overwriting newer state
+[20/33] [tablet] › e2e/lab-04/visual-hardening.spec.ts:19:5 › VIS-01 captures and verifies the Staff Dashboard
+[21/33] [tablet] › e2e/lab-04/visual-hardening.spec.ts:39:5 › VIS-02 captures and verifies the Requester Dashboard
+[22/33] [tablet] › e2e/lab-04/visual-hardening.spec.ts:52:5 › VIS-03 captures Actions Taken plus conditional validation and long-form responsive content
+(node:3338) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[23/33] [mobile] › e2e/lab-04/actions-taken-flow.spec.ts:14:5 › E2E-01 completes Actions Taken create/edit/reassign/start/complete/cancel and Requester read-only flow
+[24/33] [mobile] › e2e/lab-04/actions-taken-flow.spec.ts:75:5 › E2E-01 rejects an inactive Action assignee and protects Staff Action APIs from Requesters
+[25/33] [mobile] › e2e/lab-04/dashboards.spec.ts:12:5 › E2E-03 matches Requester dashboard UI to authoritative metrics and protects role boundaries
+[26/33] [mobile] › e2e/lab-04/dashboards.spec.ts:33:5 › E2E-03 matches Staff/Admin dashboard metrics and current-user drill-down
+[27/33] [mobile] › e2e/lab-04/dashboards.spec.ts:55:5 › E2E-03 renders retryable dashboard safe failure
+[28/33] [mobile] › e2e/lab-04/dashboards.spec.ts:76:5 › E2E-03 isolates Requester dashboard metrics and recent lists from another Requester's Ticket
+[29/33] [mobile] › e2e/lab-04/ticket-resolution.spec.ts:13:5 › E2E-02 enforces current-cycle resolution evidence and reopen isolation
+[30/33] [mobile] › e2e/lab-04/ticket-resolution.spec.ts:73:5 › E2E-02 rejects a stale Ticket revision without overwriting newer state
+[31/33] [mobile] › e2e/lab-04/visual-hardening.spec.ts:19:5 › VIS-01 captures and verifies the Staff Dashboard
+[32/33] [mobile] › e2e/lab-04/visual-hardening.spec.ts:39:5 › VIS-02 captures and verifies the Requester Dashboard
+[33/33] [mobile] › e2e/lab-04/visual-hardening.spec.ts:52:5 › VIS-03 captures Actions Taken plus conditional validation and long-form responsive content
+  33 passed (42.8s)
