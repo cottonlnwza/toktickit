@@ -267,22 +267,24 @@ Errors include text and do not rely on red color alone. Retry/reload actions rem
 
 Final evidence must verify and record:
 
-- [ ] Dashboard navigation and active-page indication are consistent for each role.
-- [ ] Staff Dashboard metrics/current-user Actions/recent-urgent Tickets are readable.
-- [ ] Requester Dashboard shows only owned information and does not duplicate My Tickets controls.
-- [ ] Actions Taken create/list/edit/status states are visually distinct and understandable.
-- [ ] Read-only server-generated Action fields are visually distinct from editable fields.
-- [ ] Follow-up conditional validation is placed at the field.
-- [ ] Current versus historical workflow cycles are clear and old-cycle Actions are not presented as current work.
-- [ ] Assignee-only completion and reassignment path are understandable.
-- [ ] Ticket resolution-gate/conflict feedback distinguishes missing completed evidence, open Actions, and stale state and is non-color-only.
-- [ ] Public Comments, Internal Notes, and Actions Taken remain visually distinguishable.
-- [ ] Keyboard focus is visible on all required actions.
-- [ ] Desktop `>=992px` has no material clipping/overlap/overflow.
-- [ ] Tablet `768-991px` has no material clipping/overlap/overflow.
-- [ ] Mobile `<768px` has no page-level horizontal scrolling or hidden required action.
-- [ ] Long descriptions/results/notes wrap safely.
-- [ ] Loading, empty, forbidden, conflict, and safe-failure states are captured where required.
+- [x] Dashboard navigation and active-page indication are consistent for each role.
+- [x] Staff Dashboard metrics/current-user Actions/recent-urgent Tickets are readable.
+- [x] Requester Dashboard shows only owned information and does not duplicate My Tickets controls.
+- [x] Actions Taken create/list/edit/status states are visually distinct and understandable.
+- [x] Read-only server-generated Action fields are visually distinct from editable fields.
+- [x] Follow-up conditional validation is placed at the field and programmatically associated with the invalid control.
+- [x] Current versus historical workflow cycles are clear and old-cycle Actions are not presented as current work.
+- [x] Assignee-only completion and reassignment path are understandable.
+- [x] Ticket resolution-gate/conflict feedback distinguishes missing completed evidence, open Actions, and stale state and is non-color-only.
+- [x] Public Comments, Internal Notes, and Actions Taken remain visually distinguishable.
+- [x] Keyboard focus is visible on all required actions; dashboard metric focus is browser-verified.
+- [x] Desktop `>=992px` has no material clipping/overlap/overflow.
+- [x] Tablet `768-991px` has no material clipping/overlap/overflow.
+- [x] Mobile `<768px` has no page-level horizontal scrolling or hidden required action.
+- [x] Long descriptions/results/notes wrap safely.
+- [x] Loading, empty, forbidden, conflict, and safe-failure states are covered by the Lab 4 component/E2E suite; required major-screen screenshots are captured from actual rendered states.
+
+Issue #69 evidence: `client/tests/lab-04/ui-style.test.tsx`, `responsive.test.tsx`, and `accessibility.test.tsx`; browser verification in `e2e/lab-04/visual-hardening.spec.ts`; screenshots under `artifacts/lab-04/screenshots/{staff-dashboard,requester-dashboard,actions-taken}/{desktop,tablet,mobile}.png`. Visual inspection confirmed no material clipping, overlap, hidden required controls, or page-level horizontal overflow in the required viewports.
 
 ## 15. Required Screenshot Paths
 
