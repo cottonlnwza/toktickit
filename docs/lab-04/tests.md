@@ -1,14 +1,33 @@
-# Lab 4 Test Plan and Results
+# Lab 4 — Test Plan and Evidence
 
-Status: Planned before Lab 4 implementation. Final result cells must be updated only from actual executed evidence.
+All Lab 4 automated tests live under `server/tests/lab-04/`, `client/tests/lab-04/`, and `e2e/lab-04/`. Existing `lab-01`, `lab-02`, and `lab-03` tests remain regression evidence; no historical Lab 1–3 documentation is changed for this Lab 4 report.
 
-## 1. Test Strategy
+| # | Tool | Test | Result |
+|---|------|------|--------|
+| 1 | Vitest / Supertest / Prisma | Actions Taken, Ticket lifecycle, authorization, dashboards, migrations/seed and performance smoke | Passed in recorded Issue #64–#68 runs |
+| 2 | Vitest / React Testing Library | Actions Taken UI, workflow, dashboards, responsive structure and accessibility | Passed — 8 Lab 4 files / 19 tests in Issue #69 verification |
+| 3 | Playwright (Chromium) | Actions, resolution gate, dashboards, isolation, conflicts, focus and visual checks | Passed — 11/11 on each desktop, tablet and mobile project in Issue #69 verification |
+| 4 | Regression suites | Existing Labs 1–3 server/client/browser behavior under the Lab 4 contract | Passed in recorded Issue #68 runs; see detailed evidence below |
+| 5 | TypeScript / Vite | Server and client production builds | Passed in Issue #69 verification |
 
-Lab 4 follows Test DD and TDD. For each implementation Issue, the planned automated scenario is written first, confirmed to fail for the expected missing Lab 4 behavior where applicable, then the smallest compliant implementation is added and the affected regression set is rerun.
+## Test Files and Coverage
 
-Required levels from the handout are represented below: unit, API/integration, UI component, UI style, responsive, authorization, workflow, migration/regression, performance-smoke, and E2E. Labs 1-3 tests remain regression evidence; a historical Lab 3 defect is not repaired by rewriting an old Lab 3 branch. Any change required by an explicit Lab 4 requirement is implemented as Lab 4 work through the current Lab 4 Issue/PR flow.
+### Server
 
-## 2. Planned Tests
+- `server/tests/lab-04/` covers Actions Taken business rules, authorization, idempotency, atomic Ticket/Action versions, workflow gates, dashboards, audit events, migration, seed and performance smoke.
+- `server/tests/lab-01/`, `server/tests/lab-02/`, `server/tests/lab-03/` provide regression coverage. Migration/seed integration tests require an **isolated** PostgreSQL `_test` database.
+
+### Client
+
+- `client/tests/lab-04/` covers Actions Taken, Ticket workflow, Ticket version chaining, Requester/Staff dashboards, UI style, responsive structure and accessibility.
+- `client/tests/lab-01/`, `client/tests/lab-02/`, `client/tests/lab-03/` provide UI regression evidence.
+
+### End-to-end
+
+- `e2e/lab-04/` covers authenticated Actions Taken, Ticket resolution/reopen, dashboard isolation/drill-down, failure/conflict behavior, and actual visual screenshots at desktop, tablet, and mobile sizes.
+- Existing `e2e/lab-03/` verifies inherited full-product behavior under the Lab 4 schema.
+
+### Detailed Lab 4 Test Matrix
 
 | Test ID | Type | Requirement / AC | What It Tests | Expected Result | Automated Test File | Final |
 |---|---|---|---|---|---|---|
@@ -66,7 +85,7 @@ Required levels from the handout are represented below: unit, API/integration, U
 | E2E-03 | E2E | AC-11-AC-14 | Dashboards | Requester isolation, authoritative metrics, current-user drill-down, safe failure/retry | `e2e/lab-04/dashboards.spec.ts` | Pass (Issue #68; desktop/tablet/mobile) |
 | E2E-04 | E2E/Regression | AC-21, AC-22 | Complete-product regression | Authentication, Requester flow, Staff APIs/Detail, Comments/Notes, Administrator management and responsive evidence remain usable | Existing `e2e/lab-03` under the final Lab 4 schema | Pass (Issue #68; desktop 7/7) |
 
-## 3. Acceptance-Criterion Traceability
+### Acceptance-Criterion Traceability
 
 | AC | Planned evidence |
 |---|---|
@@ -95,9 +114,31 @@ Required levels from the handout are represented below: unit, API/integration, U
 
 No Acceptance Criterion is intentionally left without planned evidence.
 
-## 4. Responsive and Visual Checklist
+## Verification Approach
 
-Final status must be filled from actual visual inspection/screenshots.
+Lab 4 follows Test DD and TDD. For each implementation Issue, the planned automated scenario is written first, confirmed to fail for the expected missing Lab 4 behavior where applicable, then the smallest compliant implementation is added and the affected regression set is rerun.
+
+Required levels from the handout are represented below: unit, API/integration, UI component, UI style, responsive, authorization, workflow, migration/regression, performance-smoke, and E2E. Labs 1-3 tests remain regression evidence; a historical Lab 3 defect is not repaired by rewriting an old Lab 3 branch. Any change required by an explicit Lab 4 requirement is implemented as Lab 4 work through the current Lab 4 Issue/PR flow.
+
+### TDD Checkpoint Rule
+
+For Issues 2-5, planned automated tests for the Issue are introduced before or alongside implementation and must demonstrate the missing/incorrect Lab 4 behavior for the expected reason before the corresponding implementation is accepted. Contract corrections from PR #71 are the source of truth: current-cycle positive completion evidence, parent+child CAS, assignee-only completion, append-only Action events, deterministic error taxonomy, and active-parent/current-cycle dashboard rules must be tested rather than the superseded draft behavior. A pre-existing Lab 3 regression failure is recorded separately and does not justify rewriting a completed Lab 3 branch.
+
+### Test Commands
+
+Run commands from the repository root unless a directory change is shown. This is the Lab 4 test entrypoint; integration tests that manipulate database state must use an isolated PostgreSQL `_test` database and the documented test setup.
+
+```bash
+cd server && npm run build
+cd client && npx vitest run tests/lab-04
+npx playwright test e2e/lab-04
+```
+
+The three commands above are **separate terminal invocations**; run the client command from the repository root, not inside `server/`. For full server regressions, follow the isolated-database and grouped execution evidence below. Release verification must rerun applicable Labs 1–3 regression commands from integrated `lab4-staging` and then final `main`. No final-release pass is claimed before those executions.
+
+### Responsive and Visual Checklist
+
+Checklist retained for the final release evidence audit; a checked status must be supported by an actual test, screenshot or inspection record. The completed browser-level visual evidence is indexed in `ui-spec.md`.
 
 - [ ] Desktop `>= 992px`: Dashboard cards/lists and Actions Taken controls fit without material clipping/overlap.
 - [ ] Tablet `768-991px`: dense tables convert/reflow according to `ui-spec.md`; controls remain reachable.
@@ -111,23 +152,35 @@ Final status must be filled from actual visual inspection/screenshots.
 - [ ] Long Action descriptions/results/notes wrap without hiding controls.
 - [ ] Public Comments/Internal Notes keep the Lab 3 privacy distinction.
 
-## 5. Test Commands
+## Verified Results Before Final main Release
 
-Exact commands are finalized when the related files exist. Planned repository-level commands:
+The results below come from verified Lab 4 feature-branch and PR-correction runs, not from a yet-to-occur final-`main` release run. Following the Lab 1 evidence format, each result must keep its execution context; final integrated/`main` evidence will be added only after those checks actually run.
+
+### Server
+
+Previous Lab 4 API/unit/integration and Labs 1–3 backend regression runs are recorded below. The server production build passed in Issue #69. No full-server-suite result from final `main` is claimed yet.
+
+### Client
 
 ```bash
-cd server && npm test
-cd client && npm test
-npx playwright test e2e/lab-04
+cd client
+npx vitest run tests/lab-04
+npm run build
 ```
 
-Release verification must also run the documented existing Labs 1-3 regression commands from the integrated `lab4-staging`/final `main` state. No result is marked Pass until the command actually completes successfully. This repository currently has no hosted GitHub Actions check configured for this docs-only contract PR; therefore exact-head evidence for Issue #63 is local `git show --check HEAD` plus the contract sanity script, reported in the PR after the final docs commit.
+Issue #69 results: **8 Lab 4 files / 19 tests passed**, and the production build passed. The full client suite (Labs 1–4) also passed during Issue #68 (24 files / 110 tests).
 
-## 6. TDD Checkpoint Rule
+### End-to-end
 
-For Issues 2-5, planned automated tests for the Issue are introduced before or alongside implementation and must demonstrate the missing/incorrect Lab 4 behavior for the expected reason before the corresponding implementation is accepted. Contract corrections from PR #71 are the source of truth: current-cycle positive completion evidence, parent+child CAS, assignee-only completion, append-only Action events, deterministic error taxonomy, and active-parent/current-cycle dashboard rules must be tested rather than the superseded draft behavior. A pre-existing Lab 3 regression failure is recorded separately and does not justify rewriting a completed Lab 3 branch.
+```bash
+npx playwright test e2e/lab-04 --project=desktop
+npx playwright test e2e/lab-04 --project=tablet
+npx playwright test e2e/lab-04 --project=mobile
+```
 
-## 7. Final Results
+Issue #69 results: **11/11 passed in each viewport project** (33 passing executions total). Nine authentic screenshots are committed under `artifacts/lab-04/screenshots/`. This does not replace the required post-release verification on final `main`.
+
+### Previous Issue-by-Issue Evidence
 
 Issue #63 was documentation-only and did not claim implementation passes. Issue #64 now records actual backend-foundation evidence:
 
@@ -176,7 +229,7 @@ Issue #69 responsive/accessibility/visual-hardening evidence:
 - Actions Taken field validation now sets `aria-invalid` and `aria-describedby` for Action Description, Assignee, and conditional Follow-up Note. Read-only Action values use the approved read-only surface treatment; the programmatically focusable dashboard Actions section has an explicit visible focus outline.
 - README is updated from Lab 3-current wording to the Lab 4 migration/seed/test/evidence workflow.
 
-## 8. Known Limitations or Deferred Tests
+## Known Limitations or Deferred Tests
 
 - External notifications, SLA engines, advanced BI/reporting, multi-tenant behavior, billing/costing, and production cloud load tests are excluded by the Lab 4 handout.
 - Broad production-scale performance testing is excluded. `PERF-01` is a course-appropriate smoke check over seeded/local data and concise endpoint payloads.

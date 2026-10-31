@@ -1,6 +1,6 @@
-# Lab 4 UI Specification
+# Lab 4 — UI Specification
 
-Status: Proposed Sprint 4 UI contract for Issue #63. Lab 4 extends the existing Zen Green application and does not introduce a second visual system.
+**Contract status:** Approved through PR #71 and verified by the responsive/accessibility evidence in PR #81. Lab 4 extends the existing Zen Green application and does not introduce a second visual system.
 
 ## 1. Existing Visual Foundation
 

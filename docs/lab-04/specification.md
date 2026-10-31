@@ -1,6 +1,6 @@
-# Lab 4 Sprint Engineering Specification
+# Lab 4 — Sprint Engineering Specification
 
-Status: Proposed Sprint 4 engineering contract for Issue #63. This document must be peer-reviewed before implementation Issues begin.
+**Contract status:** Approved by the peer reviewer on PR #71 and integrated through `lab4-staging`. The functional/business rules and acceptance criteria remain the approved Lab 4 contract.
 
 ## 1. Sprint Goal
 

@@ -1,6 +1,6 @@
-# Lab 4 REST API Specification
+# Lab 4 — REST API Specification
 
-Status: Proposed Sprint 4 API contract for Issue #63. Existing Lab 3 authentication/session/CSRF/origin behavior remains the security foundation.
+**Contract status:** Approved through PR #71; implemented and regression-tested through subsequent Lab 4 PRs. Existing Lab 3 authentication/session/CSRF/origin behavior remains the security foundation.
 
 ## 1. Shared API Principles
 

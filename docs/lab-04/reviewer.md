@@ -1,16 +1,27 @@
-# Lab 4 Peer Review Record
+# Lab 4 — Peer Review Record
 
-This file records only review events that actually occur. Do not add reviewer identity, approval, requested changes, responses, or merge claims before they happen.
+**Author:** Thanakorn Soison — 67070507205 — GitHub: @cottonlnwza
+**Peer reviewers:** @Tanaboonnnnn (primary) and @L0u1sss (PR #73)
 
-## Review Workflow
+## Pull Requests I authored (reviewed by my partner)
 
-- Every Lab 4 feature PR targets `lab4-staging`.
-- The feature author does not self-approve or self-merge.
-- If changes are requested, the Issue returns to `Fixing`, corrections are pushed to the same open PR where appropriate, and the Issue returns to `PR Review`.
-- `Done` is used only after the required peer-review/merge workflow is complete.
-- Final release uses a reviewed `lab4-staging` -> `main` PR.
+| PR | Branch | Reviewer verdict |
+|----|--------|------------------|
+| [#71](https://github.com/cottonlnwza/toktickit/pull/71) | `feature/lab4-1-engineering-contract` | CHANGES_REQUESTED, corrected, then APPROVED |
+| [#72](https://github.com/cottonlnwza/toktickit/pull/72) | `feature/lab4-2-actions-foundation` | CHANGES_REQUESTED, corrected, then APPROVED |
+| [#73](https://github.com/cottonlnwza/toktickit/pull/73) | `feature/lab4-3-actions-ui` | APPROVED (@L0u1sss) |
+| [#74](https://github.com/cottonlnwza/toktickit/pull/74) | `feature/lab4-4-ticket-workflow` | APPROVED |
+| [#75](https://github.com/cottonlnwza/toktickit/pull/75) | `feature/lab4-5-role-dashboards` | CHANGES_REQUESTED, corrected, then APPROVED |
+| [#78](https://github.com/cottonlnwza/toktickit/pull/78) | `feature/lab4-hardening-ticket-version` | APPROVED |
+| [#79](https://github.com/cottonlnwza/toktickit/pull/79) | `feature/lab4-hardening-terminal-actions` | APPROVED |
+| [#80](https://github.com/cottonlnwza/toktickit/pull/80) | `feature/lab4-6-e2e-regression` | CHANGES_REQUESTED, corrected, then APPROVED |
+| [#81](https://github.com/cottonlnwza/toktickit/pull/81) | `feature/lab4-7-responsive-hardening` | APPROVED |
 
-## Review Events
+**Reviewer comments:** Peer reviewers checked the Lab 4 contract, backend validation/concurrency, Actions Taken UI, Ticket workflow, role dashboards, E2E regression, and responsive/accessibility evidence. They requested changes on PRs #71, #72, #75 and #80. Review text, reviewer identities, exact-head outcomes and linked PRs are recorded below.
+
+**How I responded:** I converted each blocking review finding into corrections and tests on the relevant feature branch, reran affected checks and requested another review. Only after the peer submitted APPROVED and performed the merge did I mark the Issue Done.
+
+### Reviewer comments and my responses (verified GitHub history)
 
 | Issue | PR | Reviewer | Review / Comment | Author Response | Approval | Merge | Notes |
 |---|---|---|---|---|---|---|---|
@@ -26,7 +37,7 @@ This file records only review events that actually occur. Do not add reviewer id
 
 Additional rows are added only from verified GitHub history.
 
-## Reciprocal / Author Peer Review
+## Pull Requests I reviewed for my partner
 
 The following entries include **only Lab 4 PRs** with submitted GitHub reviews authored by `cottonlnwza`, verified against classmates' review timelines. Each row records the actual submitted verdict; a PR later being merged does not retroactively change a `CHANGES_REQUESTED` review to approval. No Lab 4 submitted reviews by this account were found in `thananun-7203/toktickit` in the verified review history.
 
@@ -39,6 +50,14 @@ The following entries include **only Lab 4 PRs** with submitted GitHub reviews a
 | [chaproi/toktickit #42](https://github.com/chaproi/toktickit/pull/42) — Lab 4 | chaproi | Sprint 4 engineering contract and six documents | [Review, 2026-10-04](https://github.com/chaproi/toktickit/pull/42#pullrequestreview-5405737951): checked Actions, Ticket lifecycle, dashboards, migration, concurrency, accessibility, 45 ACs and 55 planned scenarios; kept unexecuted work marked Planned. | **APPROVED** |
 
 **Verified Lab 4 reciprocal-review totals (as of 2026-10-31):** 5 distinct Lab 4 PRs / 7 submitted review events by `cottonlnwza` in `chaproi/toktickit`: 4 APPROVED and 3 CHANGES_REQUESTED review events. No earlier Lab 2/3 PRs are included. These are **review events, not independently rerun tests**; PR merge status is separate from the reviewer's submitted verdict.
+
+## Review Workflow
+
+- Every Lab 4 feature PR targets `lab4-staging`.
+- The feature author does not self-approve or self-merge.
+- If changes are requested, the Issue returns to `Fixing`, corrections are pushed to the same open PR where appropriate, and the Issue returns to `PR Review`.
+- `Done` is used only after the required peer-review/merge workflow is complete.
+- Final release uses a reviewed `lab4-staging` -> `main` PR.
 
 ## Final Review Audit Checklist
 
