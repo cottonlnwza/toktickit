@@ -16,6 +16,8 @@
 | [#79](https://github.com/cottonlnwza/toktickit/pull/79) | `feature/lab4-hardening-terminal-actions` | APPROVED |
 | [#80](https://github.com/cottonlnwza/toktickit/pull/80) | `feature/lab4-6-e2e-regression` | CHANGES_REQUESTED, corrected, then APPROVED |
 | [#81](https://github.com/cottonlnwza/toktickit/pull/81) | `feature/lab4-7-responsive-hardening` | APPROVED |
+| [#82](https://github.com/cottonlnwza/toktickit/pull/82) | `feature/lab4-8-release-evidence` | APPROVED (release-candidate docs/evidence) |
+| [#83](https://github.com/cottonlnwza/toktickit/pull/83) | `lab4-staging` → `main` | APPROVED (final release) |
 
 **Reviewer comments:** Peer reviewers checked the Lab 4 contract, backend validation/concurrency, Actions Taken UI, Ticket workflow, role dashboards, E2E regression, and responsive/accessibility evidence. They requested changes on PRs #71, #72, #75 and #80. Review text, reviewer identities, exact-head outcomes and linked PRs are recorded below.
 
@@ -34,6 +36,9 @@
 | #77 Terminal Actions UI and Mutation Guard | [#79](https://github.com/cottonlnwza/toktickit/pull/79) | Tanaboonnnnn | Exact-head review at `0eb881d` verified terminal/historical read-only UI, immediate post-complete/post-cancel rerender, and authoritative backend `ACTION_TERMINAL` rejection; no blocker remained. | No correction round was required after approval. | Approved | Peer merged to `lab4-staging` as `7174680` | Verified GitHub approval and merge on 2026-10-07; Issue #77 moved to Done. |
 | #68 Lab 4 E2E and Labs 1-3 Final Regression | [#80](https://github.com/cottonlnwza/toktickit/pull/80) | Tanaboonnnnn | Requested changes at HEAD `feb5c4a` because E2E-02 lacked direct stale Ticket-revision/UI feedback evidence and E2E-03 lacked actual cross-Requester dashboard isolation. Exact-head re-review at `d9e4d1a` verified both blockers closed and found no new blocker. | Added a stale aggregate-version E2E that verifies conflict feedback/no overwrite and a second-Requester dashboard scenario proving metrics/recent-list isolation; reran all required viewports. | Approved | Peer merged to `lab4-staging` as `6375694` | Verified GitHub approval and peer merge; Issue #68 moved to Done. |
 | #69 Responsive, Accessibility, Visual Inspection, and Final Hardening | [#81](https://github.com/cottonlnwza/toktickit/pull/81) | Tanaboonnnnn | Exact-head review at `d8da9d1` confirmed responsive layouts, accessibility/validation links, visual evidence, scoped focus/read-only styling, and traceability. No blocking issue was reported. | No correction round was required after this approval. | Approved | Peer merged to `lab4-staging` as `a032df1` | Verified GitHub approval on 2026-10-31 and merge; Issue #69 moved to Done. |
+
+| #70 Release Candidate Documentation/Evidence | [#82](https://github.com/cottonlnwza/toktickit/pull/82) | Tanaboonnnnn | At exact HEAD `9e35b89`, reviewer checked the docs-only scope, verified review trail, 243 server + 116 client + 33 Lab 4 E2E + 7 Lab 3 E2E logged results, nine screenshots and 26-page clearly labeled draft; noted those were developer-run tests, not independently rerun or final-main results. | No corrections requested. | Approved | Peer merged to `lab4-staging` as `629ea5b` | 2026-10-31 13:42:37 UTC; part of Issue #70 release process. |
+| #70 Final Lab 4 Release | [#83](https://github.com/cottonlnwza/toktickit/pull/83) | Tanaboonnnnn | Exact-head review at `629ea5b` confirmed approved PR lineage, migration preservation, scope, docs and local regression evidence; explicitly required final-main tests and PDF update after merge. | Follow-up verification performed on exact final-main merge SHA `64dd4f0`: server 243, client 116, E2E 33+7, builds pass (see `tests.md`). | Approved | Peer merged to `main` as `64dd4f0` | 2026-10-31 13:54:40 UTC; post-merge evidence is being documented separately for peer review. |
 
 Additional rows are added only from verified GitHub history.
 
@@ -61,7 +66,7 @@ The following entries include **only Lab 4 PRs** with submitted GitHub reviews a
 
 ## Final Review Audit Checklist
 
-- [ ] Every Lab 4 implementation/release PR link is recorded.
+- [x] Every completed Lab 4 implementation/release PR link is recorded, including #82 and #83. The post-merge evidence update remains under separate review.
 - [x] Reviewer identity comes from actual GitHub review history.
 - [x] Requested changes/comments and responses are recorded accurately for completed Lab 4 implementation PRs.
 - [x] Approval is not claimed before an actual approval event.

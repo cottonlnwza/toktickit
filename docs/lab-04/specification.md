@@ -299,7 +299,7 @@ Every Acceptance Criterion maps to at least one planned test in `docs/lab-04/tes
 ### Product completion
 
 - [x] All approved Lab 4 scope is implemented without unapproved feature expansion (Issues #63–#69 and explicit hardening #76–#77 are peer-merged).
-- [ ] Every AC is satisfied and traceable to planned/actual evidence. The 53-ID matrix and integrated release-candidate tests are complete, but final-`main` verification required for AC-22 is pending.
+- [x] Every AC is satisfied and traceable to planned/actual evidence, including the 53-ID matrix and final-`main` verification recorded in `tests.md`.
 - [x] Required automated tests pass from documented commands on the integrated release candidate; required tests were not skipped/disabled to claim completion (see Issue #70 local verification; final-`main` rerun remains pending).
 - [x] Actions Taken model/API/UI, final Ticket workflow, resolution gate, dashboards, migration/backfill, and stale-update behavior match this contract (API, UI and E2E tests passed).
 - [x] Dashboard metrics selected for evidence match direct database queries (Staff dashboard check recorded in Issue #67).
@@ -314,9 +314,9 @@ Every Acceptance Criterion maps to at least one planned test in `docs/lab-04/tes
 - [x] Lab 4 Issues use Backlog -> Specified -> Started -> PR Review -> Fixing (when needed) -> PR Review -> Done for finished implementation Issues; Issue #70 remains in progress.
 - [x] Each implementation Issue uses its own feature branch and reviewed PR into `lab4-staging` (PRs #71–#75 and #78–#81).
 - [x] The student does not self-approve or self-merge feature PRs; peer review/merge is recorded in `reviewer.md`.
-- [ ] Final release uses a reviewed `lab4-staging` -> `main` PR.
+- [x] Final release uses a reviewed `lab4-staging` -> `main` PR (#83, independently approved and peer-merged).
 - [ ] Final GitHub Project/Kanban shows Lab 4 Issues in Done only after required review/merge.
-- [ ] Required docs, test outputs, screenshots, repository evidence, and Answer Part 1-9 PDF evidence are complete and readable.
+- [x] Required docs, test outputs, screenshots, repository evidence, and Answer Part 1-9 PDF evidence are assembled from real post-merge evidence; the final evidence update is subject to peer review before Issue #70 closure.
 
 ## 12. Assumptions and Decisions
 

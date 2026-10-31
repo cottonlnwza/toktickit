@@ -175,7 +175,9 @@ The Lab 4 suite runs desktop (1440×900), tablet (820×1180), and mobile
 - API contract: `docs/lab-04/api-spec.md`
 - Peer-review record: `docs/lab-04/reviewer.md`
 - AI-use record and reflection: `docs/lab-04/ai-use.md`
-- Nine-part submission evidence map (pre-release draft until final peer merge and final-`main` tests): `docs/lab-04/submission-evidence.md`
+- Nine-part final submission evidence map and exact final-main verification: `docs/lab-04/submission-evidence.md`
+- Final submission PDF with Answer Part 1–9 and actual browser screenshots: `artifacts/lab-04/submission-final/Lab4_Thanakorn_Soison_Final.pdf`
+- Post-release `main` verification logs (merge `64dd4f0`): `artifacts/lab-04/verification/final-main/`
 
 ## Lab 3 Documentation
 

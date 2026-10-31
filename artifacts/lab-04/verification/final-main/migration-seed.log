@@ -1,0 +1,29 @@
+
+ RUN  v2.1.9 /Users/cotton/Downloads/CPE334_SE/toktickit/server
+
+ ✓ tests/lab-03/migration.integration.test.ts (6 tests) 3928ms
+   ✓ Lab 3 migration/regression > aborts before mutation when legacy emails collide after trim/lowercase normalization 1007ms
+   ✓ Lab 3 migration/regression > deploys from an empty database through the documented path and reconciles Prisma migration history 1639ms
+stdout | tests/lab-03/seed.integration.test.ts > Lab 3 seed data > is idempotent, satisfies minimum role fixtures, and never resets existing credentials
+Seeded Lab 3-compatible reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, and 8 Tickets.
+
+stdout | tests/lab-03/seed.integration.test.ts > Lab 3 seed data > is idempotent, satisfies minimum role fixtures, and never resets existing credentials
+Seeded Lab 3-compatible reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, and 8 Tickets.
+
+stdout | tests/lab-03/seed.integration.test.ts > Lab 3 seed data > seeds realistic assigned/unassigned Tickets plus Public Comments and Internal Notes
+Seeded Lab 3-compatible reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, and 8 Tickets.
+
+ ✓ tests/lab-03/seed.integration.test.ts (2 tests) 1419ms
+ ✓ tests/lab-04/migration.integration.test.ts (1 test) 1379ms
+stdout | tests/lab-04/seed.integration.test.ts > Lab 4 seed
+Seeded Lab 4 reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, 8 Tickets, and 5 Actions Taken.
+
+stdout | tests/lab-04/seed.integration.test.ts > Lab 4 seed
+Seeded Lab 4 reference data, 5 Requester fixtures, 4 IT Staff fixtures, 1 Administrator fixture, 8 Tickets, and 5 Actions Taken.
+
+ ✓ tests/lab-04/seed.integration.test.ts (1 test) 1693ms
+
+ Test Files  4 passed (4)
+      Tests  10 passed (10)
+   Start at  21:02:01
+   Duration  9.05s (transform 50ms, setup 0ms, collect 101ms, tests 8.42s, environment 0ms, prepare 92ms)
