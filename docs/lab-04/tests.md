@@ -138,23 +138,45 @@ The three commands above are **separate terminal invocations**; run the client c
 
 ### Responsive and Visual Checklist
 
-Checklist retained for the final release evidence audit; a checked status must be supported by an actual test, screenshot or inspection record. The completed browser-level visual evidence is indexed in `ui-spec.md`.
+Verified in Issue #69 screenshots, component tests, existing Labs 2–3 UI regressions, and the final integrated browser runs summarized below. The full visual review and screenshot map remain in `ui-spec.md`.
 
-- [ ] Desktop `>= 992px`: Dashboard cards/lists and Actions Taken controls fit without material clipping/overlap.
-- [ ] Tablet `768-991px`: dense tables convert/reflow according to `ui-spec.md`; controls remain reachable.
-- [ ] Mobile `< 768px`: single-column/card layouts; no page-level horizontal scrolling.
-- [ ] Editable and read-only fields are visually distinct.
-- [ ] Action/Ticket statuses and priorities use text labels plus badges; meaning is not color-only.
-- [ ] Follow-up validation appears at the related field.
-- [ ] Busy/disabled controls cannot be double-submitted.
-- [ ] Keyboard focus remains visible.
-- [ ] Empty, forbidden, conflict, not-found, and safe-failure states are readable.
-- [ ] Long Action descriptions/results/notes wrap without hiding controls.
-- [ ] Public Comments/Internal Notes keep the Lab 3 privacy distinction.
+- [x] Desktop `>= 992px`: Dashboard cards/lists and Actions Taken controls fit without material clipping/overlap.
+- [x] Tablet `768-991px`: dense tables convert/reflow according to `ui-spec.md`; controls remain reachable.
+- [x] Mobile `< 768px`: single-column/card layouts; no page-level horizontal scrolling.
+- [x] Editable and read-only fields are visually distinct.
+- [x] Action/Ticket statuses and priorities use text labels plus badges; meaning is not color-only.
+- [x] Follow-up validation appears at the related field.
+- [x] Busy/disabled controls cannot be double-submitted (covered by existing form and Actions regression tests).
+- [x] Keyboard focus remains visible (browser metric focus and existing keyboard tests).
+- [x] Empty, forbidden, conflict, not-found, and safe-failure states have readable feedback (covered by the relevant UI/API and browser regressions; not all states have dedicated screenshots).
+- [x] Long Action descriptions/results/notes wrap without hiding controls.
+- [x] Public Comments/Internal Notes keep the Lab 3 privacy distinction (role/API and UI regression).
 
 ## Verified Results Before Final main Release
 
 The results below come from verified Lab 4 feature-branch and PR-correction runs, not from a yet-to-occur final-`main` release run. Following the Lab 1 evidence format, each result must keep its execution context; final integrated/`main` evidence will be added only after those checks actually run.
+
+### Integrated Lab 4 Release-Candidate Verification (Issue #70, 2026-10-31)
+
+All commands below were run on `feature/lab4-8-release-evidence`, which branches from integrated `lab4-staging` at merge `a032df1`. Its changes so far are documentation/evidence only; the tested product code is the integrated Lab 4 code. The test run used local development tooling and an isolated PostgreSQL `toktickit_lab3_suite_test` database for destructive migration/seed and E2E setups, **not** a development database. No hosted CI or final-`main` verification is implied.
+
+| Level | Exact verification scope | Result |
+|---|---|---|
+| Client full regression | `cd client && npx vitest run --reporter=dot` | **27 files / 116 tests passed**; existing React `act(...)` warnings in older Login/ChangePassword tests did not fail tests |
+| Server Labs 1–2 | `cd server && npx vitest run --no-file-parallelism tests/lab-01 tests/lab-02 --reporter=dot` | **10 files / 42 tests passed** |
+| Server Lab 3 without migration/seed | `cd server && npx vitest run --no-file-parallelism tests/lab-03 --exclude '**/*migration.integration.test.ts' --exclude '**/*seed.integration.test.ts' --reporter=dot` | **13 files / 136 tests passed** |
+| Server Lab 4 without migration/seed | Nine explicit `server/tests/lab-04` unit/API/performance-smoke files, serial Vitest | **9 files / 55 tests passed** |
+| Lab 3 and Lab 4 migration/seed | Four explicit `migration.integration.test.ts` / `seed.integration.test.ts` files, serial Vitest with `TEST_DATABASE_URL` targeting isolated `_test` DB | **4 files / 10 tests passed** |
+| Lab 4 E2E | `npx playwright test e2e/lab-04 --reporter=line` | **33/33 passed** — 11 desktop, 11 tablet, 11 mobile |
+| Lab 3 E2E regression | `npx playwright test e2e/lab-03 --project=desktop --reporter=line` | **7/7 passed** |
+| Production builds | `cd server && npm run build`; `cd client && npm run build` | **Both passed** |
+| Diff check | `git diff --check` | **Passed** |
+
+**Total server Vitest evidence:** 243 passing tests across 36 files when the non-overlapping groups above are combined. These groups were run separately to protect database fixtures; they are not a claim that a single `npm test` command ran all 36 files together.
+
+**Committed raw command output:** `artifacts/lab-04/verification/` contains `client-all.log`, `server-lab1-lab2.log`, `server-lab3.log`, `server-lab4.log`, `migration-seed.log`, `playwright-lab4.log`, `playwright-lab3.log`, and `builds.log`. Reviewers can compare the numeric summaries above against these local execution logs. They are source-run evidence, not hosted GitHub Actions artifacts.
+
+**Remaining release checks:** A reviewed `lab4-staging → main` PR must be peer-merged. Rerun and record required tests/builds against that exact final `main` commit, then close Issue #70 and replace any draft submission placeholders with real merge/evidence links.
 
 ### Server
 

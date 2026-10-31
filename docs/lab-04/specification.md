@@ -298,22 +298,22 @@ Every Acceptance Criterion maps to at least one planned test in `docs/lab-04/tes
 
 ### Product completion
 
-- [ ] All approved Lab 4 scope is implemented without unapproved feature expansion.
-- [ ] Every AC is satisfied and traceable to planned/actual evidence.
-- [ ] Required automated tests pass from documented commands; required tests are not skipped/disabled to claim completion.
-- [ ] Actions Taken model/API/UI, final Ticket workflow, resolution gate, dashboards, migration/backfill, and stale-update behavior match this contract.
-- [ ] Dashboard metrics selected for evidence match direct database queries.
-- [ ] Existing authentication, authorization, Requester, IT Staff, Administrator, comments, notes, and Attachment behavior remains regression-covered.
-- [ ] Major Lab 4 screens satisfy Zen Green, responsive, and accessibility rules.
-- [ ] Recoverable failures preserve important form input and duplicate writes are prevented/safely replayed.
+- [x] All approved Lab 4 scope is implemented without unapproved feature expansion (Issues #63–#69 and explicit hardening #76–#77 are peer-merged).
+- [ ] Every AC is satisfied and traceable to planned/actual evidence. The 53-ID matrix and integrated release-candidate tests are complete, but final-`main` verification required for AC-22 is pending.
+- [x] Required automated tests pass from documented commands on the integrated release candidate; required tests were not skipped/disabled to claim completion (see Issue #70 local verification; final-`main` rerun remains pending).
+- [x] Actions Taken model/API/UI, final Ticket workflow, resolution gate, dashboards, migration/backfill, and stale-update behavior match this contract (API, UI and E2E tests passed).
+- [x] Dashboard metrics selected for evidence match direct database queries (Staff dashboard check recorded in Issue #67).
+- [x] Existing authentication, authorization, Requester, IT Staff, Administrator, comments, notes, and Attachment behavior remains regression-covered (Labs 1–3 test groups and Lab 3 E2E passed).
+- [x] Major Lab 4 screens satisfy Zen Green, responsive, and accessibility rules for the tested viewports (Issue #69 screenshot and browser evidence).
+- [x] Recoverable failures preserve important form input and duplicate writes are prevented/safely replayed (validation, optimistic version and idempotency tests).
 - [ ] Console errors, broken links, placeholder text, and unfinished Lab 4 controls are removed before release.
-- [ ] README setup, seed, migration, test, and demonstration instructions are current before release.
+- [x] README setup, seed, migration, test, and demonstration instructions are current before release (Issue #69 change).
 
 ### Course delivery
 
-- [ ] Lab 4 Issues use Backlog -> Specified -> Started -> PR Review -> Fixing (when needed) -> PR Review -> Done.
-- [ ] Each implementation Issue uses its own feature branch and reviewed PR into `lab4-staging`.
-- [ ] The student does not self-approve or self-merge feature PRs; peer review/merge is recorded in `reviewer.md`.
+- [x] Lab 4 Issues use Backlog -> Specified -> Started -> PR Review -> Fixing (when needed) -> PR Review -> Done for finished implementation Issues; Issue #70 remains in progress.
+- [x] Each implementation Issue uses its own feature branch and reviewed PR into `lab4-staging` (PRs #71–#75 and #78–#81).
+- [x] The student does not self-approve or self-merge feature PRs; peer review/merge is recorded in `reviewer.md`.
 - [ ] Final release uses a reviewed `lab4-staging` -> `main` PR.
 - [ ] Final GitHub Project/Kanban shows Lab 4 Issues in Done only after required review/merge.
 - [ ] Required docs, test outputs, screenshots, repository evidence, and Answer Part 1-9 PDF evidence are complete and readable.

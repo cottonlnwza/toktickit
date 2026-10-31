@@ -62,8 +62,8 @@ The following entries include **only Lab 4 PRs** with submitted GitHub reviews a
 ## Final Review Audit Checklist
 
 - [ ] Every Lab 4 implementation/release PR link is recorded.
-- [ ] Reviewer identity comes from actual GitHub review history.
-- [ ] Requested changes/comments and responses are recorded accurately.
-- [ ] Approval is not claimed before an actual approval event.
-- [ ] Merge is not claimed before an actual merge event.
-- [ ] No self-approval/self-merge is represented as peer review.
+- [x] Reviewer identity comes from actual GitHub review history.
+- [x] Requested changes/comments and responses are recorded accurately for completed Lab 4 implementation PRs.
+- [x] Approval is not claimed before an actual approval event.
+- [x] Merge is not claimed before an actual merge event.
+- [x] No self-approval/self-merge is represented as peer review.
