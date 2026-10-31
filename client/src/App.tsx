@@ -1,19 +1,27 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
   AdminUser,
+  ActionApiError,
+  ActionStatus,
+  ActionTaken,
   AuthApiError,
   AuthUser,
+  DashboardApiError,
   addAuthenticatedTicketAttachment,
   changePassword as changeOwnPassword,
   claimStaffTicket,
   checkSystem,
   Category,
   createAuthenticatedTicket,
+  createTicketAction,
   createAdminUser,
   createTicket,
   CreatedTicket,
   getAuthenticatedMyTickets,
   getAuthenticatedTicketDetail,
+  getRequesterDashboard,
+  getStaffDashboard,
+  getTicketActions,
   getAdminUsers,
   getCurrentUser,
   getCategories,
@@ -32,6 +40,7 @@ import {
   postInternalNote,
   PublicComment,
   Requester,
+  RequesterDashboardResponse,
   removeAuthenticatedTicketAttachment,
   removeTicketAttachment,
   RelatedSystem,
@@ -40,10 +49,13 @@ import {
   StaffQueueTicket,
   StaffTicketApiError,
   StaffTicketDetail,
+  StaffDashboardResponse,
   setAdminInitialPassword,
   TicketAttachment,
   TicketDetail,
   TicketStatus,
+  transitionTicketAction,
+  updateTicketAction,
   updateStaffTicketItPriority,
   updateStaffTicketOwner,
   updateStaffTicketStatus,
@@ -234,12 +246,12 @@ function queueStatusLabel(status: TicketStatus) {
   }[status];
 }
 
-function StaffTicketQueue() {
+function StaffTicketQueue({ initialOwner = "" }: { initialOwner?: string }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"" | TicketStatus>("");
   const [requestedPriority, setRequestedPriority] = useState("");
   const [itPriority, setItPriority] = useState("");
-  const [owner, setOwner] = useState("");
+  const [owner, setOwner] = useState(initialOwner);
   const [categoryId, setCategoryId] = useState("");
   const [relatedSystemId, setRelatedSystemId] = useState("");
   const [sortBy, setSortBy] = useState<"updatedAt" | "createdAt" | "ticketNumber" | "requestedPriority" | "itPriority" | "status">("updatedAt");
@@ -251,6 +263,11 @@ function StaffTicketQueue() {
   const [retryToken, setRetryToken] = useState(0);
   const [categories, setCategories] = useState<Category[]>([]);
   const [relatedSystems, setRelatedSystems] = useState<RelatedSystem[]>([]);
+
+  useEffect(() => {
+    setOwner(initialOwner);
+    setPage(1);
+  }, [initialOwner]);
 
   useEffect(() => {
     let current = true;
@@ -488,6 +505,256 @@ const staffStatusTransitions: Record<TicketStatus, TicketStatus[]> = {
   CANCELLED: ["REOPENED"],
 };
 
+type ActionFormState = {
+  actionDescription: string;
+  assigneeId: string;
+  result: string;
+  followUpRequired: boolean;
+  followUpNote: string;
+  attachmentNotes: string;
+};
+
+const emptyActionForm: ActionFormState = {
+  actionDescription: "",
+  assigneeId: "",
+  result: "",
+  followUpRequired: false,
+  followUpNote: "",
+  attachmentNotes: "",
+};
+
+function ActionsTakenPanel({
+  ticketId,
+  currentUser,
+  csrfToken,
+  initialTicketVersion,
+  currentWorkflowCycle,
+  assigneeOptions,
+  readOnly = false,
+  onTicketVersionChange,
+}: {
+  ticketId: number;
+  currentUser: AuthUser;
+  csrfToken: string;
+  initialTicketVersion?: number;
+  currentWorkflowCycle?: number;
+  assigneeOptions?: Array<{ id: number; name: string; role: "IT_STAFF" | "ADMINISTRATOR" }>;
+  readOnly?: boolean;
+  onTicketVersionChange?: (version: number) => void;
+}) {
+  const [actions, setActions] = useState<ActionTaken[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [ticketVersion, setTicketVersion] = useState(initialTicketVersion ?? 0);
+  const [form, setForm] = useState<ActionFormState>(emptyActionForm);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+  const canWrite = !readOnly && ["IT_STAFF", "ADMINISTRATOR"].includes(currentUser.role);
+
+  useEffect(() => {
+    let current = true;
+    setLoadState("loading");
+    setError("");
+    void getTicketActions(ticketId)
+      .then((response) => {
+        if (!current) return;
+        setActions(response.items);
+        setLoadState("ready");
+      })
+      .catch(() => {
+        if (!current) return;
+        setLoadState("error");
+        setError("Unable to load Actions Taken. Please try again.");
+      });
+    return () => { current = false; };
+  }, [ticketId, reloadToken]);
+
+  useEffect(() => {
+    if (initialTicketVersion !== undefined) setTicketVersion(initialTicketVersion);
+  }, [initialTicketVersion]);
+
+  function beginEdit(action: ActionTaken) {
+    setEditingId(action.id);
+    setForm({
+      actionDescription: action.actionDescription,
+      assigneeId: String(action.assignee.id),
+      result: action.result ?? "",
+      followUpRequired: action.followUpRequired,
+      followUpNote: action.followUpNote ?? "",
+      attachmentNotes: action.attachmentNotes ?? "",
+    });
+    setFieldErrors({});
+    setError("");
+    setMessage("");
+  }
+
+  function resetForm() {
+    setEditingId(null);
+    setForm(emptyActionForm);
+    setFieldErrors({});
+  }
+
+  function validateForm() {
+    const fields: Record<string, string> = {};
+    if (!form.actionDescription.trim()) fields.actionDescription = "Action Description is required.";
+    if (!form.assigneeId) fields.assigneeId = "Assignee is required.";
+    if (form.followUpRequired && !form.followUpNote.trim()) fields.followUpNote = "Follow-up Note is required when follow-up is needed.";
+    setFieldErrors(fields);
+    return Object.keys(fields).length === 0;
+  }
+
+  function explainActionError(caught: unknown) {
+    if (!(caught instanceof ActionApiError)) return "Unable to save Action Taken. Please try again.";
+    if (caught.code === "STALE_UPDATE") return "This Ticket or Action changed. Reload latest data before trying again.";
+    if (caught.code === "INACTIVE_ASSIGNEE") return "The selected assignee is no longer active. Choose another IT Staff or Administrator.";
+    if (caught.code === "ACTION_ASSIGNEE_MISMATCH") return "Only the current assignee can complete this Action. Reassign it first if needed.";
+    if (caught.code === "PARENT_TICKET_NOT_ACTIVE") return "This Action cannot be changed because the Ticket is not in an active work state.";
+    if (caught.code === "ACTION_TERMINAL") return "Completed or cancelled Actions cannot be edited.";
+    if (caught.code === "ACTION_REPLAY_CONFLICT") return "This create request conflicts with an existing Action. Reload the latest Actions.";
+    if (caught.status === 404) return "The Ticket or Action is unavailable. Reload the latest data.";
+    return caught.message || "Unable to save Action Taken. Please try again.";
+  }
+
+  async function submitAction(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving || !validateForm()) return;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      if (editingId === null) {
+        const response = await createTicketAction(csrfToken, ticketId, {
+          expectedTicketVersion: ticketVersion,
+          clientRequestId: crypto.randomUUID(),
+          actionDescription: form.actionDescription,
+          assigneeId: Number(form.assigneeId),
+          result: form.result.trim() || null,
+          followUpRequired: form.followUpRequired,
+          followUpNote: form.followUpRequired ? form.followUpNote : null,
+          attachmentNotes: form.attachmentNotes.trim() || null,
+        });
+        setTicketVersion(response.ticketVersion);
+        onTicketVersionChange?.(response.ticketVersion);
+        setActions((current) => {
+          const withoutDuplicate = current.filter((item) => item.id !== response.action.id);
+          return [...withoutDuplicate, response.action].sort((a, b) => a.workflowCycle - b.workflowCycle || a.createdAt.localeCompare(b.createdAt) || a.id - b.id);
+        });
+        setMessage(response.replayed ? "Action request safely replayed without creating a duplicate." : "Action created.");
+      } else {
+        const action = actions.find((item) => item.id === editingId);
+        if (!action) throw new Error("Action not found.");
+        const response = await updateTicketAction(csrfToken, ticketId, editingId, {
+          expectedTicketVersion: ticketVersion,
+          expectedActionVersion: action.version,
+          actionDescription: form.actionDescription,
+          assigneeId: Number(form.assigneeId),
+          result: form.result.trim() || null,
+          followUpRequired: form.followUpRequired,
+          followUpNote: form.followUpRequired ? form.followUpNote : null,
+          attachmentNotes: form.attachmentNotes.trim() || null,
+        });
+        setTicketVersion(response.ticketVersion);
+        onTicketVersionChange?.(response.ticketVersion);
+        setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
+        setMessage("Action updated.");
+      }
+      resetForm();
+    } catch (caught) {
+      if (caught instanceof ActionApiError) setFieldErrors(caught.fields);
+      setError(explainActionError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function changeStatus(action: ActionTaken, toStatus: ActionStatus) {
+    if (saving) return;
+    let result = action.result ?? "";
+    if (toStatus === "COMPLETED" && !result.trim()) {
+      const entered = window.prompt("Result is required to complete this Action.", "");
+      if (entered === null) return;
+      result = entered.trim();
+      if (!result) {
+        setError("Result is required to complete an Action.");
+        return;
+      }
+    }
+    if (["COMPLETED", "CANCELLED"].includes(toStatus)) {
+      const text = toStatus === "COMPLETED"
+        ? "Complete this Action? This is a terminal Action state."
+        : "Cancel this Action? Cancelled Actions do not count as completed-work evidence.";
+      if (!window.confirm(text)) return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const response = await transitionTicketAction(csrfToken, ticketId, action.id, {
+        toStatus,
+        expectedTicketVersion: ticketVersion,
+        expectedActionVersion: action.version,
+        ...(toStatus === "COMPLETED" ? { result } : {}),
+      });
+      setTicketVersion(response.ticketVersion);
+      onTicketVersionChange?.(response.ticketVersion);
+      setActions((current) => current.map((item) => item.id === response.action.id ? response.action : item));
+      setMessage(`Action ${response.action.statusLabel.toLowerCase()}.`);
+      if (editingId === action.id) resetForm();
+    } catch (caught) {
+      setError(explainActionError(caught));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return <section className="staff-detail-section actions-taken-section" aria-labelledby={`actions-taken-${ticketId}`}>
+    <div className="actions-heading">
+      <div><h3 id={`actions-taken-${ticketId}`}>Actions Taken</h3><p>{readOnly ? "Recorded service-desk work for this Ticket. This information is read-only." : `Current workflow cycle: ${currentWorkflowCycle ?? "-"}`}</p></div>
+      {loadState === "error" && <button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setReloadToken((value) => value + 1)}>Retry</button>}
+    </div>
+    {loadState === "loading" && <div className="queue-state" role="status">Loading Actions Taken...</div>}
+    {error && <div className="alert alert-danger" role={loadState === "error" ? "status" : "alert"}>{error}{error.includes("Reload") && <button className="btn btn-sm btn-outline-danger ms-2" type="button" onClick={() => setReloadToken((value) => value + 1)}>Reload latest</button>}</div>}
+    {message && <div className="alert alert-success" role="status">{message}</div>}
+    {loadState === "ready" && actions.length === 0 && <div className="queue-state">No Actions Taken yet.</div>}
+    {actions.length > 0 && <div className="actions-list">{actions.map((action) => <article className={`action-card ${currentWorkflowCycle && action.workflowCycle !== currentWorkflowCycle ? "historical" : ""}`} key={action.id}>
+      <div className="action-card-heading"><strong>{action.statusLabel}</strong><span>Cycle {action.workflowCycle}{currentWorkflowCycle && action.workflowCycle !== currentWorkflowCycle ? " - Historical" : ""}</span></div>
+      <dl className="action-detail-grid">
+        <div><dt>Action Date/Time</dt><dd>{new Date(action.actionDateTime).toLocaleString()}</dd></div>
+        <div><dt>Assignee</dt><dd>{action.assignee.name}</dd></div>
+        <div className="detail-wide"><dt>Action Description</dt><dd>{action.actionDescription}</dd></div>
+        <div className="detail-wide"><dt>Result</dt><dd>{action.result ?? "Not completed yet"}</dd></div>
+        <div><dt>Performed by</dt><dd>{action.performedBy?.name ?? "Not completed yet"}</dd></div>
+        <div><dt>Follow-Up Required</dt><dd>{action.followUpRequired ? "Yes" : "No"}</dd></div>
+        {action.followUpNote && <div className="detail-wide"><dt>Follow-up Note</dt><dd>{action.followUpNote}</dd></div>}
+        {action.attachmentNotes && <div className="detail-wide"><dt>Attachment Notes</dt><dd>{action.attachmentNotes}</dd></div>}
+        <div><dt>Last Updated</dt><dd>{new Date(action.updatedAt).toLocaleString()}</dd></div>
+      </dl>
+      {canWrite && (!currentWorkflowCycle || action.workflowCycle === currentWorkflowCycle) && ["PLANNED", "IN_PROGRESS"].includes(action.status) && <div className="action-buttons">
+        <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => beginEdit(action)}>Edit / Reassign</button>
+        {action.status === "PLANNED" && <button className="btn btn-sm btn-outline-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "IN_PROGRESS")}>Start</button>}
+        {action.assignee.id === currentUser.id && <button className="btn btn-sm btn-success" type="button" disabled={saving} onClick={() => void changeStatus(action, "COMPLETED")}>Complete</button>}
+        <button className="btn btn-sm btn-outline-danger" type="button" disabled={saving} onClick={() => void changeStatus(action, "CANCELLED")}>Cancel</button>
+      </div>}
+    </article>)}</div>}
+
+    {canWrite && <form className="action-form" onSubmit={(event) => void submitAction(event)} noValidate>
+      <div className="actions-heading"><h4>{editingId === null ? "Create Action" : "Edit Action"}</h4>{editingId !== null && <button className="btn btn-sm btn-outline-secondary" type="button" disabled={saving} onClick={resetForm}>Cancel Edit</button>}</div>
+      <div className="action-form-grid">
+        <div className="detail-wide"><label className="form-label" htmlFor={`action-description-${ticketId}`}>Action Description <span className="required-marker">*</span></label><textarea id={`action-description-${ticketId}`} className={`form-control ${fieldErrors.actionDescription ? "is-invalid" : ""}`} maxLength={2000} value={form.actionDescription} disabled={saving} aria-invalid={fieldErrors.actionDescription ? "true" : undefined} aria-describedby={fieldErrors.actionDescription ? `action-description-error-${ticketId}` : undefined} onChange={(event) => setForm((current) => ({ ...current, actionDescription: event.target.value }))} />{fieldErrors.actionDescription && <div id={`action-description-error-${ticketId}`} className="invalid-feedback d-block">{fieldErrors.actionDescription}</div>}</div>
+        <div><label className="form-label" htmlFor={`action-assignee-${ticketId}`}>Assignee <span className="required-marker">*</span></label><select id={`action-assignee-${ticketId}`} className={`form-select ${fieldErrors.assigneeId ? "is-invalid" : ""}`} value={form.assigneeId} disabled={saving} aria-invalid={fieldErrors.assigneeId ? "true" : undefined} aria-describedby={fieldErrors.assigneeId ? `action-assignee-error-${ticketId}` : undefined} onChange={(event) => setForm((current) => ({ ...current, assigneeId: event.target.value }))}><option value="">Select assignee</option>{(assigneeOptions ?? []).map((option) => <option key={option.id} value={option.id}>{option.name} ({roleLabel(option.role)})</option>)}</select>{fieldErrors.assigneeId && <div id={`action-assignee-error-${ticketId}`} className="invalid-feedback d-block">{fieldErrors.assigneeId}</div>}</div>
+        <div><label className="form-label" htmlFor={`action-result-${ticketId}`}>Result</label><input id={`action-result-${ticketId}`} className="form-control" maxLength={2000} value={form.result} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, result: event.target.value }))} /></div>
+        <div><label className="form-label" htmlFor={`action-followup-${ticketId}`}>Follow-Up Required? <span className="required-marker">*</span></label><select id={`action-followup-${ticketId}`} className="form-select" value={form.followUpRequired ? "yes" : "no"} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, followUpRequired: event.target.value === "yes", followUpNote: event.target.value === "yes" ? current.followUpNote : "" }))}><option value="no">No</option><option value="yes">Yes</option></select></div>
+        {form.followUpRequired && <div><label className="form-label" htmlFor={`action-followup-note-${ticketId}`}>Follow-up Note <span className="required-marker">*</span></label><textarea id={`action-followup-note-${ticketId}`} className={`form-control ${fieldErrors.followUpNote ? "is-invalid" : ""}`} maxLength={1000} value={form.followUpNote} disabled={saving} aria-invalid={fieldErrors.followUpNote ? "true" : undefined} aria-describedby={fieldErrors.followUpNote ? `action-followup-note-error-${ticketId}` : undefined} onChange={(event) => setForm((current) => ({ ...current, followUpNote: event.target.value }))} />{fieldErrors.followUpNote && <div id={`action-followup-note-error-${ticketId}`} className="invalid-feedback d-block">{fieldErrors.followUpNote}</div>}</div>}
+        <div className="detail-wide"><label className="form-label" htmlFor={`action-attachment-notes-${ticketId}`}>Attachment Notes</label><textarea id={`action-attachment-notes-${ticketId}`} className="form-control" maxLength={1000} value={form.attachmentNotes} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, attachmentNotes: event.target.value }))} /></div>
+      </div>
+      <button className="btn btn-success" type="submit" disabled={saving}>{saving ? "Saving..." : editingId === null ? "Create Action" : "Save Action"}</button>
+    </form>}
+  </section>;
+}
+
 function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number; user: AuthUser; csrfToken: string }) {
   const [detail, setDetail] = useState<StaffTicketDetail | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -499,6 +766,7 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
   const [internalContent, setInternalContent] = useState("");
   const [retryToken, setRetryToken] = useState(0);
   const staffMode = user.role === "IT_STAFF";
+  const workflowMode = user.role === "IT_STAFF" || user.role === "ADMINISTRATOR";
 
   useEffect(() => {
     let current = true;
@@ -547,6 +815,12 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
       } else if (caught instanceof StaffTicketApiError && caught.status === 409) {
         if (caught.code === "OWNER_CONFLICT") {
           setError("This Ticket is already assigned. Refresh the Ticket Detail before changing the owner.");
+        } else if (caught.code === "RESOLUTION_GATE_BLOCKED") {
+          setError("Resolve is blocked until the current workflow cycle has at least one completed Action and no planned or in-progress Actions.");
+        } else if (caught.code === "TICKET_TRANSITION_NOT_ALLOWED") {
+          setError("This status transition is no longer allowed. Refresh the Ticket Detail and try again.");
+        } else if (caught.code === "STALE_UPDATE") {
+          setError("The Ticket changed before this update. Refresh the Ticket Detail and try again.");
         } else {
           setError("The Ticket changed before this action completed. Refresh the Ticket Detail and try again.");
         }
@@ -579,12 +853,22 @@ function StaffTicketDetailView({ ticketId, user, csrfToken }: { ticketId: number
 
         <section className="staff-detail-section"><h3>Operations</h3><div className="staff-operation-grid">
           <div><label className="form-label" htmlFor="staff-requested-priority">Requested Priority</label><input id="staff-requested-priority" aria-label="Requested Priority" className="form-control readonly-control" value={detail.requestedPriority} disabled readOnly /></div>
-          <div><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" aria-label="IT Priority" className="form-select" value={detail.itPriority} disabled={saving} onChange={(event) => void runMutation(async () => { const response = await updateStaffTicketItPriority(csrfToken, detail.id, event.target.value as Priority); setDetail((current) => current ? { ...current, itPriority: response.itPriority } : current); }, "IT Priority updated.")}><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option></select></div>
-          {staffMode && <div><label className="form-label" htmlFor="staff-owner">Owner</label><select id="staff-owner" aria-label="Owner" className="form-select" value={detail.owner?.id ?? ""} disabled={saving} onChange={(event) => { const nextOwnerId = event.target.value ? Number(event.target.value) : null; if (detail.owner && nextOwnerId !== detail.owner.id && !window.confirm("Reassign this Ticket owner?")) return; void runMutation(async () => { const response = await updateStaffTicketOwner(csrfToken, detail.id, nextOwnerId); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Owner updated."); }}><option value="">Unassigned</option>{detail.ownerOptions.map((option) => <option value={option.id} key={option.id}>{option.name} ({option.role === "IT_STAFF" ? "IT Staff" : "Administrator"})</option>)}</select>{!detail.owner && <button className="btn btn-sm btn-success mt-2" type="button" disabled={saving} onClick={() => void runMutation(async () => { const response = await claimStaffTicket(csrfToken, detail.id); setDetail((current) => current ? { ...current, owner: response.owner } : current); }, "Ticket claimed.")}>Claim Ticket</button>}</div>}
-          {staffMode && <div><label className="form-label" htmlFor="staff-status-transition">Status Transition</label><select id="staff-status-transition" aria-label="Status Transition" className="form-select" value={statusTarget} disabled={saving} onChange={(event) => setStatusTarget(event.target.value)}><option value="">Select next status</option>{nextStatuses.map((status) => <option value={status} key={status}>{queueStatusLabel(status)}</option>)}</select><button className="btn btn-sm btn-success mt-2" type="button" disabled={saving || !statusTarget} onClick={() => { const target = statusTarget as TicketStatus; if (requiresConfirmation(target) && !window.confirm(`Confirm transition to ${queueStatusLabel(target)}?`)) return; void runMutation(async () => { const response = await updateStaffTicketStatus(csrfToken, detail.id, target); setDetail((current) => current ? { ...current, currentStatus: response.currentStatus, currentStatusLabel: response.currentStatusLabel } : current); setStatusTarget(""); }, "Status updated."); }}>Apply Status</button></div>}
+          <div><label className="form-label" htmlFor="staff-it-priority">IT Priority</label><select id="staff-it-priority" aria-label="IT Priority" className="form-select" value={detail.itPriority} disabled={saving} onChange={(event) => void runMutation(async () => { const response = await updateStaffTicketItPriority(csrfToken, detail.id, event.target.value as Priority, detail.version); setDetail((current) => current ? { ...current, itPriority: response.itPriority, version: response.version } : current); }, "IT Priority updated.")}><option value="LOW">LOW</option><option value="MEDIUM">MEDIUM</option><option value="HIGH">HIGH</option><option value="URGENT">URGENT</option></select></div>
+          {staffMode && <div><label className="form-label" htmlFor="staff-owner">Owner</label><select id="staff-owner" aria-label="Owner" className="form-select" value={detail.owner?.id ?? ""} disabled={saving} onChange={(event) => { const nextOwnerId = event.target.value ? Number(event.target.value) : null; if (detail.owner && nextOwnerId !== detail.owner.id && !window.confirm("Reassign this Ticket owner?")) return; void runMutation(async () => { const response = await updateStaffTicketOwner(csrfToken, detail.id, nextOwnerId, detail.version); setDetail((current) => current ? { ...current, owner: response.owner, version: response.version } : current); }, "Owner updated."); }}><option value="">Unassigned</option>{detail.ownerOptions.map((option) => <option value={option.id} key={option.id}>{option.name} ({option.role === "IT_STAFF" ? "IT Staff" : "Administrator"})</option>)}</select>{!detail.owner && <button className="btn btn-sm btn-success mt-2" type="button" disabled={saving} onClick={() => void runMutation(async () => { const response = await claimStaffTicket(csrfToken, detail.id, detail.version); setDetail((current) => current ? { ...current, owner: response.owner, version: response.version } : current); }, "Ticket claimed.")}>Claim Ticket</button>}</div>}
+          {workflowMode && <div><label className="form-label" htmlFor="staff-status-transition">Status Transition</label><select id="staff-status-transition" aria-label="Status Transition" className="form-select" value={statusTarget} disabled={saving} onChange={(event) => setStatusTarget(event.target.value)}><option value="">Select next status</option>{nextStatuses.map((status) => <option value={status} key={status}>{queueStatusLabel(status)}</option>)}</select><button className="btn btn-sm btn-success mt-2" type="button" disabled={saving || !statusTarget} onClick={() => { const target = statusTarget as TicketStatus; if (requiresConfirmation(target) && !window.confirm(`Confirm transition to ${queueStatusLabel(target)}?`)) return; void runMutation(async () => { const response = await updateStaffTicketStatus(csrfToken, detail.id, target, detail.version); setDetail((current) => current ? { ...current, currentStatus: response.currentStatus, currentStatusLabel: response.currentStatusLabel, version: response.version, workflowCycle: response.workflowCycle } : current); setStatusTarget(""); }, "Status updated."); }}>Apply Status</button></div>}
         </div></section>
 
         {detail.problemAppearsResolvedAt && <div className="alert alert-info" role="status"><strong>Problem Appears Resolved</strong> indicated by the Requester on {new Date(detail.problemAppearsResolvedAt).toLocaleString()}. This does not change formal Ticket status.</div>}
+
+        <ActionsTakenPanel
+          ticketId={detail.id}
+          currentUser={user}
+          csrfToken={csrfToken}
+          initialTicketVersion={detail.version}
+          currentWorkflowCycle={detail.workflowCycle}
+          assigneeOptions={detail.ownerOptions}
+          onTicketVersionChange={(version) => setDetail((current) => current ? { ...current, version } : current)}
+        />
 
         <section className="staff-detail-section public-communication"><h3>Public Comments <span className="communication-label">Public</span></h3><p>Visible to the Requester, IT Staff, and Administrator.</p>{detail.publicComments.length === 0 ? <p>No Public Comments yet.</p> : <div className="communication-list">{detail.publicComments.map((comment) => <article key={comment.id}><strong>{comment.author.name}</strong><small>{new Date(comment.createdAt).toLocaleString()}</small><p>{comment.content}</p></article>)}</div>}{staffMode && <><label className="form-label" htmlFor="staff-public-comment">Public Comment</label><textarea id="staff-public-comment" aria-label="Public Comment" className="form-control" maxLength={2000} value={publicContent} disabled={saving} onChange={(event) => setPublicContent(event.target.value)} /><button className="btn btn-success mt-2" type="button" disabled={saving || !publicContent.trim()} onClick={() => void runMutation(async () => { const comment = await postPublicComment(csrfToken, detail.id, publicContent); setDetail((current) => current ? { ...current, publicComments: [...current.publicComments, comment] } : current); setPublicContent(""); }, "Public Comment posted.")}>Post Public Comment</button></>}</section>
 
@@ -813,6 +1097,104 @@ function ForbiddenUserManagement() {
   return <main className="container py-5"><div className="alert alert-danger" role="alert"><strong>Forbidden.</strong> Your role is not permitted to access User Management.</div></main>;
 }
 
+function RequesterDashboard() {
+  const [data, setData] = useState<RequesterDashboardResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    setState("loading");
+    setError("");
+    void getRequesterDashboard().then((response) => {
+      if (!current) return;
+      setData(response);
+      setState("ready");
+    }).catch((caught) => {
+      if (!current) return;
+      setState("error");
+      setData(null);
+      setError(caught instanceof DashboardApiError && caught.status === 403 ? "Forbidden. Your role is not permitted to view this dashboard." : "Unable to load Dashboard. Please try again.");
+    });
+    return () => { current = false; };
+  }, [retryToken]);
+
+  if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Dashboard...</div></main>;
+  if (state === "error" || !data) return <main className="container py-4"><div className="alert alert-danger dashboard-failure" role="alert"><span>{error}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
+
+  const recentSection = (title: string, items: RequesterDashboardResponse["recentlyUpdated"], timestampKey: "updatedAt" | "resolvedAt") => (
+    <section className="dashboard-panel" aria-labelledby={`requester-${timestampKey}`}>
+      <h3 id={`requester-${timestampKey}`}>{title}</h3>
+      {items.length === 0 ? <p className="dashboard-empty">No Tickets to show.</p> : <div className="dashboard-list">{items.map((ticket) => <article className="dashboard-row" key={ticket.id}>
+        <div><strong>{ticket.ticketNumber}</strong><span>{ticket.summary}</span><small>{queueStatusLabel(ticket.status)} · {new Date(ticket[timestampKey] ?? "").toLocaleString()}</small></div>
+        <button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `requester-ticket-${ticket.id}`; }}>Open Ticket</button>
+      </article>)}</div>}
+    </section>
+  );
+
+  return <main className="container py-4 dashboard-page">
+    <div className="dashboard-heading"><div><h2>Requester Dashboard</h2><p>Owned Ticket activity and work that needs your attention.</p></div><a className="btn btn-outline-success" href="#my-tickets">View My Tickets</a></div>
+    <div className="dashboard-metrics">
+      <a className="dashboard-metric" href="#my-tickets?scope=open" aria-label={`Open Tickets ${data.metrics.openTickets}`}><span>Open Tickets</span><strong>{data.metrics.openTickets}</strong></a>
+      <a className="dashboard-metric" href="#my-tickets?currentStatus=WAITING_FOR_REQUESTER" aria-label={`Waiting for You ${data.metrics.waitingForRequester}`}><span>Waiting for You</span><strong>{data.metrics.waitingForRequester}</strong></a>
+    </div>
+    <div className="dashboard-columns">
+      {recentSection("Recently Updated", data.recentlyUpdated, "updatedAt")}
+      {recentSection("Recently Resolved", data.recentlyResolved, "resolvedAt")}
+    </div>
+  </main>;
+}
+
+function StaffDashboard({ focusSection }: { focusSection?: string }) {
+  const [data, setData] = useState<StaffDashboardResponse | null>(null);
+  const [state, setState] = useState<"loading" | "ready" | "error">("loading");
+  const [error, setError] = useState("");
+  const [retryToken, setRetryToken] = useState(0);
+
+  useEffect(() => {
+    let current = true;
+    setState("loading");
+    setError("");
+    void getStaffDashboard().then((response) => {
+      if (!current) return;
+      setData(response);
+      setState("ready");
+    }).catch((caught) => {
+      if (!current) return;
+      setState("error");
+      setData(null);
+      setError(caught instanceof DashboardApiError && caught.status === 403 ? "Forbidden. Your role is not permitted to view this dashboard." : "Unable to load Dashboard. Please try again.");
+    });
+    return () => { current = false; };
+  }, [retryToken]);
+
+  useEffect(() => {
+    if (state !== "ready" || focusSection !== "my-actions") return;
+    const target = document.getElementById("my-actions");
+    target?.focus();
+    target?.scrollIntoView?.({ block: "start" });
+  }, [focusSection, state]);
+
+  if (state === "loading") return <main className="container py-4"><div className="queue-state" role="status">Loading Dashboard...</div></main>;
+  if (state === "error" || !data) return <main className="container py-4"><div className="alert alert-danger dashboard-failure" role="alert"><span>{error}</span><button className="btn btn-sm btn-outline-danger" type="button" onClick={() => setRetryToken((value) => value + 1)}>Retry</button></div></main>;
+
+  return <main className="container py-4 dashboard-page">
+    <div className="dashboard-heading"><div><h2>IT Staff Dashboard</h2><p>Current operational workload from authoritative Ticket and Action data.</p></div><a className="btn btn-outline-success" href="#ticket-queue">Open Ticket Queue</a></div>
+    <div className="dashboard-metrics">
+      <a className="dashboard-metric" href="#ticket-queue?owner=unassigned" aria-label={`Unassigned Tickets ${data.metrics.unassignedTickets}`}><span>Unassigned Tickets</span><strong>{data.metrics.unassignedTickets}</strong></a>
+      <a className="dashboard-metric" href={`#ticket-queue?owner=${data.drillDown.myTickets.split("owner=")[1] ?? ""}`} aria-label={`My Tickets ${data.metrics.myTickets}`}><span>My Tickets</span><strong>{data.metrics.myTickets}</strong></a>
+      <a className="dashboard-metric" href="#dashboard?section=my-actions" aria-label={`My Open Actions ${data.metrics.myOpenActions}`}><span>My Open Actions</span><strong>{data.metrics.myOpenActions}</strong></a>
+      <div className="dashboard-metric" aria-label="Tickets by IT Priority"><span>Tickets by IT Priority</span><strong>{data.metrics.byItPriority.URGENT} urgent</strong><small>H {data.metrics.byItPriority.HIGH} · M {data.metrics.byItPriority.MEDIUM} · L {data.metrics.byItPriority.LOW}</small></div>
+    </div>
+    <section className="dashboard-panel"><h3>Status Summary</h3><div className="status-summary">{Object.entries(data.metrics.byStatus).map(([status, count]) => <span key={status}><strong>{count}</strong> {queueStatusLabel(status as TicketStatus)}</span>)}</div></section>
+    <div className="dashboard-columns">
+      <section className="dashboard-panel"><h3>Recent / Urgent Tickets</h3>{data.recentUrgentTickets.length === 0 ? <p className="dashboard-empty">No urgent active Tickets.</p> : <div className="dashboard-list">{data.recentUrgentTickets.map((ticket) => <article className="dashboard-row" key={ticket.id}><div><strong>{ticket.ticketNumber}</strong><span>{ticket.summary}</span><small>{ticket.itPriority} · {queueStatusLabel(ticket.status)} · {ticket.owner?.name ?? "Unassigned"} · {new Date(ticket.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${ticket.id}`; }}>Open</button></article>)}</div>}</section>
+      <section className="dashboard-panel" id="my-actions" tabIndex={-1}><h3>My Recent Actions</h3>{data.myRecentActions.length === 0 ? <p className="dashboard-empty">No current Actions.</p> : <div className="dashboard-list">{data.myRecentActions.map((action) => <article className="dashboard-row" key={action.id}><div><strong>{action.ticketNumber}</strong><span>{action.actionDescription}</span><small>{action.status} · Assignee: {action.assignee.name}{action.performedBy ? ` · Performed by: ${action.performedBy.name}` : ""} · {new Date(action.updatedAt).toLocaleString()}</small></div><button className="btn btn-sm btn-outline-success" type="button" onClick={() => { window.location.hash = `staff-ticket-${action.ticketId}`; }}>Open</button></article>)}</div>}</section>
+    </div>
+  </main>;
+}
+
 function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, errorMessage, successMessage }: { user: AuthUser; csrfToken: string; onLogout: () => Promise<void>; onChangePassword: () => void; errorMessage?: string; successMessage?: string }) {
   const [routeHash, setRouteHash] = useState(() => window.location.hash);
   useEffect(() => {
@@ -823,11 +1205,15 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
   const staffTicketMatch = routeHash.match(/^#staff-ticket-(\d+)$/);
   const staffTicketId = staffTicketMatch ? Number(staffTicketMatch[1]) : null;
   const userManagementRequested = routeHash === "#user-management";
+  const dashboardRequested = routeHash === "#dashboard" || routeHash.startsWith("#dashboard?");
+  const dashboardSection = dashboardRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("section") ?? undefined : undefined;
+  const ticketQueueRequested = routeHash === "#ticket-queue" || routeHash.startsWith("#ticket-queue?");
+  const ticketQueueOwner = ticketQueueRequested && routeHash.includes("?") ? new URLSearchParams(routeHash.split("?", 2)[1]).get("owner") ?? "" : "";
   const navigation = user.role === "REQUESTER"
-    ? [{ label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
+    ? [{ label: "Dashboard", href: "#dashboard" }, { label: "My Tickets", href: "#my-tickets" }, { label: "Create Ticket", href: "#create-ticket" }]
     : user.role === "IT_STAFF"
-      ? [{ label: "Ticket Queue", href: "#ticket-queue" }]
-      : [{ label: "User Management", href: "#user-management" }];
+      ? [{ label: "Dashboard", href: "#dashboard" }, { label: "Ticket Queue", href: "#ticket-queue" }]
+      : [{ label: "Dashboard", href: "#dashboard" }, { label: "User Management", href: "#user-management" }];
 
   return (
     <div className="toktickit-app">
@@ -835,7 +1221,7 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
         <div>
           <h1>TokTickIT IT Service Desk</h1>
           <nav aria-label="Primary navigation">
-            {navigation.map((item) => <a className="auth-nav-item" href={item.href} key={item.href}>{item.label}</a>)}
+            {navigation.map((item) => <a className="auth-nav-item" href={item.href} aria-current={routeHash === item.href || (item.href === "#dashboard" && dashboardRequested) || (item.href === "#ticket-queue" && ticketQueueRequested) ? "page" : undefined} key={item.href}>{item.label}</a>)}
           </nav>
         </div>
         <div className="auth-identity">
@@ -846,7 +1232,11 @@ function AuthenticatedShell({ user, csrfToken, onLogout, onChangePassword, error
           </div>
         </div>
       </header>
-      {userManagementRequested && user.role !== "ADMINISTRATOR" ? (
+      {dashboardRequested ? (
+        user.role === "REQUESTER" ? <RequesterDashboard /> : <StaffDashboard focusSection={dashboardSection} />
+      ) : ticketQueueRequested && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
+        <StaffTicketQueue initialOwner={ticketQueueOwner} />
+      ) : userManagementRequested && user.role !== "ADMINISTRATOR" ? (
         <ForbiddenUserManagement />
       ) : staffTicketId && (user.role === "IT_STAFF" || user.role === "ADMINISTRATOR") ? (
         <StaffTicketDetailView ticketId={staffTicketId} user={user} csrfToken={csrfToken} />
@@ -1015,6 +1405,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const [ticketSystemFilter, setTicketSystemFilter] = useState("");
   const [ticketPriorityFilter, setTicketPriorityFilter] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState("");
+  const [ticketScopeFilter, setTicketScopeFilter] = useState<"" | "open">("");
   const [ticketSortBy, setTicketSortBy] = useState<MyTicketsQuery["sortBy"]>("updatedAt");
   const [ticketSortDirection, setTicketSortDirection] = useState<MyTicketsQuery["sortDirection"]>("desc");
   const [ticketPage, setTicketPage] = useState(1);
@@ -1033,8 +1424,26 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   useEffect(() => {
     if (!embedded) return;
     const syncViewFromHash = () => {
-      if (window.location.hash === "#my-tickets") setActiveView("myTickets");
+      if (window.location.hash.startsWith("#my-tickets")) {
+        setActiveView("myTickets");
+        const query = window.location.hash.includes("?") ? window.location.hash.split("?", 2)[1] : "";
+        const parameters = new URLSearchParams(query);
+        const statusValue = parameters.get("currentStatus");
+        const scopeValue = parameters.get("scope");
+        if (statusValue && ["NEW", "OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "RESOLVED", "CLOSED", "REOPENED", "CANCELLED"].includes(statusValue)) {
+          setTicketStatusFilter(statusValue);
+          setTicketScopeFilter("");
+        } else if (scopeValue === "open") {
+          setTicketScopeFilter("open");
+          setTicketStatusFilter("");
+        }
+      }
       if (window.location.hash === "#create-ticket") setActiveView("createTicket");
+      const ticketMatch = window.location.hash.match(/^#requester-ticket-(\d+)$/);
+      if (ticketMatch) {
+        setSelectedTicketId(Number(ticketMatch[1]));
+        setActiveView("ticketDetail");
+      }
     };
     syncViewFromHash();
     window.addEventListener("hashchange", syncViewFromHash);
@@ -1054,6 +1463,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
       relatedSystemId: ticketSystemFilter ? Number(ticketSystemFilter) : undefined,
       requestedPriority: ticketPriorityFilter ? ticketPriorityFilter as Priority : undefined,
       currentStatus: ticketStatusFilter ? ticketStatusFilter as NonNullable<MyTicketsQuery["currentStatus"]> : undefined,
+      scope: ticketScopeFilter || undefined,
       sortBy: ticketSortBy,
       sortDirection: ticketSortDirection,
       page: ticketPage,
@@ -1086,6 +1496,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     ticketSystemFilter,
     ticketPriorityFilter,
     ticketStatusFilter,
+    ticketScopeFilter,
     ticketSortBy,
     ticketSortDirection,
     ticketPage,
@@ -1352,6 +1763,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketSortBy("updatedAt");
     setTicketSortDirection("desc");
     setTicketPage(1);
@@ -1379,6 +1791,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
     setTicketSystemFilter("");
     setTicketPriorityFilter("");
     setTicketStatusFilter("");
+    setTicketScopeFilter("");
     setTicketPage(1);
   }
 
@@ -1491,7 +1904,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
   const selectedRequester = requesterContext.selectedRequester;
   const showSelector = !selectedRequester;
   const hasMyTicketsQuery = Boolean(
-    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter,
+    ticketSearch || ticketCategoryFilter || ticketSystemFilter || ticketPriorityFilter || ticketStatusFilter || ticketScopeFilter,
   );
   const resolutionIndicationEligible = ticketDetail
     ? ["OPEN", "IN_PROGRESS", "WAITING_FOR_REQUESTER", "REOPENED"].includes(ticketDetail.currentStatus)
@@ -1630,6 +2043,15 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
                   <div><dt>Created</dt><dd>{ticketDetail.createdAt.slice(0, 10)}</dd></div>
                   <div><dt>Last Updated</dt><dd>{ticketDetail.updatedAt.slice(0, 10)}</dd></div>
                 </dl>
+
+                {authenticatedMode && authenticatedRequester && (
+                  <ActionsTakenPanel
+                    ticketId={ticketDetail.id}
+                    currentUser={{ ...authenticatedRequester, role: "REQUESTER", mustChangePassword: false }}
+                    csrfToken={csrfToken}
+                    readOnly
+                  />
+                )}
 
                 <section className="detail-attachments" aria-labelledby="detail-attachments-heading">
                   <div className="detail-attachments-heading">
@@ -1794,7 +2216,7 @@ function RequesterWorkflow({ authenticatedRequester, csrfToken = "", embedded = 
               </div>
               <div>
                 <label className="form-label" htmlFor="ticket-status-filter">Status filter</label>
-                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketPage(1); }}>
+                <select id="ticket-status-filter" className="form-select" value={ticketStatusFilter} onChange={(event) => { setTicketStatusFilter(event.target.value); setTicketScopeFilter(""); setTicketPage(1); }}>
                   <option value="">All statuses</option>
                   <option value="NEW">New</option><option value="OPEN">Open</option><option value="IN_PROGRESS">In Progress</option>
                   <option value="WAITING_FOR_REQUESTER">Waiting for Requester</option><option value="RESOLVED">Resolved</option>

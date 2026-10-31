@@ -13,6 +13,25 @@ import {
   provisionIssue36User,
 } from "./requester-test-helpers.js";
 
+async function addCompletedCurrentCycleAction(ticketId: number, workflowCycle = 1) {
+  const prisma = getPrisma();
+  const staff = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.staff.email } });
+  return prisma.actionTaken.create({ data: {
+    ticketId,
+    workflowCycle,
+    clientRequestId: randomUUID(),
+    createFingerprint: randomUUID(),
+    createdById: staff.id,
+    actionDescription: "Lab 3 regression evidence under Lab 4 workflow contract",
+    result: "Completed",
+    status: "COMPLETED",
+    assigneeId: staff.id,
+    performedById: staff.id,
+    followUpRequired: false,
+    completedAt: new Date(),
+  } });
+}
+
 describe("Lab 3 Issue 4 Requester resolution indication", () => {
   beforeEach(async () => {
     await cleanupIssue36Fixtures();
@@ -250,12 +269,12 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     const ticket = await createIssue36Ticket(requester.id);
     const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
 
-    const claim = await agent.post(`/api/staff/tickets/${ticket.id}/claim`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({});
+    const claim = await agent.post(`/api/staff/tickets/${ticket.id}/claim`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ expectedTicketVersion: ticket.version });
     expect(claim.status).toBe(200);
     expect(claim.body.owner).toMatchObject({ id: staff.id, role: "IT_STAFF" });
 
     await prisma.ticket.update({ where: { id: ticket.id }, data: { ownerId: other.id } });
-    const conflict = await agent.post(`/api/staff/tickets/${ticket.id}/claim`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({});
+    const conflict = await agent.post(`/api/staff/tickets/${ticket.id}/claim`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ expectedTicketVersion: claim.body.version });
     expect(conflict.status).toBe(409);
     expect(conflict.body.error?.code).toBe("OWNER_CONFLICT");
   });
@@ -287,7 +306,7 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
       .post(`/api/staff/tickets/${ticket.id}/claim`)
       .set("Origin", FRONTEND_ORIGIN)
       .set("X-CSRF-Token", login.body.csrfToken)
-      .send({})
+      .send({ expectedTicketVersion: ticket.version })
       .then((response) => {
         claimSettled = true;
         return response;
@@ -315,7 +334,12 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     const inactive = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.inactiveStaff.email } });
     const ticket = await createIssue36Ticket(requester.id);
     const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
-    const patchOwner = (ownerId: number | null) => agent.patch(`/api/staff/tickets/${ticket.id}/owner`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ ownerId });
+    let expectedTicketVersion = ticket.version;
+    const patchOwner = async (ownerId: number | null) => {
+      const response = await agent.patch(`/api/staff/tickets/${ticket.id}/owner`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ ownerId, expectedTicketVersion });
+      if (response.status === 200) expectedTicketVersion = response.body.version;
+      return response;
+    };
 
     expect((await patchOwner(target.id)).body.owner).toMatchObject({ id: target.id, role: "IT_STAFF" });
     expect((await patchOwner(admin.id)).body.owner).toMatchObject({ id: admin.id, role: "ADMINISTRATOR" });
@@ -354,7 +378,7 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
       .patch(`/api/staff/tickets/${ticket.id}/owner`)
       .set("Origin", FRONTEND_ORIGIN)
       .set("X-CSRF-Token", login.body.csrfToken)
-      .send({ ownerId: target.id })
+      .send({ ownerId: target.id, expectedTicketVersion: ticket.version })
       .then((response) => {
         assignmentSettled = true;
         return response;
@@ -378,14 +402,16 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     const ticket = await createIssue36Ticket(requester.id);
     await prisma.ticket.update({ where: { id: ticket.id }, data: { requestedPriority: "HIGH", itPriority: "HIGH" } });
 
+    let expectedTicketVersion = ticket.version;
     for (const fixture of [fixtureUsers.staff, fixtureUsers.admin]) {
       const { agent, response: login } = await loginIssue36(fixture);
-      const response = await agent.patch(`/api/staff/tickets/${ticket.id}/it-priority`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ itPriority: "URGENT", requestedPriority: "LOW" });
+      const response = await agent.patch(`/api/staff/tickets/${ticket.id}/it-priority`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ itPriority: "URGENT", requestedPriority: "LOW", expectedTicketVersion });
       expect(response.status).toBe(200);
-      expect(response.body).toEqual({ itPriority: "URGENT", requestedPriority: "HIGH" });
+      expect(response.body).toMatchObject({ itPriority: "URGENT", requestedPriority: "HIGH" });
+      expectedTicketVersion = response.body.version;
     }
     const { agent: requesterAgent, response: requesterLogin } = await loginIssue36(fixtureUsers.requesterA);
-    const denied = await requesterAgent.patch(`/api/staff/tickets/${ticket.id}/it-priority`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", requesterLogin.body.csrfToken).send({ itPriority: "LOW" });
+    const denied = await requesterAgent.patch(`/api/staff/tickets/${ticket.id}/it-priority`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", requesterLogin.body.csrfToken).send({ itPriority: "LOW", expectedTicketVersion });
     expect(denied.status).toBe(403);
   });
 
@@ -397,8 +423,9 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     const prisma = getPrisma();
     const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
     const ticket = await createIssue36Ticket(requester.id, { status: from });
+    if (to === "RESOLVED") await addCompletedCurrentCycleAction(ticket.id, ticket.workflowCycle);
     const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
-    const response = await agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ status: to });
+    const response = await agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ status: to, expectedTicketVersion: ticket.version });
     expect(response.status).toBe(200);
     expect(response.body.currentStatus).toBe(to);
   });
@@ -408,15 +435,18 @@ describe("Lab 3 Issue 6 IT Staff Ticket Detail operations", () => {
     const requester = await prisma.user.findUniqueOrThrow({ where: { email: fixtureUsers.requesterA.email } });
     const ticket = await createIssue36Ticket(requester.id, { status: "NEW" });
     const { agent, response: login } = await loginIssue36(fixtureUsers.staff);
-    const invalid = await agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ status: "RESOLVED" });
-    expect(invalid.status).toBe(400);
-    expect(invalid.body.error?.code).toBe("INVALID_TRANSITION");
+    const invalid = await agent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", login.body.csrfToken).send({ status: "RESOLVED", expectedTicketVersion: ticket.version });
+    expect(invalid.status).toBe(409);
+    expect(invalid.body.error?.code).toBe("TICKET_TRANSITION_NOT_ALLOWED");
     expect((await prisma.ticket.findUniqueOrThrow({ where: { id: ticket.id } })).currentStatus).toBe("NEW");
-    for (const fixture of [fixtureUsers.requesterA, fixtureUsers.admin]) {
-      const { agent: wrongAgent, response: wrongLogin } = await loginIssue36(fixture);
-      const denied = await wrongAgent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", wrongLogin.body.csrfToken).send({ status: "OPEN" });
-      expect(denied.status).toBe(403);
-    }
+    const { agent: requesterAgent, response: requesterLogin } = await loginIssue36(fixtureUsers.requesterA);
+    const denied = await requesterAgent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", requesterLogin.body.csrfToken).send({ status: "OPEN", expectedTicketVersion: ticket.version });
+    expect(denied.status).toBe(403);
+
+    const { agent: adminAgent, response: adminLogin } = await loginIssue36(fixtureUsers.admin);
+    const adminAllowed = await adminAgent.patch(`/api/staff/tickets/${ticket.id}/status`).set("Origin", FRONTEND_ORIGIN).set("X-CSRF-Token", adminLogin.body.csrfToken).send({ status: "OPEN", expectedTicketVersion: ticket.version });
+    expect(adminAllowed.status).toBe(200);
+    expect(adminAllowed.body.currentStatus).toBe("OPEN");
   });
 
   it("SEC-01 keeps Staff Detail mutations behind the role matrix while Administrator retains read oversight", async () => {

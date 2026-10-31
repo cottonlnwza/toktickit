@@ -1,8 +1,9 @@
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PrismaClient, RequestedPriority, TicketStatus, UserRole } from "@prisma/client";
+import { ActionEventType, ActionStatus, PrismaClient, RequestedPriority, TicketStatus, UserRole } from "@prisma/client";
 import { getPrisma } from "../src/prisma.js";
 import { hashPassword } from "../src/auth/password.js";
+import { createActionFingerprint } from "../src/action-operations.js";
 
 const INITIAL_PASSWORD = "Lab3-ChangeMe-2026";
 
@@ -36,6 +37,13 @@ export async function seedDatabase(databaseUrl?: string) {
     : getPrisma();
 
   try {
+    const lab4Columns = await prisma.$queryRawUnsafe<Array<{ exists: boolean }>>(`
+      SELECT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema='public' AND table_name='Ticket' AND column_name='workflowCycle'
+      ) AS "exists"
+    `);
+    const lab4SchemaAvailable = Boolean(lab4Columns[0]?.exists);
     const categoryNames = ["Account and Access", "Hardware", "Software", "Network"];
     const relatedSystemNames = [
       "Email",
@@ -115,23 +123,41 @@ export async function seedDatabase(databaseUrl?: string) {
       { ticketNumber: "LAB3-0008", clientRequestId: "10000000-0000-4000-8000-000000000008", requesterId: requesters[3].id, categoryId: software.id, relatedSystemId: email.id, summary: "Cancelled duplicate request", description: "This request duplicates an earlier active support request.", requestedPriority: RequestedPriority.LOW, itPriority: RequestedPriority.LOW, currentStatus: TicketStatus.CANCELLED, ownerId: null },
     ];
 
-    const seededTickets = [];
+    const seededTickets: Array<{ id: number }> = [];
     for (const fixture of ticketFixtures) {
-      seededTickets.push(await prisma.ticket.upsert({
-        where: { ticketNumber: fixture.ticketNumber },
-        update: {
-          requesterId: fixture.requesterId,
-          categoryId: fixture.categoryId,
-          relatedSystemId: fixture.relatedSystemId,
-          summary: fixture.summary,
-          description: fixture.description,
-          requestedPriority: fixture.requestedPriority,
-          itPriority: fixture.itPriority,
-          currentStatus: fixture.currentStatus,
-          ownerId: fixture.ownerId,
-        },
-        create: fixture,
-      }));
+      if (lab4SchemaAvailable) {
+        seededTickets.push(await prisma.ticket.upsert({
+          where: { ticketNumber: fixture.ticketNumber },
+          update: {
+            requesterId: fixture.requesterId,
+            categoryId: fixture.categoryId,
+            relatedSystemId: fixture.relatedSystemId,
+            summary: fixture.summary,
+            description: fixture.description,
+            requestedPriority: fixture.requestedPriority,
+            itPriority: fixture.itPriority,
+            currentStatus: fixture.currentStatus,
+            ownerId: fixture.ownerId,
+          },
+          create: fixture,
+          select: { id: true },
+        }));
+      } else {
+        const rows = await prisma.$queryRawUnsafe<Array<{ id: number }>>(
+          `INSERT INTO "Ticket" (
+             "ticketNumber", "clientRequestId", "requesterId", "categoryId", "relatedSystemId", "summary", "description",
+             "requestedPriority", "itPriority", "currentStatus", "ownerId", "createdAt", "updatedAt"
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::"RequestedPriority",$9::"RequestedPriority",$10::"TicketStatus",$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+           ON CONFLICT ("ticketNumber") DO UPDATE SET
+             "requesterId"=EXCLUDED."requesterId", "categoryId"=EXCLUDED."categoryId", "relatedSystemId"=EXCLUDED."relatedSystemId",
+             "summary"=EXCLUDED."summary", "description"=EXCLUDED."description", "requestedPriority"=EXCLUDED."requestedPriority",
+             "itPriority"=EXCLUDED."itPriority", "currentStatus"=EXCLUDED."currentStatus", "ownerId"=EXCLUDED."ownerId"
+           RETURNING "id"`,
+          fixture.ticketNumber, fixture.clientRequestId, fixture.requesterId, fixture.categoryId, fixture.relatedSystemId,
+          fixture.summary, fixture.description, fixture.requestedPriority, fixture.itPriority, fixture.currentStatus, fixture.ownerId,
+        );
+        seededTickets.push(rows[0]);
+      }
     }
 
     const publicComment = {
@@ -150,8 +176,129 @@ export async function seedDatabase(databaseUrl?: string) {
     const existingNote = await prisma.internalNote.findFirst({ where: internalNote });
     if (!existingNote) await prisma.internalNote.create({ data: internalNote });
 
+    const actionFixtures = [
+      {
+        clientRequestId: "20000000-0000-4000-8000-000000000001",
+        ticket: seededTickets[1], workflowCycle: 1, createdById: staff[0].id, assigneeId: staff[0].id,
+        actionDescription: "Reset mailbox client credentials and retest sign-in.", result: "Mailbox sign-in succeeds after credential reset.",
+        status: ActionStatus.COMPLETED, followUpRequired: false, followUpNote: null, attachmentNotes: null,
+        performedById: staff[0].id, completedAt: new Date("2026-10-01T03:00:00.000Z"), cancelledAt: null,
+      },
+      {
+        clientRequestId: "20000000-0000-4000-8000-000000000002",
+        ticket: seededTickets[2], workflowCycle: 1, createdById: staff[1].id, assigneeId: staff[1].id,
+        actionDescription: "Inspect dock cable and display connection.", result: null,
+        status: ActionStatus.IN_PROGRESS, followUpRequired: true, followUpNote: "Retest after replacing the cable.", attachmentNotes: "See dock photo in Ticket Attachments.",
+        performedById: null, completedAt: null, cancelledAt: null,
+      },
+      {
+        clientRequestId: "20000000-0000-4000-8000-000000000003",
+        ticket: seededTickets[2], workflowCycle: 1, createdById: staff[1].id, assigneeId: staff[2].id,
+        actionDescription: "Prepare replacement display cable.", result: null,
+        status: ActionStatus.PLANNED, followUpRequired: false, followUpNote: null, attachmentNotes: null,
+        performedById: null, completedAt: null, cancelledAt: null,
+      },
+      {
+        clientRequestId: "20000000-0000-4000-8000-000000000004",
+        ticket: seededTickets[6], workflowCycle: 1, createdById: staff[1].id, assigneeId: staff[1].id,
+        actionDescription: "Previous-cycle display cable replacement.", result: "Display stable before the issue later returned.",
+        status: ActionStatus.COMPLETED, followUpRequired: false, followUpNote: null, attachmentNotes: null,
+        performedById: staff[1].id, completedAt: new Date("2026-09-30T03:00:00.000Z"), cancelledAt: null,
+      },
+      {
+        clientRequestId: "20000000-0000-4000-8000-000000000005",
+        ticket: seededTickets[6], workflowCycle: 2, createdById: admins[0].id, assigneeId: staff[2].id,
+        actionDescription: "Investigate the reopened display issue.", result: null,
+        status: ActionStatus.PLANNED, followUpRequired: false, followUpNote: null, attachmentNotes: null,
+        performedById: null, completedAt: null, cancelledAt: null,
+      },
+    ] as const;
+
+    if (lab4SchemaAvailable) {
+      await prisma.ticket.update({ where: { id: seededTickets[6].id }, data: { workflowCycle: 2 } });
+
+      for (const fixture of actionFixtures) {
+      const fingerprint = createActionFingerprint({
+        ticketId: fixture.ticket.id,
+        workflowCycle: fixture.workflowCycle,
+        createdById: fixture.createdById,
+        actionDescription: fixture.actionDescription,
+        assigneeId: fixture.assigneeId,
+        result: fixture.result,
+        followUpRequired: fixture.followUpRequired,
+        followUpNote: fixture.followUpNote,
+        attachmentNotes: fixture.attachmentNotes,
+      });
+      const action = await prisma.actionTaken.upsert({
+        where: { clientRequestId: fixture.clientRequestId },
+        update: {
+          ticketId: fixture.ticket.id,
+          workflowCycle: fixture.workflowCycle,
+          createFingerprint: fingerprint,
+          createdById: fixture.createdById,
+          actionDescription: fixture.actionDescription,
+          result: fixture.result,
+          status: fixture.status,
+          assigneeId: fixture.assigneeId,
+          performedById: fixture.performedById,
+          followUpRequired: fixture.followUpRequired,
+          followUpNote: fixture.followUpNote,
+          attachmentNotes: fixture.attachmentNotes,
+          completedAt: fixture.completedAt,
+          cancelledAt: fixture.cancelledAt,
+          version: 0,
+        },
+        create: {
+          ticketId: fixture.ticket.id,
+          workflowCycle: fixture.workflowCycle,
+          clientRequestId: fixture.clientRequestId,
+          createFingerprint: fingerprint,
+          createdById: fixture.createdById,
+          actionDescription: fixture.actionDescription,
+          result: fixture.result,
+          status: fixture.status,
+          assigneeId: fixture.assigneeId,
+          performedById: fixture.performedById,
+          followUpRequired: fixture.followUpRequired,
+          followUpNote: fixture.followUpNote,
+          attachmentNotes: fixture.attachmentNotes,
+          completedAt: fixture.completedAt,
+          cancelledAt: fixture.cancelledAt,
+          version: 0,
+        },
+      });
+        await prisma.actionTakenEvent.upsert({
+        where: { actionTakenId_actionVersion: { actionTakenId: action.id, actionVersion: 0 } },
+        update: {
+          ticketId: fixture.ticket.id,
+          workflowCycle: fixture.workflowCycle,
+          eventType: ActionEventType.CREATED,
+          actorId: fixture.createdById,
+          toStatus: ActionStatus.PLANNED,
+          toAssigneeId: fixture.assigneeId,
+          ticketVersion: 0,
+          changedFields: ["actionDescription", "assigneeId", "result", "followUpRequired", "followUpNote", "attachmentNotes"],
+        },
+        create: {
+          actionTakenId: action.id,
+          ticketId: fixture.ticket.id,
+          workflowCycle: fixture.workflowCycle,
+          eventType: ActionEventType.CREATED,
+          actorId: fixture.createdById,
+          toStatus: ActionStatus.PLANNED,
+          toAssigneeId: fixture.assigneeId,
+          actionVersion: 0,
+          ticketVersion: 0,
+          changedFields: ["actionDescription", "assigneeId", "result", "followUpRequired", "followUpNote", "attachmentNotes"],
+        },
+        });
+      }
+    }
+
     console.log(
-      `Seeded Lab 3 reference data, ${requesterFixtures.length} Requester fixtures, ${staffFixtures.length} IT Staff fixtures, ${adminFixtures.length} Administrator fixture, and ${ticketFixtures.length} Lab 3 Tickets.`,
+      lab4SchemaAvailable
+        ? `Seeded Lab 4 reference data, ${requesterFixtures.length} Requester fixtures, ${staffFixtures.length} IT Staff fixtures, ${adminFixtures.length} Administrator fixture, ${ticketFixtures.length} Tickets, and ${actionFixtures.length} Actions Taken.`
+        : `Seeded Lab 3-compatible reference data, ${requesterFixtures.length} Requester fixtures, ${staffFixtures.length} IT Staff fixtures, ${adminFixtures.length} Administrator fixture, and ${ticketFixtures.length} Tickets.`,
     );
   } finally {
     if (ownClient) await prisma.$disconnect();

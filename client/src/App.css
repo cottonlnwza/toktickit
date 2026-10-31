@@ -171,6 +171,138 @@
   outline-offset: 3px;
 }
 
+.auth-nav-item[aria-current="page"] {
+  text-decoration: underline;
+  text-underline-offset: 0.3rem;
+}
+
+.dashboard-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.dashboard-heading,
+.dashboard-failure,
+.dashboard-row {
+  align-items: center;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+}
+
+.dashboard-heading p,
+.dashboard-panel h3 {
+  margin-bottom: 0;
+}
+
+.dashboard-metrics {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.dashboard-metric,
+.dashboard-panel {
+  background: #ffffff;
+  border: 1px solid #d6e2db;
+  border-radius: 10px;
+  color: #1f352b;
+  padding: 1rem;
+}
+
+.dashboard-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-height: 110px;
+  text-decoration: none;
+}
+
+.dashboard-metric strong {
+  font-size: 1.65rem;
+}
+
+a.dashboard-metric:hover,
+a.dashboard-metric:focus-visible {
+  border-color: #0b7a46;
+  color: #1f352b;
+  outline: 3px solid rgba(11, 122, 70, 0.2);
+}
+
+.dashboard-panel:focus-visible {
+  outline: 3px solid rgba(11, 122, 70, 0.28);
+  outline-offset: 3px;
+}
+
+.dashboard-columns {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dashboard-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.dashboard-row {
+  border-top: 1px solid #e5ece8;
+  padding-top: 0.75rem;
+}
+
+.dashboard-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.dashboard-row span,
+.dashboard-row small {
+  overflow-wrap: anywhere;
+}
+
+.dashboard-empty {
+  color: #5d6f65;
+  margin: 1rem 0 0;
+}
+
+.status-summary {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 1rem;
+}
+
+.status-summary span {
+  background: #f5f7f6;
+  border-radius: 8px;
+  padding: 0.65rem;
+}
+
+@media (max-width: 991.98px) {
+  .dashboard-metrics,
+  .status-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 767.98px) {
+  .dashboard-columns,
+  .dashboard-metrics,
+  .status-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-heading,
+  .dashboard-row,
+  .dashboard-failure {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .requester-display {
   align-items: flex-end;
   display: flex;
@@ -348,6 +480,104 @@
   gap: 0.35rem 0.75rem;
   grid-template-columns: minmax(120px, 0.4fr) minmax(0, 1.6fr);
   margin-bottom: 0;
+}
+
+.actions-taken-section {
+  margin-top: 1.5rem;
+}
+
+.actions-heading,
+.action-card-heading,
+.action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.actions-heading p {
+  margin: 0;
+  color: #5d6f65;
+}
+
+.actions-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.action-card {
+  border: 1px solid #d6e2db;
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1rem;
+}
+
+.action-card.historical {
+  background: #f3f2ea;
+}
+
+.action-card-heading {
+  margin-bottom: 0.75rem;
+}
+
+.action-card-heading strong {
+  color: #006b3c;
+}
+
+.action-detail-grid,
+.action-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.action-detail-grid > div,
+.action-form-grid > div {
+  min-width: 0;
+}
+
+.action-detail-grid .detail-wide,
+.action-form-grid .detail-wide {
+  grid-column: 1 / -1;
+}
+
+.action-detail-grid dt {
+  color: #5d6f65;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.action-detail-grid dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.action-detail-grid > div {
+  background: #f3f2ea;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+}
+
+.action-card.historical .action-detail-grid > div {
+  background: #ffffff;
+}
+
+.action-buttons {
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+.action-form {
+  border-top: 1px solid #d6e2db;
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+}
+
+.action-form-grid {
+  margin: 1rem 0;
 }
 
 .staff-detail-section dt {
@@ -1013,8 +1243,20 @@
 
   .staff-detail-grid,
   .staff-operation-grid,
-  .staff-detail-section dl {
+  .staff-detail-section dl,
+  .action-detail-grid,
+  .action-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .action-detail-grid .detail-wide,
+  .action-form-grid .detail-wide {
+    grid-column: auto;
+  }
+
+  .action-buttons .btn,
+  .action-form > .btn {
+    width: 100%;
   }
 
   .admin-users-panel {

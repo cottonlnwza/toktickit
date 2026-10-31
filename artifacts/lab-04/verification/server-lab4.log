@@ -1,0 +1,18 @@
+
+ RUN  v2.1.9 /Users/cotton/Downloads/CPE334_SE/toktickit/server
+
+ ✓ tests/lab-04/actions-taken.api.test.ts (16 tests) 4356ms
+   ✓ Lab 4 Actions Taken API foundation > API-02 fingerprints the authoritative locked workflow cycle when Ticket state changes before commit 358ms
+ ✓ tests/lab-04/ticket-workflow.api.test.ts (25 tests) 4258ms
+ ✓ tests/lab-04/staff-dashboard.api.test.ts (2 tests) 511ms
+ ✓ tests/lab-04/requester-dashboard.api.test.ts (4 tests) 718ms
+ ✓ tests/lab-04/ticket-aggregate-version.api.test.ts (2 tests) 494ms
+ ✓ tests/lab-04/performance-smoke.test.ts (1 test) 238ms
+ ✓ tests/lab-04/actions-taken.unit.test.ts (3 tests) 2ms
+ ✓ tests/lab-04/dashboard.unit.test.ts (1 test) 2ms
+ ✓ tests/lab-04/ticket-workflow.unit.test.ts (1 test) 1ms
+
+ Test Files  9 passed (9)
+      Tests  55 passed (55)
+   Start at  20:29:19
+   Duration  12.06s (transform 84ms, setup 0ms, collect 375ms, tests 10.58s, environment 1ms, prepare 182ms)
